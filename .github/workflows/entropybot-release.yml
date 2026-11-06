@@ -39,11 +39,10 @@ jobs:
       - run: pnpm typecheck
         env:
           NODE_OPTIONS: --max-old-space-size=6144
-      - name: Verify updater boundary and migration contracts
-        run: pnpm exec vitest run electron/entropybot-updater.test.mjs electron/updater.test.mjs server/local-computer.test.ts server/context-rebuild.test.ts server/drivers/chat-size-limit.test.ts server/recall.test.ts server/memory-embeddings.test.ts
-      - name: Verify memory settings and secure credential contracts
-        run: pnpm exec vitest run electron/memory-credentials.test.mjs electron/workspace-credentials.test.mjs electron/secure-credential-state.test.mjs server/workspace-backup-policy.test.ts server/memory-embedding-config.test.ts server/memory-embedding-client.test.ts server/memory-embedding-index.test.ts server/memory-embedding-auth.test.ts server/memory-embedding-settings.e2e.test.ts src/components/MemorySettings.test.ts src/components/SettingsModal.simple.test.ts src/state/memory-status.test.ts
-      - run: node --test electron/workspace-credentials-save.node-test.mjs electron/credential-patch.node-test.mjs
+      - name: Verify upstream patch contracts and behavior
+        run: node scripts/check-patches.mjs --verify
+      - name: Verify desktop boundaries
+        run: pnpm exec vitest run electron/updater.test.mjs server/local-computer.test.ts
       - name: Build Apple silicon application
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
