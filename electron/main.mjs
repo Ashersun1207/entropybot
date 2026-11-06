@@ -439,15 +439,15 @@ async function secureWorkspaceConfig() {
   const configPath = path.join(dataDir, "config.json");
   try {
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    const migrated = await persistWorkspaceCredentialMigration(config, secureCredentials, {
+    await persistWorkspaceCredentialMigration(config, secureCredentials, {
       saveCredentials: saveSecureCredentials,
+      onCredentialsCommitted: (credentials) => { secureCredentials = credentials; },
       saveConfig: (next) => {
         const temporary = `${configPath}.${process.pid}.tmp`;
         fs.writeFileSync(temporary, JSON.stringify(next, null, 2), { mode: 0o600 });
         fs.renameSync(temporary, configPath);
       },
     });
-    secureCredentials = migrated.credentials;
   } catch (error) {
     if (error?.code !== "ENOENT") slog("credential migration failed; the plaintext configuration was left unchanged");
   }

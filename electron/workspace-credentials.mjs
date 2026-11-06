@@ -46,9 +46,10 @@ export function migrateWorkspaceCredentials(config, credentials) {
   return { config: nextConfig, credentials: nextCredentials, configChanged, credentialsChanged };
 }
 
-export async function persistWorkspaceCredentialMigration(config, credentials, { saveCredentials, saveConfig }) {
+export async function persistWorkspaceCredentialMigration(config, credentials, { saveCredentials, saveConfig, onCredentialsCommitted }) {
   const migrated = migrateWorkspaceCredentials(config, credentials);
   if (migrated.credentialsChanged) await saveCredentials(migrated.credentials);
+  onCredentialsCommitted?.(migrated.credentials);
   if (migrated.configChanged) await saveConfig(migrated.config);
   return migrated;
 }

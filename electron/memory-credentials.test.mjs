@@ -19,9 +19,10 @@ describe("memory credential storage", () => {
     let disk = config();
     const result = await persistWorkspaceCredentialMigration(disk, { boxToken: "fixture-box" }, {
       saveCredentials: async (value) => { order.push("encrypted"); stored = value; },
+      onCredentialsCommitted: () => { order.push("committed"); },
       saveConfig: async (value) => { order.push("config"); disk = value; },
     });
-    expect(order).toEqual(["encrypted", "config"]);
+    expect(order).toEqual(["encrypted", "committed", "config"]);
     expect(stored).toEqual({ boxToken: "fixture-box", memoryEmbeddingKey: "fixture-memory-old" });
     expect(disk.memoryEmbedding).toEqual({ enabled: true, model: "fixture-model" });
     expect(workspaceCredentialEnv(result.credentials)).toEqual({ BOX_TOKEN: "fixture-box", OMB_MEMORY_EMBEDDING_KEY: "fixture-memory-old", OMB_MEMORY_EMBEDDING_STORAGE: "secure" });
@@ -38,27 +39,37 @@ describe("memory credential storage", () => {
     const disk = config();
     const other = { boxToken: "fixture-box" };
     const saveConfig = vi.fn();
+    const onCredentialsCommitted = vi.fn();
     await expect(persistWorkspaceCredentialMigration(disk, other, {
-      saveCredentials: async () => { throw new Error("fixture locked store"); }, saveConfig,
+      saveCredentials: async () => { throw new Error("fixture locked store"); }, saveConfig, onCredentialsCommitted,
     })).rejects.toThrow("fixture locked store");
+    expect(onCredentialsCommitted).not.toHaveBeenCalled();
     expect(saveConfig).not.toHaveBeenCalled();
     expect(disk).toEqual(config());
     expect(other).toEqual({ boxToken: "fixture-box" });
   });
 
-  it("recovers after config persistence failure without losing either copy", async () => {
-    const disk = config();
-    let encrypted = { boxToken: "fixture-box" };
-    await expect(persistWorkspaceCredentialMigration(disk, encrypted, {
-      saveCredentials: async (value) => { encrypted = value; },
-      saveConfig: async () => { throw new Error("fixture config write failed"); },
-    })).rejects.toThrow("fixture config write failed");
-    expect(disk.memoryEmbedding.key).toBe("fixture-memory-old");
-    expect(encrypted.memoryEmbeddingKey).toBe("fixture-memory-old");
-    const saveCredentials = vi.fn();
-    const result = await persistWorkspaceCredentialMigration(disk, encrypted, { saveCredentials, saveConfig: vi.fn() });
-    expect(saveCredentials).not.toHaveBeenCalled();
-    expect(result.config.memoryEmbedding).not.toHaveProperty("key");
+  it.each(["write", "rename"])("retains migrated slots in the caller's next transaction after config %s fails", async (failure) => {
+    const disk = { ...config(), xai: { key: "fixture-xai-migrated" } };
+    const initialCallerDocument = { boxToken: "fixture-box" };
+    let callerCredentials = initialCallerDocument;
+    let encrypted = structuredClone(initialCallerDocument);
+    const persist = async (value) => { encrypted = structuredClone(value); };
+    await expect(persistWorkspaceCredentialMigration(disk, callerCredentials, {
+      saveCredentials: persist,
+      onCredentialsCommitted: (value) => { callerCredentials = value; },
+      saveConfig: async () => { throw new Error(`fixture config ${failure} failed`); },
+    })).rejects.toThrow(`fixture config ${failure} failed`);
+    const state = createSecureCredentialState(callerCredentials, persist);
+    await state.update((value) => withWorkspaceCredential(value, "postizApiKey", "fixture-unrelated-save"));
+    expect(encrypted).toEqual({
+      boxToken: "fixture-box", memoryEmbeddingKey: "fixture-memory-old",
+      xaiApiKey: "fixture-xai-migrated", postizApiKey: "fixture-unrelated-save",
+    });
+    expect(callerCredentials).not.toBe(initialCallerDocument);
+    expect(initialCallerDocument).toEqual({ boxToken: "fixture-box" });
+    expect(disk).toEqual({ ...config(), xai: { key: "fixture-xai-migrated" } });
+    expect(workspaceCredentialEnv(callerCredentials)).toMatchObject({ OMB_MEMORY_EMBEDDING_KEY: "fixture-memory-old", XAI_API_KEY: "fixture-xai-migrated" });
   });
 
   it("rolls back replacement and removal if the harness rejects the secure transaction", async () => {

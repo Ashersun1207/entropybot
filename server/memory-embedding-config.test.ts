@@ -40,6 +40,29 @@ describe("memory embedding configuration", () => {
     expect(memoryEmbeddingStatus({ memoryEmbedding: memoryEmbeddingEnv() })).toMatchObject({ storage: "none", configured: false });
   });
 
+  it.each([
+    { key: "fixture-plaintext", configured: true, storage: "plaintext" },
+    { key: "", configured: false, storage: "unavailable" },
+    { key: undefined, configured: false, storage: "unavailable" },
+  ])("reports known plaintext before unavailable storage: $storage / $configured", ({ key, configured, storage }) => {
+    vi.stubEnv("OMB_CREDENTIAL_STORE", "unavailable");
+    const value = memoryEmbeddingEnv({ enabled: true, key });
+    const status = memoryEmbeddingStatus({ memoryEmbedding: value });
+    expect(status).toMatchObject({ configured, storage });
+    expect(status).not.toHaveProperty("key");
+    expect(JSON.stringify(status)).not.toContain("fixture-plaintext");
+  });
+
+  it("keeps a plaintext warning when an unavailable store also has an injected environment key", () => {
+    vi.stubEnv("OMB_CREDENTIAL_STORE", "unavailable");
+    vi.stubEnv("OMB_MEMORY_EMBEDDING_KEY", "fixture-environment");
+    vi.stubEnv("OMB_MEMORY_EMBEDDING_STORAGE", "secure");
+    saveConfig({ memoryEmbedding: { enabled: true, key: "fixture-unmigrated" } });
+    const status = memoryEmbeddingStatus(loadConfig());
+    expect(status).toMatchObject({ configured: true, storage: "plaintext" });
+    expect(JSON.stringify(status)).not.toMatch(/fixture-(?:environment|unmigrated)/);
+  });
+
   it("keeps explicit removal across a restart and does not change the legacy operator variable", () => {
     vi.stubEnv("DASHSCOPE_API_KEY", "fixture-operator");
     saveConfig({ memoryEmbedding: { enabled: true, key: "" } });

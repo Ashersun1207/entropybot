@@ -39,8 +39,8 @@ export function memoryEmbeddingEnv(value: MemoryEmbeddingConfig = {}): MemoryEmb
     ...(process.env.OMB_MEMORY_EMBEDDING_URL !== undefined ? { url: process.env.OMB_MEMORY_EMBEDDING_URL } : {}),
     ...(process.env.OMB_MEMORY_EMBEDDING_MODEL !== undefined ? { model: process.env.OMB_MEMORY_EMBEDDING_MODEL } : {}),
   };
-  const storage: MemoryEmbeddingStorage = process.env.OMB_CREDENTIAL_STORE === "unavailable" ? "unavailable"
-    : value.key?.trim() ? "plaintext"
+  const storage: MemoryEmbeddingStorage = value.key?.trim() ? "plaintext"
+    : process.env.OMB_CREDENTIAL_STORE === "unavailable" ? "unavailable"
       : !key?.trim() ? "none"
         : ownKey !== undefined && process.env.OMB_MEMORY_EMBEDDING_STORAGE === "secure" ? "secure" : "environment";
   storageSources.set(result, storage);
