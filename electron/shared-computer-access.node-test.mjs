@@ -523,9 +523,12 @@ test("a protected directory spelled in another case is still refused", async t =
   await writeFile(path.join(dir, "Entropybot", "credentials.bin"), "credential blob");
   grant.protectedPaths = [path.join(dir, "Entropybot")];
   folder.write = true;
-  await assert.rejects(run({ action: "read_file", path: "Entropybot/credentials.bin" }), /Desktop credentials/);
-  await assert.rejects(run({ action: "read_file", path: "entropybot/credentials.bin" }), /Desktop credentials/);
-  await assert.rejects(run({ action: "read_file", path: "OPENENTROPYBOT/credentials.bin" }), /Desktop credentials/);
+  const protectedDirectory = await stat(path.join(dir, "Entropybot"), { bigint: true });
+  for (const spelling of ["Entropybot", "entropybot", "ENTROPYBOT"]) {
+    const directory = await stat(path.join(dir, spelling), { bigint: true });
+    assert.deepEqual([directory.dev, directory.ino], [protectedDirectory.dev, protectedDirectory.ino], `${spelling} names the protected directory`);
+    await assert.rejects(run({ action: "read_file", path: `${spelling}/credentials.bin` }), /Desktop credentials/);
+  }
   await assert.rejects(run({ action: "list_files", path: "entropybot" }), /Desktop credentials/);
   await assert.rejects(run({ action: "write_file", path: "entropybot/computer-sharing.json", content: "{}" }), /sharing settings/);
 });
