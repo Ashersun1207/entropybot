@@ -19,6 +19,7 @@
 | P12 | 数据查询公开提前中断不丢失 | `server/data/engine.ts` | `server/data/engine.test.ts`、`server/data/engine-interrupt.test.ts`、`server/data/engine-interrupt-native.test.ts` | 未合并 | 保留原 deadline/首因、单 retry、state 身份及 finally；此修复不保证截止后派发或所有 bot Stop |
 | P14 | 记忆提示投影过滤 superseded / expired | `server/workspace.ts`、`server/memory-upkeep.ts` | `server/memory-prompt-projection.test.ts`、`server/workspace.test.ts`、`server/memory-upkeep.test.ts` | 未合并 | 只在模型可见投影过滤，原文/UI/archive/journal 保留；聊天、摘要、日志、备份不在范围 |
 | P15 | 桌面手动更新检查失败状态 | `electron/updater.mjs`、`src/lib/updater.ts`、`src/components/AppSettingsRows.tsx`、locale | `electron/entropybot-updater.test.mjs`、`src/components/SettingsModal.manual-updates.test.ts` | 未合并 | 缺 tag/无效版本/HTTP/超时/坏响应均失败可重试，不显示最新；不改来源、服务端或自动安装 |
+| P16 | 长对话连续压缩保留活跃约束 | `server/active-constraints.ts`、`server/compaction-summary.ts` | `server/compaction-constraints.test.ts`、`server/context-compaction.e2e.test.ts` | 未合并 | 只保留有限条活跃约束/纠正/目标，跨两次压缩与重启；中英文 cue 与有界块，不是完整语义引擎；不提高 60KB/6KB 预算 |
 | P13 | 门槛执行截止、取消及验证 fixture 资源确认 | `scripts/patch-gate-process.ts`、`scripts/check-patches.mjs`、`server/verification-process-scope.ts`、`scripts/testing/verification-{lifecycle,server-preload}.ts`、`server/procs.ts`、`server/graceful-shutdown.ts`、`scripts/control-omb.ts` | `scripts/testing/patch-gate-{process.test.ts,cli.test.mjs}`、`scripts/testing/verification-lifecycle.test.ts`、`scripts/testing/verification-boundary.e2e.test.ts`、`server/verification-process-scope.test.ts` | 未合并 | 保留自有组与内部登记资源分开确认、INIT/lease 身份、异常保留目录、按代重启；确认域仅限本次登记正常 fixture CLI 与自有外组，Windows/未知平台行为执行前拒绝 |
 
 契约清单见 `scripts/patch-contracts.mjs`，区分结构规则与必须执行的行为测试。P10 的行为测试已列入自有 CI；新增完整门槛的 workflow 接入由主控处理。设置、凭证与验证边界见 [记忆设置验收](verification/memory-embedding-settings.md)。
@@ -27,7 +28,7 @@
 
 本轮源码基线固定为 `c1aeda2501c5a003446acb413de46d0e16012976`。这是 Entropybot 定制源码基线，不是“上游最新版本”。源码上游固定 SHA、Entropybot 应用版本（本轮基线为 0.2.3）、外部执行引擎版本和模型版本分别记录、分别验证；源码同步不能替代引擎能力或模型效果验收。脚本不 fetch、merge、下载上游实现或恢复上游发布 workflow。
 
-最终集成清单包含 30 项结构契约，行为文件清单为 43 个 Vitest 文件、5 个 Node test 文件。契约测试共 10 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL；桌面 updater 的既有三项行为测试保持登记。
+最终集成清单包含 30 项结构契约，行为文件清单为 44 个 Vitest 文件、5 个 Node test 文件。契约测试共 10 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL；桌面 updater 的既有三项行为测试保持登记。
 
 | 契约 | 结构保护范围 | 复用的行为证据 |
 |---|---|---|
@@ -81,6 +82,10 @@ P13 的 5 个新增 suite 与既有 gate 回归也在同一清单；执行器确
 P14 在 `loadMemory` / capture 输入投影层过滤整条 superseded/expired 条目，先过滤再应用原行/字节预算；原始 `MEMORY.md`、UI 编辑、archive、journal 保留。它不处理历史聊天、压缩摘要、`memory/log`、备份或向量，不能称为彻底遗忘。
 
 P15 让桌面手动更新检查区分无新版、有新版与失败；缺 tag/空 tag/无效版本/HTTP/超时/坏 JSON 均为固定脱敏、可重试失败，不再显示“已是最新”。版本比较、更新来源、服务端语义及手动模式不自动安装保持原样。两项新增回归均进入统一行为清单；真实 Electron IPC、系统安装和真实网络仍未验证。
+
+## 第五轮集成
+
+P16 在摘要投影中加入有界活跃约束块：从当前分支用户消息及上一摘要块提取，支持新增、纠正、完成/取消和日期过期，最多 12 条/1800 bytes；摘要输入先为约束块留空间，确定性/模型回退都保留该块。覆盖两次真实压缩、重启、分支锚点、回退与中英文 cue。它不保存全部历史，不保证真实模型服从，也不处理所有自然语言改写；不得以此提高 60KB/6KB 预算。
 
 ## 必须保留（不可替换）
 
