@@ -50,10 +50,17 @@ function mentions(line: string, candidate: string): boolean {
   return shared >= 2;
 }
 
+function validDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year!, month! - 1, day!));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month! - 1 && parsed.getUTCDate() === day;
+}
+
 function expired(line: string, today: string): boolean {
   const dates = [...line.matchAll(DATE)]
     .map((match) => match[1] ?? match[2])
-    .filter((date): date is string => Boolean(date));
+    .filter((date): date is string => Boolean(date) && validDate(date!));
   return dates.length > 0 && dates.every((date) => date < today);
 }
 
@@ -74,14 +81,22 @@ export function sanitizeConstraintText(text: string): string {
 }
 
 function previousBlock(text: string): string[] {
-  // The canonical block is appended after any model-written summary; read that one, never a quoted earlier block.
-  const start = text.lastIndexOf(ACTIVE_CONSTRAINTS_OPEN);
-  if (start < 0) return [];
-  const end = text.indexOf(ACTIVE_CONSTRAINTS_CLOSE, start);
-  if (end < 0) return [];
-  return text.slice(start + ACTIVE_CONSTRAINTS_OPEN.length, end).split("\n")
-    .map((line) => line.replace(/^\s*-\s*/, "").trim())
-    .filter((line) => line && !line.startsWith("["));
+  // Only a complete block at the very end, with line boundaries, is a program block.
+  // A model/reference quote in the middle, or a JSON-escaped excerpt, cannot satisfy this shape.
+  const all = text.split("\n");
+  let close = all.length - 1;
+  if (all[close] === "") close -= 1;
+  if (close < 1 || all[close] !== ACTIVE_CONSTRAINTS_CLOSE) return [];
+  const body: string[] = [];
+  for (let index = close - 1; index >= 0; index -= 1) {
+    const line = all[index]!;
+    if (line === ACTIVE_CONSTRAINTS_OPEN) {
+      return body.length ? body.reverse().map((entry) => entry.slice(2).trim()).filter((entry) => entry && !entry.startsWith("[")) : [];
+    }
+    if (!line.startsWith("- ") || line.includes(ACTIVE_CONSTRAINTS_OPEN) || line.includes(ACTIVE_CONSTRAINTS_CLOSE)) return [];
+    body.push(line);
+  }
+  return [];
 }
 
 function outsideBlocks(text: string): string[] {
