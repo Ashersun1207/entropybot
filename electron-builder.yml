@@ -34,6 +34,8 @@ afterPack: ./scripts/after-pack.mjs
 files:
   - electron/**
   - "!electron/**/*.test.*"
+  - "!electron/**/*.node-test.mjs"
+  - "!electron/**/*fixture*.py"
   - "!electron/resources/speech-helper"
   - "!electron/resources/speech-helper.swift"
   - "!electron/resources/speech-helper-Info.plist"
