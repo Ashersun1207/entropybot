@@ -11,7 +11,7 @@ import { isForgotten } from "./profile-learned.ts";
 import { applyMoves, MAX_MOVES, organizeCandidates, organizePrompt, parseMoves } from "./memory-organize.ts";
 import { recordMemoryChange } from "./memory-journal.ts";
 import { applyTidy, contradictionCandidates, contradictionPrompt, parseContradictions, planChanges, planTidy, type Contradiction } from "./memory-tidy.ts";
-import { appendMemoryArchive, ARCHIVE_TOPIC, ensureWorkspace, listMemoryTopics, memoryDate, memoryEntry, memoryTopicIndex, readMemoryText, updateMemory, workspaceDir, writeMemoryFile, writeMemoryTopic } from "./workspace.ts";
+import { appendMemoryArchive, ARCHIVE_TOPIC, ensureWorkspace, listMemoryTopics, memoryDate, memoryEntry, memoryTopicIndex, memoryVisibleText, readMemoryText, updateMemory, workspaceDir, writeMemoryFile, writeMemoryTopic } from "./workspace.ts";
 
 export { dreamConversations } from "./memory-dream.ts";
 
@@ -439,7 +439,7 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
     const answer = await askModel(engine, capturePrompt({
       botName: bot.name,
       conversations: conversations.map((conversation) => conversation.turns),
-      notebook: readRaw(id, "MEMORY.md") ?? "",
+      notebook: memoryVisibleText(readRaw(id, "MEMORY.md") ?? "", today).text,
       today,
       topics: memoryTopicIndex(id),
     }));

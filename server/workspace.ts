@@ -151,6 +151,11 @@ export function memoryOverBudget(text: string): boolean {
   return memoryLineCount(text) > MEMORY_MAX_LINES || Buffer.byteLength(text, "utf8") > MEMORY_MAX_BYTES;
 }
 
+export function memoryVisibleText(text: string, today: string = memoryDate()): { text: string; expired: number } {
+  const visible = withoutExpired(text, today);
+  return { text: withoutSuperseded(visible.text), expired: visible.hidden };
+}
+
 export function loadMemory(botId: string, opts: { now?: Date } = {}): { text: string; truncated: boolean; lines: number; bytes: number; expired: number } | null {
   let raw: string;
   try {
@@ -160,7 +165,7 @@ export function loadMemory(botId: string, opts: { now?: Date } = {}): { text: st
   }
   if (!raw.trim() || isMemorySeed(raw)) return null;
   let truncated = false;
-  const visible = withoutExpired(raw, memoryDate(opts.now));
+  const visible = memoryVisibleText(raw, memoryDate(opts.now));
   let text = visible.text;
   const lines = text.split("\n");
   if (memoryLineCount(text) > MEMORY_MAX_LINES) {
@@ -173,7 +178,7 @@ export function loadMemory(botId: string, opts: { now?: Date } = {}): { text: st
     text = text.replace(/�+$/, "");
     truncated = true;
   }
-  return { text, truncated, lines: memoryLineCount(raw), bytes: Buffer.byteLength(raw, "utf8"), expired: visible.hidden };
+  return { text, truncated, lines: memoryLineCount(raw), bytes: Buffer.byteLength(raw, "utf8"), expired: visible.expired };
 }
 
 export const MEMORY_FILE_MAX_BYTES = 256 * 1024;
