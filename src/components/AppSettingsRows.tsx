@@ -28,22 +28,19 @@ export function UpdatesRow({ title = t("settings.updates.title") }: { title?: st
   const updater = window.ogb?.updater;
   if (!s || !updater) return null;
   if (s.mode === "manual") {
-    const chinese = activeLocale().startsWith("zh");
     const available = s.status === "available";
     const checking = s.status === "checking";
+    const failed = s.status === "error";
     return (
       <SettingRow
         title={title}
         subtitle={available
-          ? (chinese ? `有新版本 ${s.version}，下载安装包后替换应用。` : `Version ${s.version} is available; download and replace the app.`)
-          : (chinese ? "手动更新：只检查版本，不会自动下载或替换。" : "Manual updates: check only; nothing is downloaded or replaced.")}
+          ? t("settings.updates.manualAvailable", { version: s.version ?? "" })
+          : s.status === "idle" && s.version ? t("settings.updates.latest") : t("settings.updates.manual")}
+        message={failed ? <p role="alert" className="text-danger">{updaterMessage(s)}</p> : null}
       >
         <button className="ui-button" disabled={checking} onClick={() => void updater.check()}>
-          {checking
-            ? (chinese ? "正在检查…" : "Checking…")
-            : available
-              ? (chinese ? "打开发布页" : "Open Releases")
-              : (chinese ? "检查更新" : "Check for updates")}
+          {t(checking ? "settings.updates.checking" : available ? "settings.updates.openReleases" : failed ? "common.tryAgain" : "settings.updates.check")}
         </button>
       </SettingRow>
     );

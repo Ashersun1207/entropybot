@@ -31047,7 +31047,10 @@
       "memorySettings.plaintext": "2d0b39316b8434ec0ea81562b98495cae47500a4971b237021543e814b8375c2",
       "memorySettings.environment": "912a61b359ed25ae268050d1131150872fb517999826634236581248e135bab6",
       "memorySettings.storageUnavailable": "f214efc3d134a824f333dde4fa7ec53118e43082d61efe4d5dad93c847c653ab",
-      "memorySettings.storageUnknown": "90a39edbce39a839e5626313b77969ebed7373ceccf9df42fd7b0f5d141a466c"
+      "memorySettings.storageUnknown": "90a39edbce39a839e5626313b77969ebed7373ceccf9df42fd7b0f5d141a466c",
+      "settings.updates.manual": "26d75d8a438debb09994977faefcad6a7c9ae877e4f9d1adf2ad5ebb6a3b1db7",
+      "settings.updates.manualAvailable": "c04a43b54cb5917670557ab4c08a2fb2c4895cec3048f02d15e55aa5704ea8c3",
+      "settings.updates.openReleases": "614fd176ec26321bdc93bdd8c03fb158775db0c7225c82a7bf0a2b138bb1a5f0"
     },
     "zh": {
       "highlevel.unavailable": "87b8ac7f7610e6dd69f520bc59058fd92f307b9f4bcf804075f25d08bcaa7533",
@@ -38498,7 +38501,10 @@
       "memorySettings.plaintext": "2d0b39316b8434ec0ea81562b98495cae47500a4971b237021543e814b8375c2",
       "memorySettings.environment": "912a61b359ed25ae268050d1131150872fb517999826634236581248e135bab6",
       "memorySettings.storageUnavailable": "f214efc3d134a824f333dde4fa7ec53118e43082d61efe4d5dad93c847c653ab",
-      "memorySettings.storageUnknown": "90a39edbce39a839e5626313b77969ebed7373ceccf9df42fd7b0f5d141a466c"
+      "memorySettings.storageUnknown": "90a39edbce39a839e5626313b77969ebed7373ceccf9df42fd7b0f5d141a466c",
+      "settings.updates.manual": "26d75d8a438debb09994977faefcad6a7c9ae877e4f9d1adf2ad5ebb6a3b1db7",
+      "settings.updates.manualAvailable": "c04a43b54cb5917670557ab4c08a2fb2c4895cec3048f02d15e55aa5704ea8c3",
+      "settings.updates.openReleases": "614fd176ec26321bdc93bdd8c03fb158775db0c7225c82a7bf0a2b138bb1a5f0"
     },
     "zh-tw": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",

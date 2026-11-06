@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { setLocale } from "@/lib/i18n";
+import { setLocale, t } from "@/lib/i18n";
 import { updaterMessage } from "@/lib/updater";
 import { connectionMessage } from "@/components/OrganizationSettings";
 
@@ -21,6 +21,19 @@ it("translates fixed native update words at render time, retaining raw diagnosti
   expect(updaterMessage({ ...failed, messageCode: "network" })).not.toContain("Offline detail");
   setLocale("en");
   expect(updaterMessage({ ...failed, messageCode: "network" })).toBe(failed.message);
+});
+
+it("uses only fixed localized wording for manual failures even with unsafe legacy diagnostics", () => {
+  const canary = "SECRET_UPDATE_CANARY https://private.example.test/?token=secret";
+  for (const locale of ["en", "zh-CN", "pt-br"]) {
+    setLocale(locale);
+    const state = { mode: "manual", status: "error", retryable: false, message: canary,
+      messageCode: "network", messageKey: "native.update.checkFailed", messageParams: { error: canary } } as const;
+    const text = updaterMessage(state);
+    expect(text).toBe(t("sidebar.update.checkFailed"));
+    expect(text).not.toContain("SECRET_UPDATE_CANARY");
+    expect(text).not.toContain("private.example.test");
+  }
 });
 
 it("says the updater's own words in the app's language, and keeps a message main could not classify", () => {

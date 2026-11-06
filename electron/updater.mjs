@@ -5,6 +5,7 @@ import { RELEASES_URL, UPDATE_MODE } from "./update-policy.mjs";
 
 const LATEST_RELEASE_URL = "https://api.github.com/repos/Ashersun1207/entropybot/releases/latest";
 let manualTimer = null;
+let manualPending = null;
 
 /** Numeric compare for tags like 0.2.2; anything unparseable is not an update. */
 function newerThan(latest, current) {
@@ -17,21 +18,26 @@ function newerThan(latest, current) {
 }
 
 /** Manual distribution: report a newer release, never download or install it. */
-async function manualCheck() {
-  setState({ status: "checking" });
-  try {
-    const response = await fetch(LATEST_RELEASE_URL, {
-      headers: { accept: "application/vnd.github+json", "user-agent": "entropybot-update-check" },
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const body = await response.json();
-    const latest = String(body?.tag_name ?? "").replace(/^entropybot-/, "").replace(/^v/, "");
-    if (newerThan(latest, app.getVersion())) setState({ status: "available", version: latest, releasesUrl: RELEASES_URL });
-    else setState({ status: "idle" });
-  } catch {
-    setState({ status: "idle" });
-  }
+function manualCheck() {
+  if (manualPending) return manualPending;
+  setState({ status: "checking", version: undefined, message: undefined, retryable: true });
+  manualPending = (async () => {
+    try {
+      const response = await fetch(LATEST_RELEASE_URL, {
+        headers: { accept: "application/vnd.github+json", "user-agent": "entropybot-update-check" },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!response.ok) throw new Error("release_check_failed");
+      const body = await response.json();
+      if (typeof body?.tag_name !== "string") throw new Error("invalid_release_tag");
+      const latest = body.tag_name.trim().replace(/^entropybot-/, "").replace(/^v/, "");
+      if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(latest)) throw new Error("invalid_release_tag");
+      setState({ status: newerThan(latest, app.getVersion()) ? "available" : "idle", version: latest });
+    } catch {
+      setState({ status: "error", message: "Couldn't check for updates. Try again.", retryable: true });
+    }
+  })().finally(() => { manualPending = null; });
+  return manualPending;
 }
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";

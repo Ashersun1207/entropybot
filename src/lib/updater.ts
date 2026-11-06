@@ -26,6 +26,7 @@ const UPDATE_TEXT: Record<NonNullable<UpdaterState["messageCode"]>, LocaleKey> =
 
 export function updaterMessage(state: UpdaterState | null | undefined, { restart = true } = {}): string | undefined {
   if (!state) return undefined;
+  if (state.mode === "manual" && state.status === "error") return t("sidebar.update.checkFailed");
   const code = state.messageCode && Object.hasOwn(UPDATE_TEXT, state.messageCode) ? UPDATE_TEXT[state.messageCode] : undefined;
   const key = state.messageKey?.startsWith("native.update.") && Object.hasOwn(en, state.messageKey) ? state.messageKey : undefined;
   if (key && activeLocale() === "en") return state.message;
