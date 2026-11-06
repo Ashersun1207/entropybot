@@ -152,8 +152,20 @@ export function memoryOverBudget(text: string): boolean {
 }
 
 export function memoryVisibleText(text: string, today: string = memoryDate()): { text: string; expired: number } {
-  const visible = withoutExpired(text, today);
-  return { text: withoutSuperseded(visible.text), expired: visible.hidden };
+  const dropped = new Set<number>();
+  let expired = 0;
+  for (const entry of parseMemoryEntries(text)) {
+    if (entry.struck) {
+      for (let line = entry.line; line < entry.end; line += 1) dropped.add(line);
+    } else if (isExpired(entry, today)) {
+      expired += 1;
+      for (let line = entry.line; line < entry.end; line += 1) dropped.add(line);
+    }
+  }
+  return {
+    text: dropped.size ? text.split("\n").filter((_, index) => !dropped.has(index)).join("\n") : text,
+    expired,
+  };
 }
 
 export function loadMemory(botId: string, opts: { now?: Date } = {}): { text: string; truncated: boolean; lines: number; bytes: number; expired: number } | null {
