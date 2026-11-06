@@ -1,6 +1,8 @@
 import type { MemoryHit, MemoryFileStat } from "./memory-retrieval.ts";
 export type { MemoryHit, MemoryFileStat } from "./memory-retrieval.ts";
 import { createMemoryRetrieval, ensureMemoryVectors } from "./memory-retrieval.ts";
+import { ensureChineseRecallIndex } from "./message-recall-index.ts";
+import { chineseRecallMatches, recallChineseMessages } from "./message-recall-chinese.ts";
 import { randomUUID } from "node:crypto";
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
@@ -104,6 +106,7 @@ function open(): DatabaseSync {
   const notificationColumns = db.prepare("PRAGMA table_info(notification_log)").all() as Array<{ name: string }>;
   if (!notificationColumns.some((column) => column.name === "for_person")) db.exec("ALTER TABLE notification_log ADD COLUMN for_person TEXT");
   ensureRecallIndex(db);
+  ensureChineseRecallIndex(db);
   ensureMemoryIndex(db);
   ensureMemoryVectors(db);
   return db;
@@ -738,18 +741,20 @@ const STOP_WORDS = new Set(
 );
 
 /** Quote every token so FTS5 searches `AND`, `NOT`, `*`, `:` literally instead of parsing them. */
-function ftsQuery(query: string, mode: SearchMode = "all"): string | null {
-  const tokens = query
-    .split(/\s+/)
-    .map((token) => token.replace(/"/g, "").trim())
-    .filter(Boolean);
-  if (!tokens.length) return null;
+function ftsAllTerms(query: string): string[] {
+  const tokens = query.split(/\s+/).map((token) => token.replace(/"/g, "").trim()).filter(Boolean);
   const content = tokens.filter((token) => !STOP_WORDS.has(token.toLowerCase()));
+  return content.length ? content : tokens;
+}
+
+function ftsQuery(query: string, mode: SearchMode = "all"): string | null {
+  const tokens = ftsAllTerms(query);
+  if (!tokens.length) return null;
   if (mode === "any") {
     const terms = recallTerms(query).map(recallMatchTerm).filter(Boolean);
     return terms.length ? terms.join(" OR ") : null;
   }
-  return (content.length ? content : tokens).map((token) => `"${token}"`).join(" ");
+  return tokens.map((token) => `"${token}"`).join(" ");
 }
 
 /** FTS5's unicode61 tokenizer cannot tell "-10" from "10" or "c++" from "c", even quoted, so punctuation terms are skipped. */
@@ -827,7 +832,9 @@ function rangeClause(range: RecallRange | undefined, column: string): { sql: str
 
 export function recallMessages(query: string, threadIds: readonly string[], limit = 12, range?: RecallRange, mode: SearchMode = "all"): RecallHit[] {
   const match = ftsQuery(query, mode);
-  if (!match || !threadIds.length) return [];
+  if (!threadIds.length || !Number.isSafeInteger(limit) || limit <= 0) return [];
+  const chinese = recallChineseMessages(db(), query, threadIds, limit, range, mode, ftsAllTerms(query));
+  if (!match) return chinese;
   const placeholders = threadIds.map(() => "?").join(", ");
   const window = rangeClause(range, "m.at");
   const rows = db()
@@ -850,7 +857,7 @@ export function recallMessages(query: string, threadIds: readonly string[], limi
     head: string;
     snippet: string;
   }>;
-  return rows.map((row) => {
+  const fts = rows.map((row) => {
     const peer = peerAuthor(row.peer_name, row.head);
     return {
       threadId: row.thread_id,
@@ -863,6 +870,27 @@ export function recallMessages(query: string, threadIds: readonly string[], limi
       ...(peer ? { peer } : {}),
     };
   });
+  const seen = new Set<string>();
+  return [...chinese, ...fts].filter((hit) => {
+    const key = JSON.stringify([hit.threadId, hit.messageId]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => Number(a.kind === "digest") - Number(b.kind === "digest")).slice(0, limit);
+}
+
+export function recallPassageMatches(query: string, hit: RecallHit): boolean {
+  const source = readMessageText(hit.threadId, hit.messageId);
+  if (!source) return false;
+  if (chineseRecallMatches(query, source.text)) return true;
+  const terms = recallTerms(query);
+  if (terms.length < 5) return true;
+  const words = source.text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  return terms.filter((term) => {
+    if (!recallMatchTerm(term)) return false;
+    const stem = term.length > 4 && term.endsWith("s") && !term.endsWith("ss") ? term.slice(0, -1) : term;
+    return words.some((word) => /^\p{L}{4,}$/u.test(term) ? word.startsWith(stem) : word === term);
+  }).length >= 2;
 }
 
 const RECENT_HEAD_CHARS = 240;

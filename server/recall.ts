@@ -1,5 +1,6 @@
 // Recall rides in front of the turn's message, never the system prompt; fence markers are neutralised so a note cannot close the block.
-import { memoryBigrams, memorySnippet, recallMessages, recallTerms, searchMemoryBigram, type MemoryHit, type RecallHit } from "./message-db.ts";
+import { memoryBigrams, memorySnippet, recallMessages, recallPassageMatches, recallTerms, searchMemoryBigram, type MemoryHit, type RecallHit } from "./message-db.ts";
+import { chineseRecallQuery, hasHan } from "./message-recall-chinese.ts";
 import { mergeRanked, semanticMemoryHits, type MemoryEmbeddingSettings } from "./memory-embeddings.ts";
 import { parseTopicHeader, readTopicHead, topicBody, topicWords } from "./memory-topics.ts";
 import { listMemoryTopics, memoryDate, readMemoryTopic, searchMemoryFiles, workspaceDir } from "./workspace.ts";
@@ -54,8 +55,11 @@ export interface RecallResult {
 
 export function recallQuery(text: string): string | null {
   const trimmed = text.trim();
-  if (trimmed.length < RECALL_MIN_CHARS) return null;
-  return recallTerms(trimmed.slice(0, RECALL_QUERY_CHARS)).length ? trimmed.slice(0, RECALL_QUERY_CHARS) : null;
+  const query = trimmed.slice(0, RECALL_QUERY_CHARS);
+  if (chineseRecallQuery(query)) return query;
+  if (trimmed.length < RECALL_MIN_CHARS || !/\p{L}/u.test(query)) return null;
+  if (hasHan(query) && !recallTerms(query).some((term) => !hasHan(term))) return null;
+  return recallTerms(query).length ? query : null;
 }
 
 /** FTS5 brackets the matched terms in a snippet. */
@@ -195,7 +199,7 @@ export function conversationPassages(input: RecallInput, query: string): RecallP
     return [];
   }
   return hits
-    .filter((hit) => enoughMatches(query, hit.snippet))
+    .filter((hit) => recallPassageMatches(query, hit))
     .slice(0, CONVERSATION_HITS)
     .map((hit) => ({
       source: "conversation" as const,
