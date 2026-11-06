@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { localSigningEvidence } from "./release-signing.mjs";
 import { join } from "node:path";
 import { RELEASES_URL, UPDATE_MODE } from "../electron/update-policy.mjs";
 
@@ -15,6 +16,7 @@ if (process.env.GITHUB_REF_TYPE === "tag" && process.env.GITHUB_REF_NAME !== tag
   throw new Error(`Tag must match package version: ${tag}`);
 }
 if (process.argv[2] === "manifest") {
+  if (existsSync("release/entropybot-build-record.json")) throw new Error("Official build record exists; use release-signing.mjs finalize");
   const files = readdirSync("release").filter(name => ["dmg", "zip"].some(ext => name === `Entropybot-${pkg.version}-arm64.${ext}`)).sort();
   if (!["dmg", "zip"].every(ext => files.includes(`Entropybot-${pkg.version}-arm64.${ext}`))) {
     throw new Error("Both the Apple silicon DMG and ZIP must exist before a release is prepared");
@@ -23,9 +25,10 @@ if (process.argv[2] === "manifest") {
   writeFileSync("release/SHA256SUMS", artifacts.map(file => `${file.sha256}  ${file.name}\n`).join(""));
   writeFileSync("release/entropybot-build.json", JSON.stringify({
     product: pkg.name, version: pkg.version, tag,
-    commit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+    commit: null, sourceCommit: null, sourceStatus: "unverified-source",
+    manifestGeneratedHead: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     updateMode: UPDATE_MODE, releasesUrl: RELEASES_URL,
-    signing: "ad-hoc; not Apple notarized", artifacts,
+    signing: localSigningEvidence("release/mac-arm64/Entropybot.app"), artifacts,
   }, null, 2) + "\n");
 } else if (process.argv[2] !== "check") {
   throw new Error("Usage: node scripts/entropybot-release.mjs check|manifest");

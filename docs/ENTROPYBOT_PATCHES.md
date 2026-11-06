@@ -95,7 +95,7 @@ P16 在摘要投影中加入有界活跃约束块：从当前分支用户消息�
 
 `electron/credential-namespace-migration.test.mjs`、`electron/credential-namespace-migration-runner.test.mjs`、`electron/secure-credential-io.test.mjs` 已追加至 P10 的同一 Vitest 行为清单，原有 46 个 Vitest 文件与 5 个 Node test 文件全部保留。既有 CI/release 的 `node scripts/check-patches.mjs --verify` 因而执行这三项；缺文件、失败、空 suite 或跳过仍非零退出，不新增替代门槛。
 
-这些测试使用合成凭证、临时文件、假 safeStorage 和假子进程，覆盖迁移事务、失败保留与 runner/存储接线；不能证明真实 macOS Keychain 授权、签名或安装迁移。实际结果见 [0.2.5 独立回归](verification/release-0.2.5-regression.md)，最终组合提交仍由主控串行验证。选择性 interposer 服务名探针已停用，不列入自动门槛或平台验收证据，理由见 [诊断证据更正](verification/keychain-isolated-diagnosis.md)。
+这些测试使用合成凭证、临时文件、假 safeStorage 和假子进程，覆盖迁移事务、失败保留与 runner/存储接线；不能证明真实 macOS Keychain 授权、签名或安装迁移。定向及历史验收见 [凭证命名空间迁移](verification/credential-namespace-migration.md)；该记录不代表完整回归通过，完整回归实际退出状态与最终组合提交验证待主控汇总。选择性 interposer 服务名探针已停用，不列入自动门槛或平台验收证据，理由见 [诊断证据更正](verification/keychain-isolated-diagnosis.md)。
 
 ## 必须保留（不可替换）
 
