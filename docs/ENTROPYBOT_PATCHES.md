@@ -23,7 +23,7 @@
 
 本轮源码基线固定为 `c1aeda2501c5a003446acb413de46d0e16012976`。这是 Entropybot 定制源码基线，不是“上游最新版本”。源码上游固定 SHA、Entropybot 应用版本（本轮基线为 0.2.3）、外部执行引擎版本和模型版本分别记录、分别验证；源码同步不能替代引擎能力或模型效果验收。脚本不 fetch、merge、下载上游实现或恢复上游发布 workflow。
 
-最终集成清单包含 27 项结构契约，行为文件清单为 31 个 Vitest 文件、5 个 Node test 文件。契约测试共 10 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL；桌面 updater 的既有三项行为测试保持登记。
+最终集成清单包含 29 项结构契约，行为文件清单为 32 个 Vitest 文件、5 个 Node test 文件。契约测试共 10 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL；桌面 updater 的既有三项行为测试保持登记。
 
 | 契约 | 结构保护范围 | 复用的行为证据 |
 |---|---|---|
@@ -32,8 +32,10 @@
 | P3/P4/P9 | appId、发布页（P4/release-source）、桌面实际 LATEST_RELEASE_URL（P4/desktop-source）、服务 API（P4/server-source）和打包来源固定为自有仓库、manual 模式 | `electron/entropybot-updater.test.mjs` 断言真实 manualCheck 在定时检查及授权 IPC 检查中传给 mock fetch 的精确 API URL，同时拒绝安装且不加载二进制 updater；`server/update-check.test.ts` 断言服务端请求来源和版本行为；不请求真实 GitHub |
 | P6 | config 调用数据目录迁移 helper | `server/legacy-migration.test.ts` 在合成 HOME 启动真实服务并检查 `.opengrokbot` 迁移；`scripts/testing/patch-contracts.test.ts` 在独立子进程调用真实 config/ensureDirs，检查 `.openmausbot` → `.entropybot` 及内容保留；`server/config.test.ts` 使用隔离目录检查配置 |
 | P7 | builder 同时注册 `entropybot` / `openmausbot` | Node tests：package-link、chat-link、organization-entry 的新协议解析与拒绝规则；旧 scheme 此门槛仅检查注册，不承诺所有 handler 对旧 scheme 等价，也不证明 OS 已注册 |
-| P10 | main 接回凭证迁移、环境注入、存储 guard；server 注册测试路由 | `memory-credentials`、`workspace-credentials`、`secure-credential-state`、`workspace-backup-policy`、`memory-embedding-{config,client,index,auth}`、`memory-embedding-settings.e2e`、MemorySettings/导航/status 与两项凭证 Node tests；覆盖 slot、先加密后删明文、失败保留、空值 tombstone、外置清除、权限/脱敏与索引身份 |
-| P11 | 消息库打开时确保中文索引、调用中文候选、短查询准入、以真实源正文复核片段 | `message-db`、`chinese-history-recall`、`message-recall-index`、`chinese-history-recall.e2e`、`chinese-history-performance`；覆盖旧库重建、事务失败重试、第二连接写改删、授权/时间/all-any/作者/预算、当前回合 prompt 及 2k/20k 合成性能 |
+| P10 | main 接回凭证迁移、环境注入、存储 guard；server 注册测试路由；config 委托记忆凭证环境同步 | `memory-credentials`、`workspace-credentials`、`secure-credential-state`、`workspace-backup-policy`、`memory-embedding-{config,client,index,auth}`、`memory-embedding-settings.e2e`、MemorySettings/导航/status 与两项凭证 Node tests；覆盖 slot、先加密后删明文、失败保留、空值 tombstone、外置清除、权限/脱敏与索引身份 |
+| P11 | 消息库打开时确保中文索引、调用中文候选、短查询准入、以真实源正文复核片段 | `message-db`、`recall-accent`、`chinese-history-recall`、`message-recall-index`、`chinese-history-recall.e2e`、`chinese-history-performance`；覆盖既有 Unicode 重音匹配、旧库重建、事务失败重试、第二连接写改删、授权/时间/all-any/作者/预算、当前回合 prompt 及 2k/20k 合成性能 |
+
+维护契约 M01 另保护中文回合 e2e 在创建 scratch 后注册 `onTestFinished`。本轮以合成 launcher 拒绝和 close 拒绝实际导入该 e2e 验证 scratch 删除、零网络请求；结构注册检查不替代所有资源/后代进程的运行证明。
 
 表中未带目录的服务测试位于 `server/`；完整、可执行的文件清单以 `scripts/patch-contracts.mjs` 为准。P5/P8 的全部品牌文案、法律归属和发布行为不在自动行为证明范围内；相关清单路径仍检查存在。
 

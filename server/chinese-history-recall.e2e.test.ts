@@ -7,8 +7,9 @@ import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.
 import { RECALL_CLOSE, RECALL_OPEN } from "./recall.ts";
 import { putSyntheticMessage } from "./testing/chinese-history-fixture.ts";
 
-it("injects only authorized Chinese history into fresh current-turn prompts and invalidates edited/deleted sources", async () => {
+it("injects only authorized Chinese history into fresh current-turn prompts and invalidates edited/deleted sources", async ({ onTestFinished }) => {
   const scratch = mkdtempSync(join(tmpdir(), "omb-chinese-recall-"));
+  onTestFinished(() => rmSync(scratch, { recursive: true, force: true }));
   const prompts = join(scratch, "prompts.jsonl");
   const fixture = await launchVerificationServer({ FAKE_CLAUDE_PROMPTS: prompts });
   const control = (...args: string[]) => runControlOmb([...args, "--url", fixture.info.url]);
@@ -86,6 +87,5 @@ it("injects only authorized Chinese history into fresh current-turn prompts and 
     if (process.env.OMB_RECALL_PROMPT_OUTPUT) writeFileSync(process.env.OMB_RECALL_PROMPT_OUTPUT, JSON.stringify({ fixture: fixture.info, evidence }, null, 2));
   } finally {
     await fixture.close();
-    rmSync(scratch, { recursive: true, force: true });
   }
 }, 120_000);
