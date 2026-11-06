@@ -1,0 +1,79 @@
+export const sourceBaseline = "c1aeda2501c5a003446acb413de46d0e16012976";
+
+export const callContracts = [
+  { id: "P1/auto-recall", file: "server/index.ts", symbol: "buildRecall", from: "./recall.ts" },
+  { id: "P1/embedding-settings", file: "server/index.ts", symbol: "memoryEmbeddingSettings", from: "./memory-embeddings.ts" },
+  { id: "P1/prompt-injection", file: "server/index.ts", symbol: "withRecalled", from: "./recall.ts", minimum: 2 },
+  { id: "P1/semantic", file: "server/recall.ts", symbol: "semanticMemoryHits", from: "./memory-embeddings.ts" },
+  { id: "P1/local-fallback", file: "server/recall.ts", symbol: "searchMemoryBigram", from: "./message-db.ts" },
+  { id: "P2/budget", file: "server/index.ts", symbol: "adaptiveReplayBytes", from: "./context-rebuild.ts" },
+  { id: "P2/replay", file: "server/index.ts", symbol: "selectReplay", from: "./context-rebuild.ts", minimum: 2 },
+  { id: "P2/compaction", file: "server/index.ts", symbol: "shouldCompact", from: "./context-budget.ts" },
+  { id: "P2/summary", file: "server/index.ts", symbol: "draftSummary", from: "./compaction-summary.ts" },
+  { id: "P2/delivered-replay", file: "server/drivers/openai-chat.ts", symbol: "replayDelivered", from: "./chat-delivered-replay.ts" },
+  { id: "P2/size-retry", file: "server/drivers/openai-chat.ts", symbol: "smallerResend", from: "./chat-size-limit.ts" },
+  { id: "P6/migration", file: "server/config.ts", symbol: "migrateLegacyDataDir", from: "./data-dir-migration.ts" },
+  { id: "P10/migration", file: "electron/main.mjs", symbol: "persistWorkspaceCredentialMigration", from: "./workspace-credentials.mjs" },
+  { id: "P10/external-env", file: "electron/main.mjs", symbol: "workspaceCredentialEnv", from: "./workspace-credentials.mjs" },
+  { id: "P10/storage-guard", file: "electron/main.mjs", symbol: "assertCredentialStorage", from: "./credential-patch.mjs" },
+  { id: "P10/route", file: "server/index.ts", symbol: "createMemoryEmbeddingRoutes", from: "./routes/memory-embedding.ts" },
+];
+
+export const valueContracts = [
+  { id: "P4/release-source", file: "electron/update-policy.mjs", variable: "RELEASES_URL", expected: "https://github.com/Ashersun1207/entropybot/releases" },
+  { id: "P4/manual-mode", file: "electron/update-policy.mjs", variable: "UPDATE_MODE", expected: "manual" },
+  { id: "P4/server-source", file: "server/update-check.ts", variable: "LATEST_RELEASE_URL", expected: "https://api.github.com/repos/Ashersun1207/entropybot/releases/latest" },
+  { id: "P3/app-id", file: "electron-builder.yml", path: ["appId"], expected: "ai.entropybot.desktop" },
+  { id: "P4/package-source", file: "electron-builder.yml", path: ["publish"], expected: [{ provider: "github", owner: "Ashersun1207", repo: "entropybot" }] },
+  { id: "P7/schemes", file: "electron-builder.yml", path: ["protocols", 0, "schemes"], expected: ["entropybot", "openmausbot"] },
+];
+
+export const vitestFiles = [
+  "scripts/testing/patch-contracts.test.ts",
+  "server/recall.test.ts",
+  "server/memory-embeddings.test.ts",
+  "server/memory-layer.e2e.test.ts",
+  "server/context-budget.test.ts",
+  "server/context-rebuild.test.ts",
+  "server/context-compaction.e2e.test.ts",
+  "server/drivers/chat-size-limit.test.ts",
+  "server/drivers/openai-chat.test.ts",
+  "server/drivers/openai-chat-protocol.test.ts",
+  "server/legacy-migration.test.ts",
+  "server/config.test.ts",
+  "electron/entropybot-updater.test.mjs",
+  "server/update-check.test.ts",
+  "electron/memory-credentials.test.mjs",
+  "electron/workspace-credentials.test.mjs",
+  "electron/secure-credential-state.test.mjs",
+  "server/workspace-backup-policy.test.ts",
+  "server/memory-embedding-config.test.ts",
+  "server/memory-embedding-client.test.ts",
+  "server/memory-embedding-index.test.ts",
+  "server/memory-embedding-auth.test.ts",
+  "server/memory-embedding-settings.e2e.test.ts",
+  "src/components/MemorySettings.test.ts",
+  "src/components/SettingsModal.simple.test.ts",
+  "src/state/memory-status.test.ts",
+];
+
+export const nodeTestFiles = [
+  "electron/package-link.node-test.mjs",
+  "electron/chat-link.node-test.mjs",
+  "electron/organization-entry.node-test.mjs",
+  "electron/workspace-credentials-save.node-test.mjs",
+  "electron/credential-patch.node-test.mjs",
+];
+
+export const inventory = [
+  ...new Set([...callContracts, ...valueContracts].map(contract => contract.file)),
+  "electron/workspace-credentials.mjs",
+  "electron/credential-patch.mjs",
+  "electron/updater.mjs",
+  "server/memory-retrieval.ts",
+  "scripts/entropybot-release.mjs",
+  ".github/workflows/entropybot-release.yml",
+  ".github/workflows/entropybot-ci.yml",
+  "docs/ENTROPYBOT_PATCHES.md",
+  "NOTICE", "LICENSE", "LICENSING.md", "enterprise/LICENSE",
+];

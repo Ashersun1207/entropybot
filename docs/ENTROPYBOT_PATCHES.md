@@ -1,7 +1,7 @@
 # Entropybot 补丁清单
 
 > 与上游 OpenMausBot 同步前先读这里。每次同步后更新“上游状态”。
-> 校验：`node scripts/check-patches.mjs`（CI 会跑）。
+> 结构校验：`node scripts/check-patches.mjs`。完整行为门槛：`node scripts/check-patches.mjs --verify`（Node 24，接入方式见下文；workflow 由主控统一修改）。
 
 | ID | 目的 | 涉及文件 | 测试 | 上游状态 | 冲突处理 |
 |---|---|---|---|---|---|
@@ -16,7 +16,47 @@
 | P9 | 应用内“有新版本”提示（只检查不安装） | `electron/updater.mjs`、`src/components/AppSettingsRows.tsx` | `electron/entropybot-updater.test.mjs` | 未合并 | 手动模式专用 |
 | P10 | 应用内语义记忆设置与安全凭证（safeStorage / macOS Keychain 保护） | `src/components/MemorySettings.tsx`、Settings 导航与配置状态、`electron/workspace-credentials.mjs`、`electron/credential-patch.mjs`、`electron/main.mjs`、`server/memory-embedding-*.ts`、`server/routes/memory-embedding.ts`、配置与环境隔离 | `electron/memory-credentials.test.mjs`、`server/memory-embedding-{config,client,index,auth}.test.ts`、`server/memory-embedding-settings.e2e.test.ts`、`src/components/MemorySettings.test.ts`、`src/state/memory-status.test.ts` | 未合并 | 保留专属 slot、迁移先加密后删明文、清除空值标记、脱敏状态、受保护测试路由和 endpoint/model/dimensions 索引身份；不得回退明文保存 |
 
-路径检查只确认文件存在；P10 的行为测试已列入自有 CI。上游合并后仍需按最终集成提交执行隔离验收，不能把路径检查通过当作行为验证。设置、凭证与验证边界见 [记忆设置验收](verification/memory-embedding-settings.md)。
+契约清单见 `scripts/patch-contracts.mjs`，区分结构规则与必须执行的行为测试。P10 的行为测试已列入自有 CI；新增完整门槛的 workflow 接入由主控处理。设置、凭证与验证边界见 [记忆设置验收](verification/memory-embedding-settings.md)。
+
+## 第二轮契约门槛
+
+本轮源码基线固定为 `c1aeda2501c5a003446acb413de46d0e16012976`。这是 Entropybot 定制源码基线，不是“上游最新版本”。源码上游固定 SHA、Entropybot 应用版本（本轮基线为 0.2.3）、外部执行引擎版本和模型版本分别记录、分别验证；源码同步不能替代引擎能力或模型效果验收。脚本不 fetch、merge、下载上游实现或恢复上游发布 workflow。
+
+| 契约 | 结构保护范围 | 复用的行为证据 |
+|---|---|---|
+| P1 | `index`→`buildRecall`、embedding 配置、两处 `withRecalled` 调用；recall→语义与本地 bigram 来源 | `recall.test.ts`、`memory-embeddings.test.ts`；`memory-layer.e2e.test.ts` 在假引擎收到的 prompt 中检查记忆与跨 chat 历史，关停记忆后消失 |
+| P2 | 自适应预算、selectReplay、压缩判断/摘要、delivered replay、400 回缩调用来源 | `context-budget.test.ts`、`context-rebuild.test.ts`、`context-compaction.e2e.test.ts`（自动/手动压缩、Stop、重启）；`drivers/chat-size-limit.test.ts`、`drivers/openai-chat{,-protocol}.test.ts`（假传输、真实驱动） |
+| P3/P4/P9 | appId、桌面/服务/打包更新来源固定为自有仓库、manual 模式 | `electron/entropybot-updater.test.mjs` 拒绝安装且不加载二进制 updater；`server/update-check.test.ts` 断言请求来源和版本行为；不请求真实 GitHub |
+| P6 | config 调用数据目录迁移 helper | `server/legacy-migration.test.ts` 在合成 HOME 启动真实服务并检查 `.opengrokbot` 迁移；`scripts/testing/patch-contracts.test.ts` 在独立子进程调用真实 config/ensureDirs，检查 `.openmausbot` → `.entropybot` 及内容保留；`server/config.test.ts` 使用隔离目录检查配置 |
+| P7 | builder 同时注册 `entropybot` / `openmausbot` | Node tests：package-link、chat-link、organization-entry 的新协议解析与拒绝规则；旧 scheme 此门槛仅检查注册，不承诺所有 handler 对旧 scheme 等价，也不证明 OS 已注册 |
+| P10 | main 接回凭证迁移、环境注入、存储 guard；server 注册测试路由 | `memory-credentials`、`workspace-credentials`、`secure-credential-state`、`workspace-backup-policy`、`memory-embedding-{config,client,index,auth}`、`memory-embedding-settings.e2e`、MemorySettings/导航/status 与两项凭证 Node tests；覆盖 slot、先加密后删明文、失败保留、空值 tombstone、外置清除、权限/脱敏与索引身份 |
+
+表中未带目录的服务测试位于 `server/`；完整、可执行的文件清单以 `scripts/patch-contracts.mjs` 为准。P5/P8 的全部品牌文案、法律归属和发布行为不在自动行为证明范围内；相关清单路径仍检查存在。
+
+结构层解析 TypeScript/JavaScript AST 和 YAML，不靠注释、字符串片段或仅有 import 判定接线。支持空格、注释、导入本地别名和同文件函数提取；不固定 A 的中文历史检索实现或旧 unicode61 路径。跨文件迁移调用时应审查语义并更新清单。AST 调用边不证明可达性、参数正确或无同名局部遮蔽；即使调用保留在死分支，也必须由完整行为门槛验证。结构层不能证明运行中的授权范围、编辑删除一致性、凭证事务、实际 macOS Keychain、Electron 安装包或真实模型质量。
+
+`scripts/testing/patch-contracts.test.ts` 在稀疏临时源码副本中验证：未变异副本通过；保留文件/import/注释但移除实际 buildRecall 调用时按 P1 失败；文件仍在但换成上游更新源时按 P4 失败；格式/别名和函数提取控制样本通过；缺少登记测试时报错。稀疏副本仅运行结构检查，不执行测试，故变异失败不会来自缺依赖或 Vite 配置。
+
+## CI 与 release 接入
+
+依赖安装后使用 Node 24，在打包前执行相同命令；建议替换原有结构检查步骤。CI 与 release 均由主控接入，避免重复注册与 A 的测试冲突：
+
+```sh
+node scripts/check-patches.mjs --verify
+```
+
+该命令先检查结构和测试文件存在，再运行显式 Vitest 文件清单（含契约变异测试和真实隔离假引擎 fixture），最后逐文件运行 Node tests。不接受其它参数，不使用 `--passWithNoTests`；缺文件、解析失败、测试非零退出、空 suite、跳过/todo 测试均返回非零。结构错误输出契约 ID、文件、预期/实际与完整行为门槛命令。
+
+脚本根目录由 `import.meta.url` 决定，允许从任意 cwd 调用绝对脚本路径；不支持 CLI `--root`。Vitest 内部显式传入该根目录、`vite.config.ts` 和 `--configLoader native`，即使 node_modules 链接到主仓库，也读取本 worktree 源码与测试。行为进程使用临时 HOME/data 与过滤后的环境；不继承 API Key 或宿主应用配置。Node 必须已在 PATH 指向 24（子引擎也使用该 PATH）。完整门槛可耗时数分钟，不构建安装包，也不操作用户应用。
+
+单独调试结构与变异测试的确切命令：
+
+```sh
+node scripts/check-patches.mjs
+node node_modules/vitest/vitest.mjs run --root "$PWD" --config "$PWD/vite.config.ts" --configLoader native scripts/testing/patch-contracts.test.ts
+```
+
+第一条明确输出行为未运行；第二条需在应用仓库根目录运行。新增 A 的中文数据库/buildRecall/服务回合回归由主控按最终路径登记到两个 workflow；此基线测试清单不代替第二轮最终集成验证。通过后仍需按最终提交记录源码 SHA、检查命令与实际结果，再独立验收发布产物。
 
 ## 必须保留（不可替换）
 
