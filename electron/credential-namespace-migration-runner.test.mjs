@@ -76,8 +76,41 @@ describe("runLegacyCredentialRead", () => {
       termGraceMs: 5,
       abandonMs: 30,
     });
-    expect(result).toEqual({ ok: false, error: "the legacy credential read timed out" });
+    expect(result).toEqual({ ok: false, error: "the legacy credential read timed out", retainedProfile: expect.any(String) });
     expect(child.kill.mock.calls).toEqual([["SIGTERM"], ["SIGKILL"]]);
+    expect(readdirSync(tempRoot)).toHaveLength(1);
+  });
+
+  it("keeps a live child's profile after kill errors until close confirms exit", async () => {
+    const tempRoot = workspace();
+    const child = fakeChild({ close: false });
+    child.pid = 12345;
+    child.kill.mockImplementation(() => { child.emit("error", new Error("synthetic kill denied")); });
+    const pending = runLegacyCredentialRead({
+      credentialsFile: "/unused/credentials.bin", tempRoot, spawnImpl: () => child,
+      timeoutMs: 5, termGraceMs: 5, abandonMs: 100,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readdirSync(tempRoot)).toHaveLength(1);
+    expect(child.kill.mock.calls).toEqual([["SIGTERM"], ["SIGKILL"]]);
+    child.emit("close", null);
+    await expect(pending).resolves.toEqual({ ok: false, error: "the legacy credential read timed out" });
+    expect(readdirSync(tempRoot)).toEqual([]);
+  });
+
+  it("retains evidence on a post-spawn error with no close confirmation", async () => {
+    const tempRoot = workspace();
+    const child = fakeChild({ close: false });
+    child.pid = 12345;
+    const pending = runLegacyCredentialRead({
+      credentialsFile: "/unused/credentials.bin", tempRoot, spawnImpl: () => child,
+      timeoutMs: 100, termGraceMs: 5, abandonMs: 15,
+    });
+    child.emit("error", new Error("synthetic control failure"));
+    const result = await pending;
+    expect(result).toEqual({ ok: false, error: "the legacy credential read process could not be controlled", retainedProfile: expect.any(String) });
+    expect(readdirSync(tempRoot)).toHaveLength(1);
+    child.emit("close", null);
     expect(readdirSync(tempRoot)).toHaveLength(1);
   });
 
@@ -142,6 +175,17 @@ describe("attemptLegacyCredentialMigration", () => {
     writeFileSync(paths.file, "replaced-store", { mode: 0o600 });
     await expect(attemptLegacyCredentialMigration({ ...paths, ...codec, readLegacy })).resolves.toEqual({ key: "value" });
     expect(readLegacy).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports retained evidence when the reader cannot confirm child exit", async () => {
+    const paths = setup();
+    const log = vi.fn();
+    await expect(attemptLegacyCredentialMigration({
+      ...paths, ...codec, log,
+      readLegacy: async () => ({ ok: false, error: "synthetic timeout", retainedProfile: "/synthetic/private-profile" }),
+    })).resolves.toBeNull();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("temporary profile retained: /synthetic/private-profile"));
+    expect(readFileSync(paths.file, "utf8")).toBe("old-store");
   });
 
   it("normalizes a rejected reader instead of aborting startup", async () => {

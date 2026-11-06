@@ -80,7 +80,7 @@ export function recordLegacyMigrationFailure({ markerFile, fileSha256, error, no
   });
 }
 
-/** Back up the old file, write and verify the new one, and restore the old bytes on any failure. */
+/** Back up the old file and verify the replacement before atomically committing it. */
 export async function migrateLegacyCredentialStore({
   file,
   backupFile,
@@ -104,20 +104,15 @@ export async function migrateLegacyCredentialStore({
     if (!isPlainRecord(verified) || !isDeepStrictEqual(verified, credentials)) {
       throw new Error("The new credential store did not read back as written");
     }
+    if (!fs.readFileSync(file).equals(original)) throw new Error("The credential store changed while it was being migrated");
     fs.renameSync(temporary, file);
   } catch (error) {
     fs.rmSync(temporary, { force: true });
-    let failure = error;
+    // Until the atomic rename succeeds, this transaction owns only the temporary file.
     try {
-      const current = fs.readFileSync(file);
-      if (!current.equals(original)) writePrivateFile(file, original);
-    } catch (restoreError) {
-      failure = new Error(`${safeMessage(error)}; restoring the old store failed: ${safeMessage(restoreError)}`);
-    }
-    try {
-      recordLegacyMigrationFailure({ markerFile, fileSha256, error: failure, now });
+      recordLegacyMigrationFailure({ markerFile, fileSha256, error, now });
     } catch {}
-    throw new Error(`Legacy credential migration failed: ${safeMessage(failure)}`);
+    throw new Error(`Legacy credential migration failed: ${safeMessage(error)}`);
   }
   // The store is already valid; a marker problem must not turn a completed migration into a failed launch.
   try {

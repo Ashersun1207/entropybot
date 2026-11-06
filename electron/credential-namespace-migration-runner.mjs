@@ -79,11 +79,14 @@ export function runLegacyCredentialRead({
     const cancel = (error) => {
       if (cancelled || settled) return;
       cancelled = error;
-      child.kill("SIGTERM");
-      killTimer = setTimeout(() => child.kill("SIGKILL"), termGraceMs);
+      const signal = (name) => {
+        try { child.kill(name); } catch {}
+      };
+      signal("SIGTERM");
+      killTimer = setTimeout(() => signal("SIGKILL"), termGraceMs);
       killTimer.unref?.();
       // Never delete a profile an unconfirmed child may still write to; report and keep it.
-      abandonTimer = setTimeout(() => finish(error, false), abandonMs);
+      abandonTimer = setTimeout(() => finish({ ...error, retainedProfile: profile }, false), abandonMs);
       abandonTimer.unref?.();
     };
     timer = setTimeout(() => cancel({ ok: false, error: "the legacy credential read timed out" }), timeoutMs);
@@ -97,7 +100,10 @@ export function runLegacyCredentialRead({
       if (cancelled) return;
       stderr = `${stderr}${chunk}`.slice(-4000);
     });
-    child.on("error", (error) => finish({ ok: false, error: error.message }));
+    child.on("error", (error) => {
+      if (child.pid) cancel({ ok: false, error: "the legacy credential read process could not be controlled" });
+      else finish({ ok: false, error: error.message });
+    });
     child.on("close", (code) => {
       if (settled) return;
       if (cancelled) return finish(cancelled, true);
@@ -146,6 +152,7 @@ export async function attemptLegacyCredentialMigration({
       recordLegacyMigrationFailure({ markerFile, fileSha256, error, now });
     } catch {}
     log(`legacy credential migration failed: ${error}`);
+    if (read?.retainedProfile) log(`legacy credential read exit unconfirmed; temporary profile retained: ${read.retainedProfile}`);
     return null;
   }
   try {

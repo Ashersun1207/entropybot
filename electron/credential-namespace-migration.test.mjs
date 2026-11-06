@@ -140,6 +140,33 @@ describe("migrateLegacyCredentialStore", () => {
     expect(() => readFileSync(paths.markerFile)).toThrow();
   });
 
+  it.each(["encrypt", "decrypt"])("preserves a concurrent writer during awaited %s", async (phase) => {
+    const paths = setup();
+    const concurrent = Buffer.from("synthetic-newer-writer");
+    const codec = { ...plaintextCodec };
+    codec[phase] = async (value) => {
+      writeFileSync(paths.file, concurrent);
+      return plaintextCodec[phase](value);
+    };
+    await expect(migrateLegacyCredentialStore({ ...paths, credentials: { key: "synthetic" }, ...codec })).rejects.toThrow(/changed/);
+    expect(readFileSync(paths.file)).toEqual(concurrent);
+    expect(readFileSync(paths.backupFile, "utf8")).toBe("old-encrypted-store");
+  });
+
+  it("does not restore stale bytes over another writer after encryption fails", async () => {
+    const paths = setup();
+    await expect(migrateLegacyCredentialStore({
+      ...paths,
+      credentials: { key: "synthetic" },
+      ...plaintextCodec,
+      encrypt: async () => {
+        writeFileSync(paths.file, "synthetic-newer-writer");
+        throw new Error("synthetic encryption rejection");
+      },
+    })).rejects.toThrow(/encryption rejection/);
+    expect(readFileSync(paths.file, "utf8")).toBe("synthetic-newer-writer");
+  });
+
   it("does not overwrite an existing backup", async () => {
     const paths = setup();
     writeFileSync(paths.backupFile, "first-backup", { mode: 0o600 });

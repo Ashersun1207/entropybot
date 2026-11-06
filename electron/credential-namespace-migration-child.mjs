@@ -1,4 +1,4 @@
-import { app, safeStorage } from "electron";
+import { app, dialog, safeStorage } from "electron";
 import fs from "node:fs";
 
 import { LEGACY_APP_NAME, LEGACY_READ_FLAG, encodeLegacyCredentialResult } from "./credential-namespace-migration.mjs";
@@ -13,6 +13,18 @@ export function installLegacyCredentialRead({ argv = process.argv, env = process
     const file = env.ENTROPYBOT_LEGACY_CREDENTIALS_FILE;
     try {
       if (!file) throw new Error("No legacy credential file was provided");
+      // A CLI flag and caller-controlled environment are not authorization to export saved secrets.
+      const consent = await dialog.showMessageBox({
+        type: "warning",
+        title: "Entropybot credential migration",
+        message: "Allow Entropybot to access saved credentials for migration?",
+        detail: "Only allow this if you just started Entropybot for an upgrade. This sends your saved keys to the local migration process. Cancel if you did not request this.",
+        buttons: ["Cancel", "Allow migration"],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      });
+      if (consent.response !== 1) throw new Error("Credential migration was not authorized");
       const result = await readSecureCredentials({
         exists: () => fs.existsSync(file),
         isAvailable: () => safeStorage.isAsyncEncryptionAvailable(),
