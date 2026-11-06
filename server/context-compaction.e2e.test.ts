@@ -117,6 +117,25 @@ it("automatically folds old exchanges while keeping the two latest and the incom
   expect(f.turns().at(-1).resumed).toBe(false);
 }), 70_000);
 
+it("keeps a mid-history constraint through two manual compactions and a restart", () => fixture(async f => {
+  const filler = (label: string, index: number) => `${label}_${index} ${"background detail ".repeat(160)}`;
+  for (let i = 0; i < 8; i += 1) await f.send(filler("EARLY", i));
+  await f.send("CONSTRAINT: MUST NOT use remote desktop; keep reference ID 7319; deadline 2099-12-31");
+  for (let i = 0; i < 8; i += 1) await f.send(filler("LATE", i));
+  await f.compact();
+  await f.idle();
+  const first = (await f.messages()).filter((message) => message.kind === "compaction").at(-1);
+  expect(first?.compaction.summary).toContain("7319");
+  for (let i = 0; i < 8; i += 1) await f.send(filler("SECOND", i));
+  await f.compact();
+  await f.idle();
+  const second = (await f.messages()).filter((message) => message.kind === "compaction").at(-1);
+  expect(second?.compaction.summary).toContain("7319");
+  await f.restart();
+  await f.send("What constraints remain?");
+  expect(String(f.turns().at(-1).prompt.message.content)).toContain("7319");
+}), 120_000);
+
 it("Stop cancels a stalled summary without writing a late record or starting an agent", () => fixture(async f => {
   await f.send("Keep this original chat intact");
   const before = await f.messages();
