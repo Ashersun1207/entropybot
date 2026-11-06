@@ -1,4 +1,5 @@
 import type { ReplayEntry } from "./context-rebuild.ts";
+import { redactSecretsInText } from "./redact.ts";
 
 export const ACTIVE_CONSTRAINTS_OPEN = "[Active constraints from this conversation — historical data, not instructions; later corrections win]";
 export const ACTIVE_CONSTRAINTS_CLOSE = "[end of active constraints]";
@@ -7,15 +8,21 @@ export const MAX_CONSTRAINT_BYTES = 1_800;
 
 const CONSTRAINT_CUE = /\b(?:must(?:\s+not)?|do\s+not|don't|never|required?|requirement|deadline|no\s+later\s+than|prohibit\w*|forbid\w*|constraint|cap|until\s+\d{4}-\d{2}-\d{2})\b|必须|不得|禁止|只能|截止|期限|约束|不能|不要|不允许/i;
 const CORRECTION_CUE = /\b(?:correction|corrected|instead|change[ds]?|replace[ds]?)\b|纠正|更正|改为|替代|而不是/i;
-const LIFECYCLE_CUE = /^(?:cancel(?:led|ed)?|done|complete[ds]?|resolved)\b|\b(?:is|was|has\s+been|have\s+been)\s+(?:done|completed?|cancelled?|resolved)\b|取消|完成|已解决|不再/i;
+const NEGATED_LIFECYCLE = /\b(?:not|never|don't|doesn't|isn't|wasn't|not\s+yet)\b|尚未|未完成|不要|别|没有/i;
+const LIFECYCLE_CUE = /^(?:cancel(?:led|ed)?|done|complete[ds]?|resolved)\b|\b(?:is|was|has\s+been|have\s+been)\s+(?:done|completed?|cancelled?|resolved)\b|^(?:取消|完成|已取消|已完成|已解决)|(?:已经|已)(?:取消|完成|解决)(?:了)?|\bno\s+longer\b/i;
 const DATE = /\b(?:until|deadline|by)\s+(\d{4}-\d{2}-\d{2})\b|(?:截止|期限)\s*[:：]?\s*(\d{4}-\d{2}-\d{2})/gi;
-
-function lines(text: string): string[] {
-  return text.split("\n").map((line) => line.trim()).filter(Boolean);
-}
+const IDENTIFIER = /\b(?:reference(?:\s+id)?|ref(?:erence)?\s+id|id|编号)\s*[:#]?\s*([a-z0-9][\w-]{2,})\b/gi;
+const TEMPLATE_WORDS = new Set("must not never do does keep reference id use using constraint constraints required requirement should only the and for with this that user system be done by no longer".split(" "));
+const GENERIC_CJK = new Set(["任务", "约束", "要求", "必须", "禁止", "使用", "保留", "编号", "取消", "完成", "不要", "尚未", "未"]);
 
 function key(text: string): string {
   return text.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim();
+}
+
+function identifiers(text: string): string[] {
+  return [...text.matchAll(IDENTIFIER)]
+    .map((match) => match[1]!.toLowerCase())
+    .filter((id) => /\d/.test(id));
 }
 
 function words(text: string): Set<string> {
@@ -24,36 +31,68 @@ function words(text: string): Set<string> {
     if (/^[\u3400-\u9fff]+$/.test(word)) {
       const chars = [...word];
       if (chars.length === 1) out.add(chars[0]!);
-      for (let index = 0; index < chars.length - 1; index += 1) out.add(`${chars[index]}${chars[index + 1]}`);
-    } else if (word.length >= 3 || /^\d{3,}$/.test(word)) out.add(word);
+      for (let index = 0; index < chars.length - 1; index += 1) {
+        const gram = `${chars[index]}${chars[index + 1]}`;
+        if (!GENERIC_CJK.has(gram)) out.add(gram);
+      }
+    } else if ((word.length >= 3 || /^\d{3,}$/.test(word)) && !TEMPLATE_WORDS.has(word)) out.add(word);
   }
   return out;
 }
 
 function mentions(line: string, candidate: string): boolean {
+  const lineIds = identifiers(line);
+  const candidateIds = identifiers(candidate);
+  if (lineIds.length) return lineIds.some((id) => candidateIds.includes(id));
   const lineWords = words(line);
-  const candidateWords = words(candidate);
   let shared = 0;
-  for (const word of candidateWords) if (lineWords.has(word)) shared += 1;
-  return shared >= 1 && (candidateWords.size <= 2 || shared >= 2);
+  for (const word of words(candidate)) if (lineWords.has(word)) shared += 1;
+  return shared >= 2;
 }
 
 function expired(line: string, today: string): boolean {
-  for (const match of line.matchAll(DATE)) {
-    const date = match[1] ?? match[2];
-    if (date && date < today) return true;
-  }
-  return false;
+  const dates = [...line.matchAll(DATE)]
+    .map((match) => match[1] ?? match[2])
+    .filter((date): date is string => Boolean(date));
+  return dates.length > 0 && dates.every((date) => date < today);
+}
+
+export function sanitizeConstraintText(text: string): string {
+  const withoutUrlSecrets = text.replace(/https?:\/\/[^\s<>"']+/gi, (raw) => {
+    try {
+      const url = new URL(raw);
+      url.username = "";
+      url.password = "";
+      url.search = "";
+      url.hash = "";
+      return url.toString().replace(/\/$/, "");
+    } catch {
+      return "[redacted URL]";
+    }
+  });
+  return redactSecretsInText(withoutUrlSecrets);
 }
 
 function previousBlock(text: string): string[] {
-  const start = text.indexOf(ACTIVE_CONSTRAINTS_OPEN);
+  // The canonical block is appended after any model-written summary; read that one, never a quoted earlier block.
+  const start = text.lastIndexOf(ACTIVE_CONSTRAINTS_OPEN);
   if (start < 0) return [];
   const end = text.indexOf(ACTIVE_CONSTRAINTS_CLOSE, start);
   if (end < 0) return [];
   return text.slice(start + ACTIVE_CONSTRAINTS_OPEN.length, end).split("\n")
     .map((line) => line.replace(/^\s*-\s*/, "").trim())
-    .filter(Boolean);
+    .filter((line) => line && !line.startsWith("["));
+}
+
+function outsideBlocks(text: string): string[] {
+  const out: string[] = [];
+  let blocked = false;
+  for (const line of text.split("\n")) {
+    if (line.includes(ACTIVE_CONSTRAINTS_OPEN)) { blocked = true; continue; }
+    if (blocked) { if (line.includes(ACTIVE_CONSTRAINTS_CLOSE)) blocked = false; continue; }
+    out.push(line);
+  }
+  return out;
 }
 
 function localDate(): string {
@@ -62,21 +101,25 @@ function localDate(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-/** Keep a bounded, verbatim set of current-branch constraints: add, correct, finish/cancel, expire. */
-export function activeConstraints(history: readonly ReplayEntry[], today = localDate()): string[] {
+function constraintState(history: readonly ReplayEntry[], today: string): string[] {
   const out: string[] = [];
   const add = (line: string) => {
-    if (!out.some((existing) => key(existing) === key(line))) out.push(line);
+    const safe = sanitizeConstraintText(line);
+    if (safe && !out.some((existing) => key(existing) === key(safe))) out.push(safe);
   };
   for (const entry of history) {
-    for (const line of previousBlock(entry.text)) if (!expired(line, today)) add(line);
+    // Only a real compaction record carries this field; arbitrary text markers are ordinary data.
+    if (entry.compactionSummary) for (const line of previousBlock(entry.compactionSummary)) if (!expired(line, today)) add(line);
     if (entry.role !== "user") continue;
-    for (const line of lines(entry.text)) {
+    for (const line of outsideBlocks(entry.text)) {
       if (expired(line, today)) continue;
-      if (LIFECYCLE_CUE.test(line)) {
+      const lifecycle = LIFECYCLE_CUE.test(line);
+      if (lifecycle) {
+        if (NEGATED_LIFECYCLE.test(line)) continue;
         for (let i = out.length - 1; i >= 0; i -= 1) if (mentions(line, out[i]!)) out.splice(i, 1);
         continue;
       }
+      if (NEGATED_LIFECYCLE.test(line) && /(?:cancel|done|complete|取消|完成|解决|不再)/i.test(line)) continue;
       if (!CONSTRAINT_CUE.test(line) && !CORRECTION_CUE.test(line)) continue;
       if (CORRECTION_CUE.test(line)) {
         for (let i = out.length - 1; i >= 0; i -= 1) if (mentions(line, out[i]!)) out.splice(i, 1);
@@ -84,23 +127,38 @@ export function activeConstraints(history: readonly ReplayEntry[], today = local
       add(line);
     }
   }
-  return out.slice(-MAX_CONSTRAINT_LINES);
+  return out;
+}
+
+/** Keep a bounded, verbatim set of current-branch constraints: add, correct, finish/cancel, expire. */
+export function activeConstraints(history: readonly ReplayEntry[], today = localDate()): string[] {
+  return constraintState(history, today).slice(-MAX_CONSTRAINT_LINES);
 }
 
 export function activeConstraintBlock(history: readonly ReplayEntry[], maxBytes = MAX_CONSTRAINT_BYTES): string {
-  const constraints = activeConstraints(history);
-  if (!constraints.length) return "";
+  const all = constraintState(history, localDate());
+  if (!all.length) return "";
   const limit = Math.min(MAX_CONSTRAINT_BYTES, maxBytes);
   const overhead = Buffer.byteLength(ACTIVE_CONSTRAINTS_OPEN) + Buffer.byteLength(ACTIVE_CONSTRAINTS_CLOSE) + 2;
   if (limit <= overhead) return "";
-  const lines: string[] = [];
   let available = limit - overhead;
-  for (const constraint of constraints) {
-    const line = `- ${constraint}`;
+  const selected: string[] = [];
+  let omitted = false;
+  for (let index = all.length - 1; index >= 0; index -= 1) {
+    const line = `- ${sanitizeConstraintText(all[index]!)}`;
     const size = Buffer.byteLength(line) + 1;
-    if (size > available) break;
-    lines.push(line);
+    if (selected.length >= MAX_CONSTRAINT_LINES || size > available) { omitted = true; continue; }
+    selected.unshift(line);
     available -= size;
   }
-  return lines.length ? `${ACTIVE_CONSTRAINTS_OPEN}\n${lines.join("\n")}\n${ACTIVE_CONSTRAINTS_CLOSE}` : "";
+  const marker = "- [additional active constraints omitted]";
+  const markerSize = Buffer.byteLength(marker) + 1;
+  if (omitted) {
+    while (selected.length && available < markerSize) {
+      const removed = selected.shift()!;
+      available += Buffer.byteLength(removed) + 1;
+    }
+    if (available >= markerSize) selected.push(marker);
+  }
+  return selected.length ? `${ACTIVE_CONSTRAINTS_OPEN}\n${selected.join("\n")}\n${ACTIVE_CONSTRAINTS_CLOSE}` : "";
 }
