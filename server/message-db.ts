@@ -3,7 +3,8 @@ export type { MemoryHit, MemoryFileStat } from "./memory-retrieval.ts";
 import { createMemoryRetrieval, ensureMemoryVectors } from "./memory-retrieval.ts";
 import { ensureChineseRecallIndex } from "./message-recall-index.ts";
 import { chineseRecallMatches, recallChineseMessages } from "./message-recall-chinese.ts";
-import { ftsAllTerms, ftsQuery, matchedRecallTerms, rangeClause, recallTerms, type RecallRange, type SearchMode } from "./message-recall-terms.ts";
+import { ftsAllTerms, ftsQuery, rangeClause, recallTerms, type RecallRange, type SearchMode } from "./message-recall-terms.ts";
+import { countFtsRecallMatches } from "./message-recall-evidence.ts";
 export { recallMatchTerm, recallTerms } from "./message-recall-terms.ts";
 export type { RecallRange, SearchMode } from "./message-recall-terms.ts";
 import { randomUUID } from "node:crypto";
@@ -822,7 +823,7 @@ export function recallPassageMatches(query: string, hit: RecallHit): boolean {
   if (chineseRecallMatches(query, source.text)) return true;
   const terms = recallTerms(query);
   if (terms.length < 5) return true;
-  return matchedRecallTerms(terms, source.text) >= 2;
+  return countFtsRecallMatches(db(), query, hit, source.text) >= 2;
 }
 
 const RECENT_HEAD_CHARS = 240;

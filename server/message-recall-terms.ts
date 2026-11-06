@@ -26,10 +26,6 @@ export function ftsQuery(query: string, mode: SearchMode = "all"): string | null
   return tokens.map((token) => `"${token}"`).join(" ");
 }
 
-function normalizeRecallText(text: string): string {
-  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-}
-
 function recallTermRule(term: string): { text: string; prefix: boolean } | null {
   term = term.replace(/\p{L}\p{M}+/gu, (part) => part.normalize("NFC"));
   if (!/^[\p{L}\p{N}]+$/u.test(term)) return null;
@@ -42,18 +38,6 @@ function recallTermRule(term: string): { text: string; prefix: boolean } | null 
 export function recallMatchTerm(term: string): string | null {
   const rule = recallTermRule(term);
   return rule ? `"${rule.text}"${rule.prefix ? "*" : ""}` : null;
-}
-
-export function matchedRecallTerms(terms: readonly string[], source: string): number {
-  const words = normalizeRecallText(source).match(/[\p{L}\p{N}]+/gu) ?? [];
-  const matches = new Set<string>();
-  for (const term of terms) {
-    const rule = recallTermRule(term);
-    if (!rule) continue;
-    const text = normalizeRecallText(rule.text);
-    if (words.some((word) => rule.prefix ? word.startsWith(text) : word === text)) matches.add(normalizeRecallText(term));
-  }
-  return matches.size;
 }
 
 const RECALL_FILLER = new Set(

@@ -37,6 +37,15 @@ it("leaves precomposed FTS token spelling to unicode61 instead of replacing it w
   expect((await recall("ộtestword"))?.text).toContain("R2_UNICODE61_SPELLING");
 });
 
+it.each([
+  { request: "café cafés quarterly office budget", source: "Café appointment." },
+  { request: "ộtestword dentist quarterly office budget", source: "otestword dentist appointment." },
+])("rejects a single real unicode61 match for $request", async ({ request, source }) => {
+  insert(source);
+  expect(recallMessages(request, ["accent-owned"], 12, undefined, "any")).toHaveLength(1);
+  expect(await recall(request)).toBeNull();
+});
+
 it.each([query, query.normalize("NFD"), "café cafe quarterly office budget"])("rejects one actual match despite accent aliases and source brackets: %s", async (request) => {
   insert("Café appointment. [wrong] [unrelated] R2_ONE_MATCH");
   expect(recallMessages(request, ["accent-owned"], 12, undefined, "any")).toHaveLength(1);
