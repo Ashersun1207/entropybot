@@ -153,6 +153,6 @@ describe("workspace credential env", () => {
   it("covers every credential the migration table declares", () => {
     const credentials = Object.fromEntries(WORKSPACE_CREDENTIALS.map((c) => [c.name, `v-${c.name}`]));
     const env = workspaceCredentialEnv(credentials);
-    expect(Object.keys(env).sort()).toEqual(WORKSPACE_CREDENTIALS.map((c) => c.env).sort());
+    expect(Object.keys(env).sort()).toEqual([...WORKSPACE_CREDENTIALS.map((c) => c.env), "OMB_MEMORY_EMBEDDING_STORAGE"].sort());
   });
 });

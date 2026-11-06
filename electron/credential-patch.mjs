@@ -1,5 +1,6 @@
 import nativeText from "./native-text.cjs";
 export const CREDENTIAL_PATCH = {
+  memoryEmbeddingKey: (value) => ({ memoryEmbedding: { key: value } }),
   composioApiKey: (value) => ({ composio: { apiKey: value } }),
   xaiApiKey: (value) => ({ xai: { key: value } }),
   boxToken: (value) => ({ box: { token: value } }),
@@ -16,6 +17,12 @@ export const CREDENTIAL_PATCH = {
   tregApiKey: (value) => ({ treg: { key: value } }),
   postizApiKey: (value) => ({ postiz: { key: value } }),
 };
+
+export function assertCredentialStorage(name, packaged) {
+  if (name === "memoryEmbeddingKey" && !packaged) {
+    throw new Error("Memory credentials require the packaged desktop's encrypted credential store");
+  }
+}
 
 const DECIDER_ERRORS = Object.freeze({
   "serverError.decider.accountRequired": "native.decider.accountRequired",

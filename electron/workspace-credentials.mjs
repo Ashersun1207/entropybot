@@ -1,4 +1,5 @@
 export const WORKSPACE_CREDENTIALS = [
+  { section: "memoryEmbedding", field: "key", name: "memoryEmbeddingKey", env: "OMB_MEMORY_EMBEDDING_KEY" },
   { section: "xai", field: "key", name: "xaiApiKey", env: "XAI_API_KEY" },
   { section: "box", field: "token", name: "boxToken", env: "BOX_TOKEN" },
   { section: "tts", field: "key", name: "ttsKey", env: "OMB_TTS_KEY" },
@@ -29,7 +30,13 @@ export function migrateWorkspaceCredentials(config, credentials) {
     const value = home[field];
     if (typeof value !== "string") continue;
     const secret = value.trim();
-    if (secret && nextCredentials[name] !== secret) {
+    // A durable empty slot suppresses the legacy environment fallback even after config migration removes its tombstone.
+    if (name === "memoryEmbeddingKey" && !secret && typeof nextCredentials[name] !== "string") {
+      nextCredentials[name] = "";
+      credentialsChanged = true;
+    }
+    const memorySlotIsAuthoritative = name === "memoryEmbeddingKey" && typeof nextCredentials[name] === "string";
+    if (secret && nextCredentials[name] !== secret && !memorySlotIsAuthoritative) {
       nextCredentials[name] = secret;
       credentialsChanged = true;
     }
@@ -39,11 +46,26 @@ export function migrateWorkspaceCredentials(config, credentials) {
   return { config: nextConfig, credentials: nextCredentials, configChanged, credentialsChanged };
 }
 
+export async function persistWorkspaceCredentialMigration(config, credentials, { saveCredentials, saveConfig }) {
+  const migrated = migrateWorkspaceCredentials(config, credentials);
+  if (migrated.credentialsChanged) await saveCredentials(migrated.credentials);
+  if (migrated.configChanged) await saveConfig(migrated.config);
+  return migrated;
+}
+
+export function withWorkspaceCredential(credentials, name, secret) {
+  const next = { ...credentials };
+  if (secret || name === "memoryEmbeddingKey") next[name] = secret;
+  else delete next[name];
+  return next;
+}
+
 export function workspaceCredentialEnv(credentials) {
   const env = {};
   for (const { name, env: envName } of WORKSPACE_CREDENTIALS) {
     const value = credentials?.[name];
-    if (typeof value === "string" && value) env[envName] = value;
+    if (typeof value === "string" && (value || name === "memoryEmbeddingKey")) env[envName] = value;
   }
+  if (env.OMB_MEMORY_EMBEDDING_KEY) env.OMB_MEMORY_EMBEDDING_STORAGE = "secure";
   return env;
 }

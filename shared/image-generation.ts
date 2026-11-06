@@ -9,9 +9,9 @@ export interface ImageGenerationConfig {
   customModel?: string;
 }
 
-/** A deliberately configured Images API endpoint, not a provider-returned URL.
+/** A deliberately configured provider endpoint, never a provider-returned URL.
  * Local HTTP is useful for self-hosted routers; internet endpoints require TLS. */
-export function normalizeImageGenerationUrl(value: string): string {
+export function normalizeProviderEndpointUrl(value: string): string {
   const message = "Use an HTTPS API base URL, or HTTP for a local router, without passwords, query parameters or fragments";
   let url: URL;
   try { url = new URL(value.trim()); } catch { throw new Error(message); }
@@ -25,7 +25,12 @@ export function normalizeImageGenerationUrl(value: string): string {
       || (Number(ipv4[1]) === 192 && Number(ipv4[2]) === 168)
       || (Number(ipv4[1]) === 172 && Number(ipv4[2]) >= 16 && Number(ipv4[2]) <= 31)));
   if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) throw new Error(message);
-  if (ipv4 && (Number(ipv4[1]) === 0 || (Number(ipv4[1]) === 169 && Number(ipv4[2]) === 254))) throw new Error(message);
-  url.pathname = url.pathname.replace(/\/+$/, "").replace(/\/images\/generations$/, "");
+  if ((ipv4 && (Number(ipv4[1]) === 0 || (Number(ipv4[1]) === 169 && Number(ipv4[2]) === 254)))
+    || /^\[(?:fe[89ab][0-9a-f]:|::ffff:)/.test(host) || host === "[fd00:ec2::254]"
+    || host === "metadata.google.internal" || host === "metadata.goog") throw new Error(message);
   return url.toString().replace(/\/+$/, "");
+}
+
+export function normalizeImageGenerationUrl(value: string): string {
+  return normalizeProviderEndpointUrl(value).replace(/\/images\/generations$/, "");
 }

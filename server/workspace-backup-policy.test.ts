@@ -4,6 +4,7 @@ import { ephemeralWorkspaceTokenPath, excludedWorkspaceAuthPath, liveDataEngineP
 describe("workspace backup data boundary", () => {
   it("exports ordinary settings only and retains destination connection sections unchanged", () => {
     const connections = {
+      memoryEmbedding: { enabled: true, key: "fixture-memory-secret", url: "https://embedding.example/v1/embeddings", model: "fixture-model", dimensions: 64 },
       xai: { key: "xai-secret", url: "https://source.example" },
       anthropic: { key: "claude-secret", url: "https://claude.example" },
       openaiCompat: { key: "api-secret", url: "https://api.example", model: "model", provider: "provider" },

@@ -22,7 +22,7 @@ import {
   installDesktopCrashListeners,
   readSafeLogTail,
 } from "./diagnostics.mjs";
-import { migrateWorkspaceCredentials, workspaceCredentialEnv } from "./workspace-credentials.mjs";
+import { persistWorkspaceCredentialMigration, withWorkspaceCredential, workspaceCredentialEnv } from "./workspace-credentials.mjs";
 import { evictStartupCacheOnce } from "./startup-cache-eviction.mjs";
 import { activateExistingWindow, releaseSingleInstanceLock } from "./single-instance.mjs";
 import { bootFailureMessage, listeningSignal, pollServerIdentity, SERVER_BOOT_TIMEOUT_MS, SERVER_LISTENING_GRACE_MS } from "./server-boot-probe.mjs";
@@ -439,16 +439,17 @@ async function secureWorkspaceConfig() {
   const configPath = path.join(dataDir, "config.json");
   try {
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    const migrated = migrateWorkspaceCredentials(config, secureCredentials);
-    // credentials.bin first, so a failed save never loses the only copy of a secret.
-    if (migrated.credentialsChanged) await saveSecureCredentials(migrated.credentials);
+    const migrated = await persistWorkspaceCredentialMigration(config, secureCredentials, {
+      saveCredentials: saveSecureCredentials,
+      saveConfig: (next) => {
+        const temporary = `${configPath}.${process.pid}.tmp`;
+        fs.writeFileSync(temporary, JSON.stringify(next, null, 2), { mode: 0o600 });
+        fs.renameSync(temporary, configPath);
+      },
+    });
     secureCredentials = migrated.credentials;
-    if (!migrated.configChanged) return;
-    const temporary = `${configPath}.${process.pid}.tmp`;
-    fs.writeFileSync(temporary, JSON.stringify(migrated.config, null, 2), { mode: 0o600 });
-    fs.renameSync(temporary, configPath);
   } catch (error) {
-    if (error?.code !== "ENOENT") slog(`credential migration failed: ${error?.message ?? error}`);
+    if (error?.code !== "ENOENT") slog("credential migration failed; the plaintext configuration was left unchanged");
   }
 }
 
@@ -482,7 +483,7 @@ import {
 } from "./companion.mjs";
 import { autoStartCompanion } from "./companion-autostart.mjs";
 import { createRoutineWakeHold, rememberRoutineWake, routineWakeSettings } from "./routine-wake.mjs";
-import { CREDENTIAL_PATCH, credentialSaveError } from "./credential-patch.mjs";
+import { assertCredentialStorage, CREDENTIAL_PATCH, credentialSaveError } from "./credential-patch.mjs";
 
 /** Second wall after preload's reduced bridge: computer-controlling IPC answers only the local server's UI.
  * Declared before any handler registration (temporal dead zone). */
@@ -1156,6 +1157,7 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
       ? { COMPOSIO_API_KEY: secureCredentials.composioApiKey }
       : {}),
     OMB_CREDENTIAL_STORE: credentialStoreUnavailable ? "unavailable" : "ok",
+    OMB_MEMORY_EMBEDDING_STORAGE: "",
     ...workspaceCredentialEnv(secureCredentials),
   });
   delete childEnv.OMB_BROWSER_CONNECTION;
@@ -2815,6 +2817,7 @@ async function saveWorkspaceCredential(name, value) {
   if (!patchFor || typeof value !== "string") {
     throw new Error("Unsupported credential");
   }
+  assertCredentialStorage(name, app.isPackaged);
   if (app.isPackaged && !(await safeStorage.isAsyncEncryptionAvailable())) {
     throw new Error("The operating-system credential store is unavailable");
   }
@@ -2838,11 +2841,7 @@ async function saveWorkspaceCredential(name, value) {
 
   // Commit the encrypted value before the server makes it live; a failed reload rolls credentials.bin back.
   return updateSecureCredentialDocument(
-    (credentials) => {
-      if (secret) credentials[name] = secret;
-      else delete credentials[name];
-      return credentials;
-    },
+    (credentials) => withWorkspaceCredential(credentials, name, secret),
     applyToHarness,
   );
 }

@@ -3,6 +3,7 @@
 
 /** Workspace credential env names; spawned engine CLIs must never inherit them. */
 export const WORKSPACE_CREDENTIAL_ENV = [
+  "OMB_MEMORY_EMBEDDING_KEY", "OMB_MEMORY_EMBEDDING_STORAGE", "DASHSCOPE_API_KEY",
   "XAI_API_KEY",
   "MISTRAL_API_KEY",
   "CEREBRAS_API_KEY",
@@ -52,7 +53,9 @@ export function stripControlPlaneEnv(env: Record<string, string | undefined>): v
 }
 
 export function stripWorkspaceCredentialEnv(env: Record<string, string | undefined>): void {
-  for (const key of WORKSPACE_CREDENTIAL_ENV) delete env[key];
+  for (const key of Object.keys(env)) {
+    if ((WORKSPACE_CREDENTIAL_ENV as readonly string[]).includes(key.toUpperCase())) delete env[key];
+  }
   stripControlPlaneEnv(env);
 }
 

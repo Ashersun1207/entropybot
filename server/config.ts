@@ -815,8 +815,14 @@ export function cacheUntilConfigChanges<T>(derive: (config: AppConfig) => T): ()
   };
 }
 
-/** Keeps process.env in step with a saved credential ("" drops the var), because loadConfig() prefers env. */
-export function syncCredentialEnv(patch: Partial<Omit<AppConfig, "threads" | "newBots">>): void {
+/** Keeps credential env in step with a save. An empty memory key suppresses the legacy fallback;
+ * other empty credentials drop their variable. External storage marks credentials supplied by the desktop store. */
+export function syncCredentialEnv(patch: Partial<Omit<AppConfig, "threads" | "newBots">>, externalSecretStorage = false): void {
+  // An explicit empty value suppresses the legacy environment fallback without changing the operator's DASHSCOPE_API_KEY.
+  if (patch.memoryEmbedding?.key !== undefined) {
+    process.env.OMB_MEMORY_EMBEDDING_KEY = patch.memoryEmbedding.key;
+    process.env.OMB_MEMORY_EMBEDDING_STORAGE = externalSecretStorage && process.env.OMB_CREDENTIAL_STORE === "ok" ? "secure" : "environment";
+  }
   const secrets: Array<[value: string | undefined, name: string]> = [
     [patch.xai?.key, "XAI_API_KEY"],
     [patch.mistral?.key, "MISTRAL_API_KEY"],
@@ -847,6 +853,8 @@ export function syncCredentialEnv(patch: Partial<Omit<AppConfig, "threads" | "ne
     else delete process.env[name];
   }
   const settings: Array<[value: string | undefined, name: string]> = [
+    [patch.memoryEmbedding?.url, "OMB_MEMORY_EMBEDDING_URL"],
+    [patch.memoryEmbedding?.model, "OMB_MEMORY_EMBEDDING_MODEL"],
     [patch.openaiCompat?.url, "OPENAI_COMPAT_URL"],
     [patch.anthropic?.url, "OMB_ANTHROPIC_API_URL"],
     [patch.openaiCompat?.model, "OPENAI_COMPAT_MODEL"],
@@ -936,7 +944,7 @@ export function saveConfig(
   const before = configSaveListeners.size ? structuredClone(disk) : disk;
   const storedProfiles = storedBrowserProfilesSchema.safeParse(disk.browserProfiles);
   if (storedProfiles.success) disk.browserProfiles = storedProfiles.data;
-  for (const key of ["xai", "anthropic", "mistral", "cerebras", "treg", "postiz", "groq", "greenference", "meta", "deepseek", "openai", "openrouter", "openaiCompat", "composio", "box", "opencodeGo", "tts", "decider", "imageGen", "live", "profile", "rooms", "mcp", "threads", "context", "memory", "localVm", "features", "budgets", "billing", "decisions", "loopGuard", "onboarding", "browserEngine", "newBots", "safetyFloor"] as const) {
+  for (const key of ["xai", "anthropic", "mistral", "cerebras", "treg", "postiz", "groq", "greenference", "meta", "deepseek", "openai", "openrouter", "openaiCompat", "composio", "box", "opencodeGo", "tts", "decider", "imageGen", "live", "profile", "rooms", "mcp", "threads", "context", "memory", "memoryEmbedding", "localVm", "features", "budgets", "billing", "decisions", "loopGuard", "onboarding", "browserEngine", "newBots", "safetyFloor"] as const) {
     const section = checkedPatch[key];
     if (!section) continue;
     const current = jsonObjectSchema.safeParse(disk[key]);

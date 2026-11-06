@@ -122,6 +122,9 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
       const body = await readBody(req);
       if (hostedModels && ["instances", "anthropic", "openai", "openrouter", "openaiCompat", "xai", "mistral", "cerebras", "groq", "greenference", "meta", "opencodeGo"].some(key => Object.hasOwn(body, key))) return json(res, 403, { error: HOSTED_PROVIDER_SETTINGS_ERROR });
       const patch = parseConfigPatchForPerson(body);
+      if (patch.memoryEmbedding?.key !== undefined && url.searchParams.get("secretStorage") !== "external") {
+        return json(res, 400, { error: "Save memory credentials through the desktop encrypted credential store." });
+      }
       if (patch.profile && ownProfile) {
         // The address is the verified claim's; a profile names no other.
         const { email: _email, ...own } = patch.profile;
@@ -521,6 +524,7 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
         if (externalSecretStorage) {
           // Supplied credentials are already in the OS-encrypted store: tombstone them so no older plaintext survives the merge.
           const persisted = structuredClone(patch);
+          if (persisted.memoryEmbedding?.key !== undefined) persisted.memoryEmbedding.key = "";
           if (persisted.xai?.key !== undefined) persisted.xai.key = "";
           if (persisted.composio?.apiKey !== undefined) persisted.composio.apiKey = "";
           if (persisted.box?.token !== undefined) persisted.box.token = "";
@@ -538,7 +542,7 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
           if (persisted.postiz?.key !== undefined) persisted.postiz.key = "";
           saveConfig(persisted);
           configWriteCommitted = true;
-          syncCredentialEnv(patch);
+          syncCredentialEnv(patch, true);
           Object.assign(cfg, loadConfig());
         } else {
           saveConfig(patch);
