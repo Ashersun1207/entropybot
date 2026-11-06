@@ -128,17 +128,27 @@ const placement = (html: string, needle: string): "shown" | "folded" | "missing"
 const open = (section: AppSettingsSection) => { fixture.section = section; return render(); };
 
 describe("Settings in Simple mode", () => {
-  it("draws five pages on the desktop, General, AI, Computer, Usage & billing and Updates, and none of the Advanced-only ones", () => {
+  it.each([false, true])("exposes the Memory settings in simple/advanced mode: %s", (advanced) => {
+    fixture.advancedMode = advanced;
+    fixture.config.memoryEmbedding = { enabled: false, configured: false, storage: "none", url: "https://embedding.example.test/v1/embeddings", model: "synthetic", dimensions: 1024, timeoutMs: 8000 };
+    const html = open("memory");
+    expect(html).toContain("data-memory-settings");
+    expect(html).toContain(t("memorySettings.privacy"));
+    expect(SECTIONS.find((entry) => entry.id === "memory")?.keywords).toContain("语义");
+    if (!advanced) expect(currentPage(html)).toBe("memory");
+  });
+
+  it("draws desktop pages including Memory, and none of the Advanced-only ones", () => {
     const html = render();
-    expect(pages(html)).toEqual(["general", "ai", "computer", "billing", "updates"]);
-    expect(SIMPLE_PAGES.map((page) => page.id)).toEqual(["general", "botAccess", "ai", "computer", "billing", "updates"]);
+    expect(pages(html)).toEqual(["general", "ai", "memory", "computer", "billing", "updates"]);
+    expect(SIMPLE_PAGES.map((page) => page.id)).toEqual(["general", "botAccess", "ai", "memory", "computer", "billing", "updates"]);
     expect(html).toMatch(/General<\/span>[\s\S]*AI<\/span>[\s\S]*Computer<\/span>[\s\S]*Usage &amp; billing<\/span>[\s\S]*Updates<\/span>/);
     expect(html).not.toContain("data-settings-group=");
     expect(html).not.toContain("data-settings-section=");
     expect(html).not.toMatch(/class="(?:[^"]*\s)?uppercase(?:\s[^"]*)?"/);
     for (const hidden of ["backups", "experimental", "workspaces", "skills"]) expect(html).not.toContain(`value="${hidden}"`);
     const picker = html.match(/<select aria-label="Settings"[\s\S]*?<\/select>/)![0];
-    expect([...picker.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1])).toEqual(["general", "ai", "computer", "billing", "updates"]);
+    expect([...picker.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1])).toEqual(["general", "ai", "memory", "computer", "billing", "updates"]);
     expect(html).toContain('data-settings-look="simple"');
   });
 
@@ -280,7 +290,7 @@ describe("Settings in Simple mode", () => {
     fixture.ownerOrAdmin = true;
     fixture.section = "people";
     const html = render();
-    expect(pages(html)).toEqual(["general", "ai", "computer", "billing", "updates"]);
+    expect(pages(html)).toEqual(["general", "ai", "memory", "computer", "billing", "updates"]);
     expect(currentPage(html)).toBe("general");
     expect(placement(html, "MARKER:people;")).toBe("shown");
     expect(placement(html, "MARKER:activity;")).toBe("shown");
@@ -333,7 +343,7 @@ describe("Settings in Simple mode", () => {
   ])("opens a hidden page (%s) for as long as it is the open one", (section, content) => {
     fixture.section = section;
     const html = render();
-    expect(pages(html)).toEqual(["general", "ai", "computer", "billing", "updates", section]);
+    expect(pages(html)).toEqual(["general", "ai", "memory", "computer", "billing", "updates", section]);
     expect(currentPage(html)).toBe(section);
     if (content === "skillAuthoring") expect(html).toContain("Bots may write their own skills");
     else expect(markers(html)).toContain(content);

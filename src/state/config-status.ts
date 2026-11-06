@@ -61,6 +61,7 @@ export interface ConfigStatus {
   waitingForRoom?: boolean;
   threads?: { maxConcurrentPerBot: number; eventLogMaxBytes?: number; eventLogRetentionDays?: number };
   automaticRecovery?: { enabled: boolean; backup?: ModelSelection };
+  memoryEmbedding?: { enabled: boolean; configured: boolean; storage: "secure" | "plaintext" | "environment" | "unavailable" | "none"; url: string; model: string; dimensions: number; timeoutMs: number };
   /** Prompt-cache keep-warm for idle Claude threads. Absent from older servers. */
   cacheKeepWarm?: { enabled: boolean; windowMinutes: number };
   localVm: { mode: "shared" | "per-bot" | "pool"; maxInstances: number; idleTimeoutMinutes?: number; preserveInstalledApps?: boolean };
