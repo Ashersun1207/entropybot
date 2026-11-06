@@ -62,6 +62,8 @@ export const vitestFiles = [
   "server/context-compaction.e2e.test.ts",
   "server/drivers/chat-size-limit.test.ts",
   "server/drivers/openai-chat.test.ts",
+  "server/drivers/openai-chat-tools.test.ts",
+  "server/openai-stop-receipts.e2e.test.ts",
   "server/drivers/openai-chat-protocol.test.ts",
   "server/legacy-migration.test.ts",
   "server/config.test.ts",
