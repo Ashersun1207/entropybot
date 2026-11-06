@@ -11,7 +11,8 @@ const CORRECTION_CUE = /\b(?:correction|corrected|instead|change[ds]?|replace[ds
 const NEGATED_LIFECYCLE = /\b(?:not|never|don't|doesn't|isn't|wasn't|not\s+yet)\b|尚未|未完成|不要|别|没有/i;
 const LIFECYCLE_CUE = /^(?:cancel(?:led|ed)?|done|complete[ds]?|resolved)\b|\b(?:is|was|has\s+been|have\s+been)\s+(?:done|completed?|cancelled?|resolved)\b|^(?:取消|完成|已取消|已完成|已解决)|(?:已经|已)(?:取消|完成|解决)(?:了)?|\bno\s+longer\b/i;
 const DATE = /\b(?:until|deadline|by)\s+(\d{4}-\d{2}-\d{2})\b|(?:截止|期限)\s*[:：]?\s*(\d{4}-\d{2}-\d{2})/gi;
-const IDENTIFIER = /\b(?:reference(?:\s+id)?|ref(?:erence)?\s+id|id|编号)\s*[:#]?\s*([a-z0-9][\w-]{2,})\b/gi;
+const ENGLISH_IDENTIFIER = /\b(?:reference(?:\s+id)?|ref(?:erence)?\s+id|id)\s*[:：#]?\s*([a-z0-9][\w-]+)\b/gi;
+const CHINESE_IDENTIFIER = /编号\s*[:：#]?\s*([a-z0-9][\w-]+)\b/gi;
 const TEMPLATE_WORDS = new Set("must not never do does keep reference id use using constraint constraints required requirement should only the and for with this that user system be done by no longer".split(" "));
 const GENERIC_CJK = new Set(["任务", "约束", "要求", "必须", "禁止", "使用", "保留", "编号", "取消", "完成", "不要", "尚未", "未"]);
 
@@ -20,7 +21,7 @@ function key(text: string): string {
 }
 
 function identifiers(text: string): string[] {
-  return [...text.matchAll(IDENTIFIER)]
+  return [...text.matchAll(ENGLISH_IDENTIFIER), ...text.matchAll(CHINESE_IDENTIFIER)]
     .map((match) => match[1]!.toLowerCase())
     .filter((id) => /\d/.test(id));
 }
@@ -91,7 +92,7 @@ function previousBlock(text: string): string[] {
   for (let index = close - 1; index >= 0; index -= 1) {
     const line = all[index]!;
     if (line === ACTIVE_CONSTRAINTS_OPEN) {
-      return body.length ? body.reverse().map((entry) => entry.slice(2).trim()).filter((entry) => entry && !entry.startsWith("[")) : [];
+      return body.length ? body.reverse().map((entry) => entry.slice(2).trim()).filter((entry) => entry && entry !== "(none)" && !entry.startsWith("[")) : [];
     }
     if (!line.startsWith("- ") || line.includes(ACTIVE_CONSTRAINTS_OPEN) || line.includes(ACTIVE_CONSTRAINTS_CLOSE)) return [];
     body.push(line);
@@ -152,7 +153,10 @@ export function activeConstraints(history: readonly ReplayEntry[], today = local
 
 export function activeConstraintBlock(history: readonly ReplayEntry[], maxBytes = MAX_CONSTRAINT_BYTES): string {
   const all = constraintState(history, localDate());
-  if (!all.length) return "";
+  if (!all.length) {
+    if (!history.some((entry) => entry.compactionSummary !== undefined)) return "";
+    all.push("(none)");
+  }
   const limit = Math.min(MAX_CONSTRAINT_BYTES, maxBytes);
   const overhead = Buffer.byteLength(ACTIVE_CONSTRAINTS_OPEN) + Buffer.byteLength(ACTIVE_CONSTRAINTS_CLOSE) + 2;
   if (limit <= overhead) return "";
