@@ -84,6 +84,17 @@ it("reports a missing registered behavior test rather than skipping it", () => {
   expect(failures.some((failure: string) => failure.startsWith("[inventory] missing/unreadable file: server/recall.test.ts"))).toBe(true);
 });
 
+it.each([
+  "electron/credential-namespace-migration.test.mjs",
+  "electron/credential-namespace-migration-runner.test.mjs",
+  "electron/secure-credential-io.test.mjs",
+])("requires migration behavior coverage and rejects its missing file: %s", file => {
+  expect(vitestFiles.filter(registered => registered === file)).toEqual([file]);
+  const failures = copyFixture(root => rmSync(join(root, file)));
+  expect(failures).toHaveLength(1);
+  expect(failures[0]).toContain(`[inventory] missing/unreadable file: ${file}`);
+});
+
 it("selects the script's repository when launched from another working directory", () => {
   const result = spawnSync(process.execPath, [join(repositoryRoot, "scripts/check-patches.mjs")], { cwd: tmpdir(), encoding: "utf8" });
   expect(result.status, result.stderr).toBe(0);

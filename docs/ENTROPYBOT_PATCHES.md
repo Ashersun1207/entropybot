@@ -28,7 +28,7 @@
 
 本轮源码基线固定为 `c1aeda2501c5a003446acb413de46d0e16012976`。这是 Entropybot 定制源码基线，不是“上游最新版本”。源码上游固定 SHA、Entropybot 应用版本（本轮基线为 0.2.3）、外部执行引擎版本和模型版本分别记录、分别验证；源码同步不能替代引擎能力或模型效果验收。脚本不 fetch、merge、下载上游实现或恢复上游发布 workflow。
 
-最终集成清单包含 30 项结构契约，行为文件清单为 46 个 Vitest 文件、5 个 Node test 文件。契约测试共 10 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL；桌面 updater 的既有三项行为测试保持登记。
+当前清单包含 30 项结构契约，行为文件清单为 49 个 Vitest 文件、5 个 Node test 文件。契约测试共 13 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL，另三项检查迁移测试必须登记且缺文件时拒绝；桌面 updater 的既有三项行为测试保持登记。
 
 | 契约 | 结构保护范围 | 复用的行为证据 |
 |---|---|---|
@@ -90,6 +90,12 @@ P16 在摘要投影中加入有界活跃约束块：从当前分支用户消息�
 ## 第六轮验证
 
 停止后迟到工具回执：产品现有 turn/审批/事件隔离已经正确，本项不修改产品代码，只新增 `server/openai-stop-receipts.e2e.test.ts` 与受控假工具，覆盖未接受、已接受未回包、已完成未回执、审批未允许四种阶段；旧工具结果不结束/污染/显示新回合，不自动重发，已接受未知保留核实提示。另把 `openai-chat-tools` 的跨轮重复 call ID 测试改为当前契约（跨轮复用允许，同批重复拒绝）。这两项都进入统一行为清单；真实模型/远端服务取消与跨平台仍未验证。
+
+## 0.2.5 凭证迁移门槛
+
+`electron/credential-namespace-migration.test.mjs`、`electron/credential-namespace-migration-runner.test.mjs`、`electron/secure-credential-io.test.mjs` 已追加至 P10 的同一 Vitest 行为清单，原有 46 个 Vitest 文件与 5 个 Node test 文件全部保留。既有 CI/release 的 `node scripts/check-patches.mjs --verify` 因而执行这三项；缺文件、失败、空 suite 或跳过仍非零退出，不新增替代门槛。
+
+这些测试使用合成凭证、临时文件、假 safeStorage 和假子进程，覆盖迁移事务、失败保留与 runner/存储接线；不能证明真实 macOS Keychain 授权、签名或安装迁移。实际结果见 [0.2.5 独立回归](verification/release-0.2.5-regression.md)，最终组合提交仍由主控串行验证。选择性 interposer 服务名探针已停用，不列入自动门槛或平台验收证据，理由见 [诊断证据更正](verification/keychain-isolated-diagnosis.md)。
 
 ## 必须保留（不可替换）
 

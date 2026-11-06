@@ -1,4 +1,4 @@
-# macOS Keychain 隔离诊断：OPT-011
+# macOS Keychain 诊断与证据边界：OPT-011
 
 日期：2026-11-07。基线 `8138dca42`，负责人：当前主控诊断会话；工作分支 `codex/keychain-isolated-diagnosis`。仅增加诊断 fixture 和经验，不改产品，不构建或安装 Entropybot，不迁移真实凭证。
 
@@ -54,27 +54,34 @@ mock 不检验真实服务查找或 ACL；进程内初始化后改名，也不�
 
 第一次 Electron fixture 在 ES module 顶层 `await app.whenReady()`，40 秒超时。移除顶层等待、改成 `app.whenReady().then(...)` 后同一二进制与探针通过；符合 Electron ESM 加载等待 ready 的死锁模式。失败进程已退出，未遗留测试进程，搜索列表未变。超时结果不能算产品解密失败，也不能算验收通过。
 
-## 应用名选择探针（迁移设计依据）
+## 应用名选择探针（证据已撤回，入口停用）
 
-`scripts/testing/keychain-service-probe.py` 用 `keychain-service-interpose.c` 拦截 Security.framework 的 Safe Storage 查找/创建：只记录服务名和账户名，查找返回 not found，创建被拒绝，因此不读取也不创建真实条目。运行时取自校验过的 Electron 缓存，复制后临时 ad-hoc 重签以允许注入，结束删除。
+2026-11-07 独立只读审查 C 指出，`keychain-service-interpose.c` 的选择性 hook 不能保证不访问真实 Keychain，并且有长度字符串越界读取风险。`scripts/testing/keychain-service-probe.py` 已替换为无条件非零退出的停用入口，在任何运行时、编译器、文件解压、子进程或 Keychain 操作前拒绝执行；没有开关可绕过。C interposer 与 Electron JS 探针已删除，原始源码保留在 Git 历史中。本次更正未运行该探针。
 
-结果：
+撤回旧记录中“因此不读取也不创建真实条目”及“服务名三组通过”的结论。旧文曾记录默认服务名、`openmausbot` 服务名和任意测试服务名，以及 `available=true`；这些仅为未经完整验收的历史观察，不能当作三组成功、绝对隔离或迁移设计已验证的证据。默认 Keychain 和搜索列表不变也不能证明没有读取或写入条目；“没有新增条目”缺少覆盖全部 API 的证据，同样撤回。
 
-- 未设置应用名时查询 `Electron Safe Storage`；`app.setName("openmausbot")` 后查询 `openmausbot Safe Storage` / `openmausbot Key`；任意测试名同样生效。
-- 即使查找返回 not found、创建被拒，`isAsyncEncryptionAvailable()` 仍返回 true。availability 只表示加密后端初始化，不证明指定密文可解密。
-- 实验前后用户 Keychain 默认项和搜索列表不变，没有新增条目，临时目录已删除。
-
-这证明迁移可以在 ready 前用子进程选择旧名称；不证明真实旧条目 ACL 会放行，后者由 0.2.5 本机真实迁移中的用户授权验证。
+任何后续服务名研究只能在没有真实凭证的一次性 macOS 用户账户或 VM 中重新设计验证；不得恢复选择性 hook 后在用户账户绕过停用入口。上述显式私有 Keychain 原生实验和 `--use-mock-keychain` 实验的证据独立保留，各自边界不由本探针补强，也不因本探针的撤回而合并为失败。
 
 ## 当前结论及后续
 
-实验分别证明：密钥不匹配即使条目可读仍会失败；ad-hoc 身份变化也可以独立触发读取拒绝；通用 decrypt 错误加 availability=true 不能独自区分二者。真实环境的旧文件时间早于新名条目，且旧名条目仍存在，因此品牌更名导致密钥命名空间变化仍是最强线索，但未用真实密钥验证，不宣称已确认根因。
+显式私有 Keychain 的合成实验表明：密钥不匹配即使条目可读仍会解密失败；ad-hoc 身份变化也可以独立触发读取拒绝。mock 实验的 availability 与解密结果不能判定真实 ACL 或真实密钥来源。服务名探针不再支持任何验收结论。旧记录关于真实环境文件时间与服务名的线索不是本次新增或重新核实的证据；本次未读取真实凭证，不据此宣称已确认根因。
 
-后续产品修复应先验证固定凭证身份与旧身份读取的迁移设计：旧库不可读不得覆盖；新库写入并确认可重读前不得清理旧文件或明文；失败应保留可重试状态。不能盲目将 app.name 改回旧名，也不能仅靠稳定签名就假定旧密文可恢复。本轮未实现迁移，不解除发布阻断。
+产品迁移仍应独立验证：旧库不可读不得覆盖；新库写入并确认可重读前不得清理旧文件或明文；失败应保留可重试状态。不能仅靠改 app.name、availability 或稳定签名就假定旧密文可恢复。此诊断记录不替代 0.2.5 迁移回归、用户授权或发布验收，不解除发布阻断。
 
-维护/安全复核范围：三个 fixture 文件只运行系统编译器、codesign、openssl、显式合成 Keychain API 和 mock Electron；无网络调用、真实密码读取、安装钩子、权限扩张或产品接线。源码检查与原生/macOS 实验结果分别记录；未声称完整 Entropybot 安装迁移通过。
+原生和 mock fixture 的既有复核记录独立保留：最终偏好查询/断言失败曾跳过清理、负例只断言非零不够精确、mock 改名结果曾误称缓存机制。既有修正包括清理顺序、双条目精确 `-25293` 断言和结果措辞；旧记录的原生全路径重跑及合成最终查询异常探针均不作为服务名 interposer 通过证据。本次不重跑这些平台实验。
 
-独立复核发现诊断夹具的最终偏好查询/断言失败会跳过清理、负例只断言非零不够精确，以及 mock 改名结果误称缓存机制。已修正清理顺序、双条目精确 `-25293` 断言和结果措辞。修正后原生全路径重跑通过；另注入最终偏好查询异常，确认临时目录仍删除、JSON 仍输出、失败仍传播。该异常是合成查询失败，不是实际偏好变化。
+## 附录：撤回依据与历史失败
+
+源码基准为 `2905edd583cc18f47ed5bab99ad0f24fddcd9e6f`（本次停用前）；可用 `git show <基准>:scripts/testing/<文件名>` 只读检查，不能据此恢复执行。
+
+| 文件及原位置 | 源码事实 / 失败 | 影响与限制 |
+|---|---|---|
+| `keychain-service-interpose.c:38–87` | 仅 interpose `SecKeychainFindGenericPassword`、`SecKeychainAddGenericPassword`、`SecItemCopyMatching`、`SecItemAdd`；服务名包含 `Safe Storage` 才拒绝，其他分支经 `dlsym(RTLD_NEXT, ...)` 调用真实 API | 无 service、其他服务及未覆盖的 API 仍可能访问真实 Keychain；HOME/profile 临时化与偏好未变不能封闭该边界。未证明发生真实访问，也不能保证未发生 |
+| `keychain-service-interpose.c:19–20,38–49` | `is_safe_storage` 用 `strstr` 读取 `const char *service`，legacy API 同时提供 `service_len`，不保证 NUL 终止 | 忽略长度可能越界读取；日志中的 `%.*s` 不修复此前的 `strstr`。本次删除而不继续运行/修补该隔离方案 |
+| `keychain-service-probe.py:49–68` | 每组读取结果后先要求 `result['available'] is False`，再记录三组服务名、设置 `passed=True`；旧文却记录 `available=true` | true 与已提交断言相矛盾；对应执行应在三组验收完成前触发 AssertionError。缺少一致的完整成功记录，因此不报告三组通过，也不将此前失败改写为成功 |
+| `keychain-service-probe.mjs:12–27` | 调用真实 Electron safeStorage availability 并写入结果；本身没有显式私有 Keychain 句柄 | 依赖不完整的 interposer，不能从 JS 的临时目录证明后端隔离；该入口已删除 |
+
+以上来自源码和已有记录的矛盾核实，不是重新执行的结果，也不是已确认真实凭证读取或恶意行为的定性。原始失败、早期顶层 await 超时和各实验限制均保留，不以本次停用掩盖旧失败。
 
 ## 来源
 
