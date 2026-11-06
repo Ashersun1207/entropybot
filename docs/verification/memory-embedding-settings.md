@@ -45,3 +45,5 @@ Worktree 复用 node_modules 链接时，使用该 worktree 的 Node24 执行 `n
 真实 React 组件测试覆盖安全桥、无桥拒绝、状态、参数与测试请求；Settings 导航测试确认入口可达。`src/testing/memory-settings-preview.tsx` 是合成协议预览，不能作为实际后端或真实 Keychain 的证据。
 
 组合验收需分别记录后端真实 fixture、renderer 使用真实/合成协议的范围、测试路径与提交。真实 macOS Keychain 的锁定/拒绝、签名身份与重启后的解密，以及 packaged 安装升级，应在专门的可丢弃平台环境验证；mock 只证明事务控制流。未执行这些检查时明确标注，不能宣称平台验收已完成。
+
+品牌更名后旧凭证库由旧 Keychain 名称加密时，打包桌面会尝试一次性读取旧名称并迁移，见 [旧 Keychain 名称凭证迁移](credential-namespace-migration.md)。迁移失败必须保留旧库与明文配置；不得用删除凭证库来“修复”。

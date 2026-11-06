@@ -34,6 +34,7 @@
 
 | L24 | “本地 Stop 成功”不等于远端工具未执行或已回滚；只看最终回复/idle 会漏掉迟到回执污染新回合 | 用真实生产入口和受控假工具数清楚未接受/已接受未回包/已完成未回执/审批未允许；分别检查旧副作用、回执尝试、旧/新 turn 事件、工具行、调用计数和未知提示；不把停止当跨服务事务 | `server/openai-stop-receipts.e2e.test.ts`、`server/testing/late-tool-fixture.ts`；`2fa4bf838` 完整门槛与独立验收通过 |
 | L25 | 测试可能落后于已接受契约：`openai-chat-tools` 仍要求跨轮复用 call ID 被拒绝，而实现已明确允许跨轮、只拒绝同批重复 | 发现失败先判断是产品回归还是测试契约过期；不要把产品改回旧行为。更新测试为“跨轮允许一次、同批重复拒绝”，保留正负例 | `server/drivers/openai-chat-tools.test.ts`；`05730b861` 修正后 124 项通过 |
+| L26 | 品牌更名后 Safe Storage 密钥按应用名变化，保留 userData 仍会读旧库失败；`availability=true` 与通用 decrypt 错误不能区分错误密钥和 ACL 拒绝 | 旧名读取必须在 ready 前设名的独立子进程完成（服务名在主循环阶段固定，当前进程也可能已缓存密钥）；迁移先备份、加密写入、回读逐字段校验、原子替换，失败恢复旧字节并保留明文；同一文件失败不反复弹授权，成功标记同时记源/结果 hash，恢复旧备份可再迁一次；“替换成功但标记失败”仍算成功；取消先 TERM→KILL，未确认退出不删临时 profile，启动/spawn 同步失败也走失败返回；禁止用真实凭证做故障实验 | `electron/credential-namespace-migration.mjs`、`electron/main.mjs` legacy 分支、`electron/credential-namespace-migration.test.mjs`、`scripts/testing/legacy-credential-read.e2e.py`、`docs/verification/credential-namespace-migration.md`；真实 Keychain 授权/升级/回滚仍待平台验收 |
 
 ## 不应合并的改动
 

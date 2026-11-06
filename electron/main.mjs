@@ -77,7 +77,8 @@ import {
   withoutDesktopCompanionAccess,
 } from "./desktop-companion-client.mjs";
 import { isKnownSkin, skinChrome } from "./skin-overlay.cjs";
-import { readSecureCredentials } from "./secure-credentials.mjs";
+import { installLegacyCredentialRead } from "./credential-namespace-migration-child.mjs";
+import { createSecureCredentialIO } from "./secure-credential-io.mjs";
 import { createControlPlaneClient } from "./control-plane-client.mjs";
 import {
   companionAccountCleanupPending,
@@ -186,7 +187,9 @@ if (process.platform === "linux") {
   app.setDesktopName("ai.entropybot.desktop.desktop");
 }
 
-if (!app.requestSingleInstanceLock()) {
+const legacyCredentialRead = installLegacyCredentialRead();
+
+if (!legacyCredentialRead && !app.requestSingleInstanceLock()) {
   console.log("[desktop] Entropybot is already running — focusing that window");
   process.exit(0);
 }
@@ -363,41 +366,8 @@ let phoneSecretIdentity = null;
 let desktopRemoteAccess = null;
 let desktopCompanionRelay = null;
 
-const CREDENTIALS_FILE = path.join(app.getPath("userData"), "credentials.bin");
-
 const nativeText = createDesktopText(app), nativeT = nativeText.t; const createCloudAccountClient = options => cloudAccountClient({ ...options, t: nativeT });
-/** True when the store could not be read, which is not the same as nothing saved. */
-let credentialStoreUnavailable = false;
-
-async function loadSecureCredentials() {
-  const result = await readSecureCredentials({
-    exists: () => fs.existsSync(CREDENTIALS_FILE),
-    isAvailable: () => safeStorage.isAsyncEncryptionAvailable(),
-    readFile: () => fs.readFileSync(CREDENTIALS_FILE),
-    decrypt: (buffer) => safeStorage.decryptStringAsync(buffer),
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  });
-  credentialStoreUnavailable = result.status === "unavailable";
-  if (credentialStoreUnavailable) {
-    slog(`credential store unreadable after retries (${result.error}); saved keys are not loaded this launch`);
-  }
-  return result.credentials;
-}
-
-async function saveSecureCredentials(credentials) {
-  // Writing from an unread store would drop the secrets it could not read.
-  if (credentialStoreUnavailable) {
-    throw new Error("The operating-system credential store could not be read this launch");
-  }
-  if (!(await safeStorage.isAsyncEncryptionAvailable())) {
-    throw new Error("The operating-system credential store is unavailable");
-  }
-  fs.mkdirSync(path.dirname(CREDENTIALS_FILE), { recursive: true });
-  const encrypted = await safeStorage.encryptStringAsync(JSON.stringify(credentials));
-  const temporary = `${CREDENTIALS_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, encrypted, { mode: 0o600 });
-  fs.renameSync(temporary, CREDENTIALS_FILE);
-}
+const credentialIO = createSecureCredentialIO({ file: path.join(app.getPath("userData"), "credentials.bin"), safeStorage, log: slog, isPackaged: app.isPackaged, platform: process.platform });
 
 async function secureComposioConfig() {
   const dataDir = desktopDataDir();
@@ -410,7 +380,7 @@ async function secureComposioConfig() {
     if (typeof apiKey === "string" && apiKey.trim().startsWith("ak_")) {
       if (!secureCredentials.composioApiKey) {
         secureCredentials.composioApiKey = apiKey.trim();
-        await saveSecureCredentials(secureCredentials);
+        await credentialIO.save(secureCredentials);
       }
       config.composio.apiKey = "";
       changed = true;
@@ -440,7 +410,7 @@ async function secureWorkspaceConfig() {
   try {
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
     await persistWorkspaceCredentialMigration(config, secureCredentials, {
-      saveCredentials: saveSecureCredentials,
+      saveCredentials: credentialIO.save,
       onCredentialsCommitted: (credentials) => { secureCredentials = credentials; },
       saveConfig: (next) => {
         const temporary = `${configPath}.${process.pid}.tmp`;
@@ -1156,7 +1126,7 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
     ...(secureCredentials.composioApiKey
       ? { COMPOSIO_API_KEY: secureCredentials.composioApiKey }
       : {}),
-    OMB_CREDENTIAL_STORE: credentialStoreUnavailable ? "unavailable" : "ok",
+    OMB_CREDENTIAL_STORE: credentialIO.unavailable() ? "unavailable" : "ok",
     OMB_MEMORY_EMBEDDING_STORAGE: "",
     ...workspaceCredentialEnv(secureCredentials),
   });
@@ -2888,6 +2858,7 @@ setCuaStateListener((connection) => {
 });
 
 app.whenReady().then(async () => {
+  if (legacyCredentialRead) return;
   await evictStartupCacheOnce({
     userData: app.getPath("userData"),
     currentVersion: app.getVersion(),
@@ -2952,12 +2923,12 @@ app.whenReady().then(async () => {
     ownerToken: () => (app.isPackaged && serverReady ? desktopMutationToken : null) });
   if (app.isPackaged) app.setAsDefaultProtocolClient("entropybot");
   if (process.platform === "darwin") app.dock.setIcon(APP_ICON);
-  secureCredentials = await loadSecureCredentials();
+  secureCredentials = await credentialIO.load();
   // An orphaned third-party key with no clear handler left: drop it rather than keep it at rest.
-  if (secureCredentials && Object.hasOwn(secureCredentials, "assemblyAiApiKey") && !credentialStoreUnavailable) {
+  if (secureCredentials && Object.hasOwn(secureCredentials, "assemblyAiApiKey") && !credentialIO.unavailable()) {
     try {
       const { assemblyAiApiKey: _removed, ...rest } = secureCredentials;
-      await saveSecureCredentials(rest);
+      await credentialIO.save(rest);
       secureCredentials = rest;
     } catch (error) {
       slog(`orphaned AssemblyAI key not removed: ${error?.message ?? error}`);
@@ -2968,8 +2939,8 @@ app.whenReady().then(async () => {
     await secureWorkspaceConfig();
   }
   // From here on every credential writer must go through this serialized state.
-  secureCredentialState = createSecureCredentialState(secureCredentials, saveSecureCredentials, {
-    writable: !credentialStoreUnavailable,
+  secureCredentialState = createSecureCredentialState(secureCredentials, credentialIO.save, {
+    writable: !credentialIO.unavailable(),
   });
   secureCredentials = secureCredentialState.read();
   if (app.isPackaged) await ensurePhoneSecretIdentity();
@@ -3140,10 +3111,10 @@ app.whenReady().then(async () => {
   // Reconcile incomplete setup and resume interrupted sign-out only once the local app is usable.
   if (hostedAccount) void hostedAccount.restore().catch(() => {});
   // Registering from an unreadable store would mint a second installation identity.
-  if (credentialStoreUnavailable) {
+  if (credentialIO.unavailable()) {
     slog("skipping connected-apps registration: the credential store was unreadable this launch");
   }
-  if (!desktopRemoteAccess && app.isPackaged && composioBrokerUrl() && !credentialStoreUnavailable) {
+  if (!desktopRemoteAccess && app.isPackaged && composioBrokerUrl() && !credentialIO.unavailable()) {
     void updateSecureCredentialDocument(async (credentials) => {
       await ensureManagedComposioCredentials({
         brokerUrl: composioBrokerUrl(),
