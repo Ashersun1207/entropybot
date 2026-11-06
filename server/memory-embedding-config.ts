@@ -28,6 +28,14 @@ const memoryEmbeddingSchema = z.object({
 
 export type MemoryEmbeddingConfig = z.infer<typeof memoryEmbeddingSchema>;
 
+export function syncMemoryEmbeddingCredentialEnv(value: MemoryEmbeddingConfig | undefined, externalSecretStorage = false): void {
+  // An explicit empty value suppresses the legacy environment fallback without changing the operator's DASHSCOPE_API_KEY.
+  if (value?.key !== undefined) {
+    process.env.OMB_MEMORY_EMBEDDING_KEY = value.key;
+    process.env.OMB_MEMORY_EMBEDDING_STORAGE = externalSecretStorage && process.env.OMB_CREDENTIAL_STORE === "ok" ? "secure" : "environment";
+  }
+}
+
 export type MemoryEmbeddingStorage = "secure" | "plaintext" | "environment" | "unavailable" | "none";
 const storageSources = new WeakMap<MemoryEmbeddingConfig, MemoryEmbeddingStorage>();
 

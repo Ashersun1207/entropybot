@@ -3,6 +3,9 @@ export type { MemoryHit, MemoryFileStat } from "./memory-retrieval.ts";
 import { createMemoryRetrieval, ensureMemoryVectors } from "./memory-retrieval.ts";
 import { ensureChineseRecallIndex } from "./message-recall-index.ts";
 import { chineseRecallMatches, recallChineseMessages } from "./message-recall-chinese.ts";
+import { ftsAllTerms, ftsQuery, matchedRecallTerms, rangeClause, recallTerms, type RecallRange, type SearchMode } from "./message-recall-terms.ts";
+export { recallMatchTerm, recallTerms } from "./message-recall-terms.ts";
+export type { RecallRange, SearchMode } from "./message-recall-terms.ts";
 import { randomUUID } from "node:crypto";
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
@@ -736,53 +739,6 @@ function peerAuthor(peerName: string | null, text: string): string | null {
 
 const PEER_NOTE_HEAD_CHARS = 160;
 
-const STOP_WORDS = new Set(
-  "a an and are as at be by did do for from had has have how i in is it its of on or that the this to was we were what when where which who why with you your".split(" "),
-);
-
-/** Quote every token so FTS5 searches `AND`, `NOT`, `*`, `:` literally instead of parsing them. */
-function ftsAllTerms(query: string): string[] {
-  const tokens = query.split(/\s+/).map((token) => token.replace(/"/g, "").trim()).filter(Boolean);
-  const content = tokens.filter((token) => !STOP_WORDS.has(token.toLowerCase()));
-  return content.length ? content : tokens;
-}
-
-function ftsQuery(query: string, mode: SearchMode = "all"): string | null {
-  const tokens = ftsAllTerms(query);
-  if (!tokens.length) return null;
-  if (mode === "any") {
-    const terms = recallTerms(query).map(recallMatchTerm).filter(Boolean);
-    return terms.length ? terms.join(" OR ") : null;
-  }
-  return tokens.map((token) => `"${token}"`).join(" ");
-}
-
-/** FTS5's unicode61 tokenizer cannot tell "-10" from "10" or "c++" from "c", even quoted, so punctuation terms are skipped. */
-export function recallMatchTerm(term: string): string | null {
-  if (!/^[\p{L}\p{N}]+$/u.test(term)) return null;
-  if (!/^\p{L}{4,}$/u.test(term)) return `"${term}"`;
-  const stem = term.length > 4 && term.endsWith("s") && !term.endsWith("ss") ? term.slice(0, -1) : term;
-  return `"${stem}"*`;
-}
-
-export type SearchMode = "all" | "any";
-
-const RECALL_FILLER = new Set(
-  "about again also any anything can could does don't know me my please remember remind should tell there they us would hi hello hey thanks thank ok okay yes yeah no i'm im i've i'll i'd you're quick just".split(" "),
-);
-
-export function recallTerms(query: string): string[] {
-  const out: string[] = [];
-  for (const raw of query.split(/\s+|(?<=\p{L})[/,;:.—–-]+(?=\p{L})/u)) {
-    const token = raw.replace(/"/g, "").replace(/^[\s.,;:!?()[\]{}'`“”‘’]+|[\s.,;:!?()[\]{}'`“”‘’]+$/g, "").toLowerCase();
-    if (token.length < 2 && !/\d/.test(token)) continue;
-    if (!/[\p{L}\p{N}]/u.test(token)) continue;
-    if (STOP_WORDS.has(token) || RECALL_FILLER.has(token)) continue;
-    if (!out.includes(token)) out.push(token);
-  }
-  return out.slice(0, 16);
-}
-
 const SNIPPET_TOKENS = 48;
 
 export function readMessageText(
@@ -809,25 +765,6 @@ export function readMessageText(
     ...(row.from_name ? { from: row.from_name } : {}),
     ...(peer ? { peer } : {}),
   };
-}
-
-export interface RecallRange {
-  since?: number;
-  until?: number;
-}
-
-function rangeClause(range: RecallRange | undefined, column: string): { sql: string; params: number[] } {
-  const parts: string[] = [];
-  const params: number[] = [];
-  if (range?.since !== undefined) {
-    parts.push(`${column} >= ?`);
-    params.push(range.since);
-  }
-  if (range?.until !== undefined) {
-    parts.push(`${column} <= ?`);
-    params.push(range.until);
-  }
-  return { sql: parts.map((part) => ` AND ${part}`).join(""), params };
 }
 
 export function recallMessages(query: string, threadIds: readonly string[], limit = 12, range?: RecallRange, mode: SearchMode = "all"): RecallHit[] {
@@ -885,12 +822,7 @@ export function recallPassageMatches(query: string, hit: RecallHit): boolean {
   if (chineseRecallMatches(query, source.text)) return true;
   const terms = recallTerms(query);
   if (terms.length < 5) return true;
-  const words = source.text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
-  return terms.filter((term) => {
-    if (!recallMatchTerm(term)) return false;
-    const stem = term.length > 4 && term.endsWith("s") && !term.endsWith("ss") ? term.slice(0, -1) : term;
-    return words.some((word) => /^\p{L}{4,}$/u.test(term) ? word.startsWith(stem) : word === term);
-  }).length >= 2;
+  return matchedRecallTerms(terms, source.text) >= 2;
 }
 
 const RECENT_HEAD_CHARS = 240;

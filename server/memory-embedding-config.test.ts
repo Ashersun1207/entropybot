@@ -63,6 +63,27 @@ describe("memory embedding configuration", () => {
     expect(JSON.stringify(status)).not.toMatch(/fixture-(?:environment|unmigrated)/);
   });
 
+  it.each([
+    { external: true, store: "ok", source: "secure" },
+    { external: false, store: "ok", source: "environment" },
+    { external: true, store: "unavailable", source: "environment" },
+    { external: true, store: undefined, source: "environment" },
+  ])("synchronizes memory-only credentials without changing legacy env: $external / $store", ({ external, store, source }) => {
+    vi.stubEnv("OMB_CREDENTIAL_STORE", store);
+    vi.stubEnv("DASHSCOPE_API_KEY", "fixture-legacy");
+    syncCredentialEnv({ memoryEmbedding: { key: "fixture-saved" } }, external);
+    expect(process.env.OMB_MEMORY_EMBEDDING_KEY).toBe("fixture-saved");
+    expect(process.env.OMB_MEMORY_EMBEDDING_STORAGE).toBe(source);
+    syncCredentialEnv({ memoryEmbedding: { enabled: false } });
+    expect(process.env.OMB_MEMORY_EMBEDDING_KEY).toBe("fixture-saved");
+    expect(process.env.OMB_MEMORY_EMBEDDING_STORAGE).toBe(source);
+    syncCredentialEnv({ memoryEmbedding: { key: "" } }, external);
+    expect(process.env.OMB_MEMORY_EMBEDDING_KEY).toBe("");
+    expect(process.env.OMB_MEMORY_EMBEDDING_STORAGE).toBe(source);
+    expect(memoryEmbeddingEnv().key).toBe("");
+    expect(process.env.DASHSCOPE_API_KEY).toBe("fixture-legacy");
+  });
+
   it("keeps explicit removal across a restart and does not change the legacy operator variable", () => {
     vi.stubEnv("DASHSCOPE_API_KEY", "fixture-operator");
     saveConfig({ memoryEmbedding: { enabled: true, key: "" } });

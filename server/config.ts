@@ -1,4 +1,4 @@
-import { memoryEmbeddingShape, memoryEmbeddingEnv, type MemoryEmbeddingHostConfig } from "./memory-embedding-config.ts";
+import { memoryEmbeddingShape, memoryEmbeddingEnv, syncMemoryEmbeddingCredentialEnv, type MemoryEmbeddingHostConfig } from "./memory-embedding-config.ts";
 // ~/.entropybot/config.json, with env vars overriding its credentials.
 import { readFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -818,11 +818,7 @@ export function cacheUntilConfigChanges<T>(derive: (config: AppConfig) => T): ()
 /** Keeps credential env in step with a save. An empty memory key suppresses the legacy fallback;
  * other empty credentials drop their variable. External storage marks credentials supplied by the desktop store. */
 export function syncCredentialEnv(patch: Partial<Omit<AppConfig, "threads" | "newBots">>, externalSecretStorage = false): void {
-  // An explicit empty value suppresses the legacy environment fallback without changing the operator's DASHSCOPE_API_KEY.
-  if (patch.memoryEmbedding?.key !== undefined) {
-    process.env.OMB_MEMORY_EMBEDDING_KEY = patch.memoryEmbedding.key;
-    process.env.OMB_MEMORY_EMBEDDING_STORAGE = externalSecretStorage && process.env.OMB_CREDENTIAL_STORE === "ok" ? "secure" : "environment";
-  }
+  syncMemoryEmbeddingCredentialEnv(patch.memoryEmbedding, externalSecretStorage);
   const secrets: Array<[value: string | undefined, name: string]> = [
     [patch.xai?.key, "XAI_API_KEY"],
     [patch.mistral?.key, "MISTRAL_API_KEY"],
