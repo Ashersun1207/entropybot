@@ -1,7 +1,7 @@
 {
   "name": "entropybot",
   "private": true,
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "A local-first chat app for running a team of AI agents.",
   "homepage": "https://github.com/Ashersun1207/entropybot",
   "repository": {

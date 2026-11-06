@@ -39,10 +39,23 @@ pnpm lint
 
 `credential-namespace-migration.test.mjs` 覆盖成功、回读不一致、加密失败、文件在决定后变化、备份不覆盖、标记写入失败、危险/超大/畸形输出和失败信息不含凭证值。Electron e2e 使用 `--use-mock-keychain` 与合成 JSON，验证子进程退出码、结果帧、stderr 不出现合成秘密，以及损坏密文返回非零且无结果帧。
 
+## 真实平台验收（2026-11-07）
+
+在用户明确同意下，本机从 0.2.4 升级到 0.2.5 并执行一次真实迁移；未删除旧库、旧 Keychain 条目或明文配置备份。
+
+- 首次启动弹出两次系统钥匙串授权（当前新条目、旧名称条目），用户选择“始终允许”后继续；此前选择“允许一次”会在下次启动再次询问。
+- 日志：`credential store may use the pre-rename keychain entry...` → `credential store migrated to the current keychain entry (4 saved item(s))`。
+- 旧库备份：`credentials.bin.legacy-ac60d0f67fa8.bak`，595 字节，SHA256 `ac60d0f6…77d14`；迁移后新库 643 字节，标记 `migrated`。
+- 明文配置迁移完成：`/api/config` 的 `memoryEmbedding.storage` 从 `plaintext` 变为 `secure`，`config.json` 中不再有明文 `key`。
+- 数据只读计数保持 436 条消息、13 个记忆文件、9 个向量。
+- 新条目 ACL 已写入当前 0.2.5 cdhash；随后一次完整退出/启动不再弹出授权框，`storage` 仍为 `secure`。
+
+未验证：拒绝授权后的再次启动、锁定钥匙串、回退到旧版本后读取新库、真实模型/网络调用、Developer ID 公证。ad-hoc 构建每次重建 cdhash 会变化，仍可能触发新的钥匙串授权；发布前若要避免升级弹框，需要稳定签名身份。
+
 ## 尚未验证
 
-- 真实 macOS 钥匙串的旧条目授权/拒绝、签名身份提示和“始终允许”后的再次读取；mock 与注入探针只证明名称选择与事务控制流。
-- 真实安装升级后的一次迁移、失败后再次启动、回滚到旧版本以及备份清理策略。
-- 非 macOS 平台不走此迁移。
+- 真实 macOS 钥匙串拒绝/锁定路径；真实安装升级后的失败重试与回滚演练。
+- 真实模型/网络调用、Developer ID/公证；非 macOS 平台不走此迁移。
+- ad-hoc 重建后的签名变化与钥匙串授权复用；本次只验证了同一构建的重启。
 
 真实迁移属于用户数据操作，应在保留备份、明文配置和旧文件的前提下，经用户确认后执行；不得为测试删除真实凭证或清空 Keychain。
