@@ -1,8 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { spawnSync } from "node:child_process";
+import { GateCommandRunner } from "./patch-gate-process.ts";
 import ts from "typescript";
 import { parse as parseYaml } from "yaml";
 import { callContracts, valueContracts, vitestFiles, nodeTestFiles, inventory } from "./patch-contracts.mjs";
@@ -78,38 +78,67 @@ export function checkPatchContracts(root = repositoryRoot) {
   return failures.map(failure => `${failure}\n  Behavior gate: node "${join(root, "scripts/check-patches.mjs")}" --verify`);
 }
 
-export function verifyPatchBehavior(root = repositoryRoot) {
-  const failures = checkPatchContracts(root);
-  if (failures.length) throw new Error(failures.join("\n"));
-  const temporary = mkdtempSync(join(tmpdir(), "entropybot-patch-gate-"));
-  const report = join(temporary, "vitest.json");
-  const env = Object.fromEntries(["PATH", "SystemRoot", "WINDIR", "TMPDIR", "TEMP", "TMP", "CI"].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
-  Object.assign(env, { HOME: temporary, USERPROFILE: temporary, OMB_VITEST_WORKERS: "1" });
-  const run = (args) => {
-    const result = spawnSync(process.execPath, args, { cwd: root, env, stdio: "inherit" });
-    if (result.error || result.status !== 0) throw new Error(`behavior command failed (${result.status ?? result.error?.message}): node ${args.join(" ")}`);
-  };
-  try {
-    run([join(root, "node_modules/vitest/vitest.mjs"), "run", "--root", root, "--config", join(root, "vite.config.ts"), "--configLoader", "native", "--reporter=default", "--reporter=json", `--outputFile.json=${report}`, ...vitestFiles]);
-    const results = JSON.parse(readFileSync(report, "utf8"));
-    for (const file of vitestFiles) {
-      const suite = results.testResults.find(result => resolve(root, result.name) === resolve(root, file));
-      if (!suite?.assertionResults.length || suite.status !== "passed" || suite.assertionResults.some(test => test.status !== "passed")) {
-        throw new Error(`[behavior] ${file}: missing, failed or skipped tests`);
-      }
+export function validateVitestReport(results, root = repositoryRoot) {
+  if (!Array.isArray(results?.testResults)) throw new Error("[behavior] invalid Vitest report");
+  for (const file of vitestFiles) {
+    const suite = results.testResults.find(result => typeof result?.name === "string" && resolve(root, result.name) === resolve(root, file));
+    if (!Array.isArray(suite?.assertionResults) || !suite.assertionResults.length || suite.status !== "passed" || suite.assertionResults.some(test => test?.status !== "passed")) {
+      throw new Error(`[behavior] ${file}: missing, failed or skipped tests`);
     }
-    for (const file of nodeTestFiles) {
-      const result = spawnSync(process.execPath, ["--test", "--test-reporter=tap", file], { cwd: root, env, encoding: "utf8" });
-      process.stdout.write(result.stdout ?? "");
-      process.stderr.write(result.stderr ?? "");
-      const count = Number(/(?:^|\n)# tests (\d+)/.exec(result.stdout ?? "")?.[1]);
-      const skipped = /(?:^|\n)# (?:skipped|todo) [1-9]/.test(result.stdout ?? "");
-      if (result.error || result.status !== 0 || !(count > 0) || skipped) throw new Error(`[behavior] ${file}: failed, empty or skipped Node tests`);
-    }
-  } finally { rmSync(temporary, { recursive: true, force: true }); }
+  }
 }
 
-function main() {
+export function validateNodeReport(stdout, file) {
+  const count = (name) => Number(new RegExp(`(?:^|\\n)# ${name} (\\d+)(?:\\r?\\n|$)`).exec(stdout)?.[1]);
+  if (!(count("tests") > 0) || count("pass") !== count("tests") || ["fail", "cancelled", "skipped", "todo"].some(name => count(name) !== 0)) {
+    throw new Error(`[behavior] ${file}: incomplete, empty, failed or skipped Node tests`);
+  }
+}
+
+export async function verifyPatchBehavior(root = repositoryRoot, options = {}) {
+  root = realpathSync(root);
+  const failures = checkPatchContracts(root);
+  if (failures.length) throw new Error(failures.join("\n"));
+  const runner = new GateCommandRunner(options);
+  let temporary;
+  let primaryError;
+  try {
+    runner.assertActive();
+    temporary = mkdtempSync(join(tmpdir(), "entropybot-patch-gate-"));
+    const report = join(temporary, "vitest.json");
+    const env = Object.fromEntries(["PATH", "SystemRoot", "WINDIR", "TMPDIR", "TEMP", "TMP", "CI"].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
+    Object.assign(env, { HOME: temporary, USERPROFILE: temporary, OMB_VITEST_WORKERS: "1" });
+    await runner.run(process.execPath, [join(root, "node_modules/vitest/vitest.mjs"), "run", "--root", root, "--config", join(root, "vite.config.ts"), "--configLoader", "native", "--reporter=default", "--reporter=json", `--outputFile.json=${report}`, ...vitestFiles], { cwd: root, env }, "Vitest patch suites");
+    validateVitestReport(JSON.parse(readFileSync(report, "utf8")), root);
+    for (const file of nodeTestFiles) {
+      const result = await runner.run(process.execPath, ["--test", "--test-reporter=tap", file], { cwd: root, env, timeoutMs: 120_000 }, file);
+      validateNodeReport(result.stdout, file);
+    }
+    runner.assertActive();
+  } catch (error) {
+    primaryError = error;
+  } finally {
+    await runner.close();
+    if (temporary) {
+      if (runner.cleanupConfirmed) {
+        try { rmSync(temporary, { recursive: true, force: true }); } catch (error) {
+          const message = `[cleanup] could not remove temporary data ${temporary}: ${error.message}`;
+          if (primaryError) console.error(message);
+          else primaryError = new Error(message, { cause: error });
+        }
+      }
+      else {
+        console.error(`[cleanup] retained temporary data (owned execution not confirmed stopped): ${temporary}`);
+        try {
+          writeFileSync(join(temporary, "lifecycle-failure.json"), JSON.stringify({ kind: primaryError?.kind, message: primaryError?.message, cleanupConfirmed: false, evidence: primaryError?.evidence }), { mode: 0o600 });
+        } catch (error) { console.error(`[cleanup] could not write lifecycle evidence: ${error.message}`); }
+      }
+    }
+  }
+  if (primaryError) throw primaryError;
+}
+
+async function main() {
   const args = process.argv.slice(2);
   if (args.some(arg => arg !== "--verify") || args.length > 1) throw new Error("Usage: node scripts/check-patches.mjs [--verify] (repository selected by script location)");
   if (Number(process.versions.node.split(".")[0]) < 24) throw new Error("Patch contracts require Node >=24");
@@ -117,11 +146,16 @@ function main() {
   if (failures.length) throw new Error(`Patch contracts failed:\n${failures.join("\n")}`);
   console.log(`Patch structure OK (${callContracts.length + valueContracts.length} contracts); behavior ${args.length ? "running" : "NOT RUN (use --verify)"}`);
   if (args.length) {
-    verifyPatchBehavior();
+    await verifyPatchBehavior();
     console.log("Patch behavior gate OK");
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  try { main(); } catch (error) { console.error(error.message); process.exitCode = 1; }
+function invokedAsMain() {
+  if (!process.argv[1]) return false;
+  try { return import.meta.url === pathToFileURL(realpathSync(resolve(process.argv[1]))).href; } catch { return false; }
+}
+
+if (invokedAsMain()) {
+  try { await main(); } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

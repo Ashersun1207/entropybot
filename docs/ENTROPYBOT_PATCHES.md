@@ -52,6 +52,8 @@
 node scripts/check-patches.mjs --verify
 ```
 
+执行预算、信号取消、进程组回收和失败目录保留见 [门槛生命周期](verification/patch-gate-lifecycle.md)。完整行为执行当前要求 POSIX 进程组支持；Windows/未知平台会在启动命令前明确拒绝，结构模式仍可使用。
+
 该命令先检查结构和测试文件存在，再运行显式 Vitest 文件清单（含契约变异测试和真实隔离假引擎 fixture），最后逐文件运行 Node tests。不接受其它参数，不使用 `--passWithNoTests`；缺文件、解析失败、测试非零退出、空 suite、跳过/todo 测试均返回非零。结构错误输出契约 ID、文件、预期/实际与完整行为门槛命令。
 
 脚本根目录由 `import.meta.url` 决定，允许从任意 cwd 调用绝对脚本路径；不支持 CLI `--root`。Vitest 内部显式传入该根目录、`vite.config.ts` 和 `--configLoader native`，即使 node_modules 链接到主仓库，也读取本 worktree 源码与测试。行为进程使用临时 HOME/data 与过滤后的环境；不继承 API Key 或宿主应用配置。Node 必须已在 PATH 指向 24（子引擎也使用该 PATH）。完整门槛可耗时数分钟，不构建安装包，也不操作用户应用。
