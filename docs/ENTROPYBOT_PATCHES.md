@@ -16,6 +16,7 @@
 | P9 | 应用内“有新版本”提示（只检查不安装） | `electron/updater.mjs`、`src/components/AppSettingsRows.tsx` | `electron/entropybot-updater.test.mjs` | 未合并 | 手动模式专用 |
 | P10 | 应用内语义记忆设置与安全凭证（safeStorage / macOS Keychain 保护） | `src/components/MemorySettings.tsx`、Settings 导航与配置状态、`electron/workspace-credentials.mjs`、`electron/credential-patch.mjs`、`electron/main.mjs`、`server/memory-embedding-*.ts`、`server/routes/memory-embedding.ts`、配置与环境隔离 | `electron/memory-credentials.test.mjs`、`server/memory-embedding-{config,client,index,auth}.test.ts`、`server/memory-embedding-settings.e2e.test.ts`、`src/components/MemorySettings.test.ts`、`src/state/memory-status.test.ts` | 未合并 | 保留专属 slot、迁移先加密后删明文、清除空值标记、脱敏状态、受保护测试路由和 endpoint/model/dimensions 索引身份；不得回退明文保存 |
 | P11 | 中文历史自动召回与可重建派生索引 | `server/message-db.ts`、`server/recall.ts`、`server/message-recall-{index,chinese,terms,evidence}.ts` | `server/chinese-history-recall{,.e2e}.test.ts`、`server/recall-accent.test.ts`、`server/message-recall-evidence.test.ts`、`server/message-recall-index.test.ts`、`server/chinese-history-performance.test.ts`、`server/message-db.test.ts` | 未合并 | 保留原生触发器与事务回填、授权/时间过滤、短中文准入、真实正文相关性复核、作者与预算；不可退回全库扫描或仅最近窗口 |
+| P12 | 数据查询公开提前中断不丢失 | `server/data/engine.ts` | `server/data/engine.test.ts`、`server/data/engine-interrupt.test.ts`、`server/data/engine-interrupt-native.test.ts` | 未合并 | 保留原 deadline/首因、单 retry、state 身份及 finally；此修复不保证截止后派发或所有 bot Stop |
 
 契约清单见 `scripts/patch-contracts.mjs`，区分结构规则与必须执行的行为测试。P10 的行为测试已列入自有 CI；新增完整门槛的 workflow 接入由主控处理。设置、凭证与验证边界见 [记忆设置验收](verification/memory-embedding-settings.md)。
 
@@ -23,7 +24,7 @@
 
 本轮源码基线固定为 `c1aeda2501c5a003446acb413de46d0e16012976`。这是 Entropybot 定制源码基线，不是“上游最新版本”。源码上游固定 SHA、Entropybot 应用版本（本轮基线为 0.2.3）、外部执行引擎版本和模型版本分别记录、分别验证；源码同步不能替代引擎能力或模型效果验收。脚本不 fetch、merge、下载上游实现或恢复上游发布 workflow。
 
-最终集成清单包含 30 项结构契约，行为文件清单为 33 个 Vitest 文件、5 个 Node test 文件。契约测试共 10 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL；桌面 updater 的既有三项行为测试保持登记。
+最终集成清单包含 30 项结构契约，行为文件清单为 36 个 Vitest 文件、5 个 Node test 文件。契约测试共 10 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL；桌面 updater 的既有三项行为测试保持登记。
 
 | 契约 | 结构保护范围 | 复用的行为证据 |
 |---|---|---|
@@ -63,6 +64,10 @@ node node_modules/vitest/vitest.mjs run --root "$PWD" --config "$PWD/vite.config
 ```
 
 第一条明确输出行为未运行；第二条需在应用仓库根目录运行。A 的中文数据库/buildRecall/服务回合与规模回归已登记到统一清单，由两个 workflow 的相同 `--verify` 命令执行；测试清单本身不代替第二轮最终集成验证。通过后仍需按最终提交记录源码 SHA、检查命令与实际结果，再独立验收发布产物。
+
+## 第三轮 Data 独立交付
+
+P12 的确定性 Lane/BotDb、原生临时库及原 engine 回归已登记到同一行为清单，由既有 CI/release 入口运行。它只改数据查询中断，不含正在隔离修复的 Runner 生命周期、fixture IPC/lease 或目录删除机制；M02/OPT-009 和 M03 保持未关闭，不把 Data 通过当作进程资源回收已完成。Native 实测与 fake 派发证据分别记录，不能外推所有平台和工具取消。
 
 ## 必须保留（不可替换）
 

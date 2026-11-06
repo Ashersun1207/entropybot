@@ -38,6 +38,9 @@ export const valueContracts = [
 
 export const vitestFiles = [
   "scripts/testing/patch-contracts.test.ts",
+  "server/data/engine.test.ts",
+  "server/data/engine-interrupt.test.ts",
+  "server/data/engine-interrupt-native.test.ts",
   "server/recall.test.ts",
   "server/recall-accent.test.ts",
   "server/message-recall-evidence.test.ts",
@@ -93,6 +96,7 @@ export const inventory = [
   "AGENTS.md",
   "docs/engineering/AGENT_LESSONS.md",
   "docs/engineering/MAINTENANCE.md",
+  "server/data/engine.ts",
   "scripts/entropybot-release.mjs",
   ".github/workflows/entropybot-release.yml",
   ".github/workflows/entropybot-ci.yml",
