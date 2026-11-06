@@ -1139,7 +1139,7 @@ describe("structured tool execution boundaries", () => {
   });
 
   it.each([
-    { scenario: "duplicate call IDs", frames: [chunk({ tool_calls: [toolCall(), { ...toolCall(), index: 1 }] }, "tool_calls")] },
+    { scenario: "duplicate call IDs within one batch", frames: [chunk({ tool_calls: [toolCall(), { ...toolCall(), index: 1 }] }, "tool_calls")] },
     { scenario: "missing call ID", frames: [chunk({ tool_calls: [{ index: 0, type: "function", function: toolCall().function }] }, "tool_calls")] },
     { scenario: "changed call ID", frames: [chunk({ tool_calls: [toolCall()] }), chunk({ tool_calls: [{ index: 0, id: "a_different_call" }] }, "tool_calls")] },
     { scenario: "truncated tool completion", frames: [chunk({ tool_calls: [toolCall()] }, "length")] },
@@ -1205,15 +1205,33 @@ describe("structured tool execution boundaries", () => {
     })]);
   });
 
-  it("rejects a repeated call ID in a later model round before duplicating its effect", async () => {
-    const f = await fixture((_body, response) => sse(response, [chunk({ tool_calls: [toolCall()] }, "tool_calls")]));
+  it("allows call ID reuse across model rounds with separate approvals and exactly one effect per call", async () => {
+    const f = await fixture((_body, response, round) => round <= 2
+      ? sse(response, [chunk({ tool_calls: [toolCall("audit_write", JSON.stringify({ name: `receipt-${round}`, value: "done" }))] }, "tool_calls")])
+      : answer(response));
     await f.start();
-    await f.decide();
-    expect(await f.completed()).toMatchObject({ ok: false });
-    expect(f.effects()).toHaveLength(1);
-    expect(f.requests).toHaveLength(2);
-    expect(f.recorder.events.filter((event) => event.type === "request.opened")).toHaveLength(1);
-    expect(f.recorder.events).toContainEqual(expect.objectContaining({ type: "runtime.error", message: expect.stringMatching(/repeat|duplicate/i) }));
+    const first = await f.recorder.until((event) => event.type === "request.opened");
+    expect(await f.decide()).toBe("allowed-once");
+    const second = await f.recorder.until((event) => event.type === "request.opened" && event.requestId !== first.requestId);
+    expect(f.effects()).toEqual([{ name: "receipt-1", value: "done" }]);
+    expect(await f.instance.adapter.respondToRequest(f.threadId, second.requestId!, { behavior: "allow" })).toBe("allowed-once");
+    expect(await f.completed()).toMatchObject({ ok: true });
+    expect(f.effects()).toEqual([{ name: "receipt-1", value: "done" }, { name: "receipt-2", value: "done" }]);
+    expect(f.requests).toHaveLength(3);
+    expect(f.recorder.events.filter((event) => event.type === "request.opened")).toHaveLength(2);
+    expect(f.requests[1].messages.filter((message) => message.role === "tool")).toEqual([
+      { role: "tool", tool_call_id: "call_write", content: JSON.stringify({ ok: true, result: "Stored receipt-1=done" }) },
+    ]);
+    expect(f.requests[2].messages.filter((message) => message.role === "tool")).toEqual([
+      { role: "tool", tool_call_id: "call_write", content: JSON.stringify({ ok: true, result: "Stored receipt-1=done" }) },
+      { role: "tool", tool_call_id: "call_write", content: JSON.stringify({ ok: true, result: "Stored receipt-2=done" }) },
+    ]);
+    expect(f.recorder.events.filter((event) => event.type === "item.completed" && event.itemType === "tool")).toEqual([
+      expect.objectContaining({ itemId: "call_write", ok: true }),
+      expect.objectContaining({ itemId: "call_write", ok: true }),
+    ]);
+    expect(f.recorder.events.filter((event) => event.type === "runtime.error")).toEqual([]);
+    expect(f.recorder.events.filter((event) => event.type === "turn.retrying")).toEqual([]);
   });
 
   it("finishes a tool-heavy task that needs more than sixteen steps", async () => {
