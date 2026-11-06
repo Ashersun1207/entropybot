@@ -14,6 +14,9 @@
 | P7 | 协议名（`entropybot://` 新增，旧 `openmausbot://` 兼容） | `electron-builder.yml`、`electron/main.mjs` | `electron/*.test.mjs` | 未合并 | 两个 scheme 都注册 |
 | P8 | 品牌与链接（产品名、文案、域名、GitHub） | `src/`、`server/`、`electron/`、`shared/`、`docs/`、`README.md` | `src/locales/*.test.ts` | 未合并 | 保留 NOTICE/LICENSE 归属，不改法律文本 |
 | P9 | 应用内“有新版本”提示（只检查不安装） | `electron/updater.mjs`、`src/components/AppSettingsRows.tsx` | `electron/entropybot-updater.test.mjs` | 未合并 | 手动模式专用 |
+| P10 | 应用内语义记忆设置与安全凭证（safeStorage / macOS Keychain 保护） | `src/components/MemorySettings.tsx`、Settings 导航与配置状态、`electron/workspace-credentials.mjs`、`electron/credential-patch.mjs`、`electron/main.mjs`、`server/memory-embedding-*.ts`、`server/routes/memory-embedding.ts`、配置与环境隔离 | `electron/memory-credentials.test.mjs`、`server/memory-embedding-{config,client,index,auth}.test.ts`、`server/memory-embedding-settings.e2e.test.ts`、`src/components/MemorySettings.test.ts`、`src/state/memory-status.test.ts` | 未合并 | 保留专属 slot、迁移先加密后删明文、清除空值标记、脱敏状态、受保护测试路由和 endpoint/model/dimensions 索引身份；不得回退明文保存 |
+
+路径检查只确认文件存在；P10 的行为测试已列入自有 CI。上游合并后仍需按最终集成提交执行隔离验收，不能把路径检查通过当作行为验证。设置、凭证与验证边界见 [记忆设置验收](verification/memory-embedding-settings.md)。
 
 ## 必须保留（不可替换）
 
