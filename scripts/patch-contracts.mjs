@@ -75,7 +75,9 @@ export const vitestFiles = [
   "server/memory-embedding-index.test.ts",
   "server/memory-embedding-auth.test.ts",
   "server/memory-embedding-settings.e2e.test.ts",
+  "server/memory-prompt-projection.test.ts",
   "src/components/MemorySettings.test.ts",
+  "src/components/SettingsModal.manual-updates.test.ts",
   "src/components/SettingsModal.simple.test.ts",
   "src/state/memory-status.test.ts",
 ];
