@@ -22,6 +22,7 @@ export const callContracts = [
   { id: "P11/candidates", file: "server/message-db.ts", symbol: "recallChineseMessages", from: "./message-recall-chinese.ts" },
   { id: "P11/admission", file: "server/recall.ts", symbol: "chineseRecallQuery", from: "./message-recall-chinese.ts" },
   { id: "P11/evidence", file: "server/recall.ts", symbol: "recallPassageMatches", from: "./message-db.ts" },
+  { id: "P11/native-evidence", file: "server/message-db.ts", symbol: "countFtsRecallMatches", from: "./message-recall-evidence.ts" },
   { id: "M01/test-scratch-cleanup", file: "server/chinese-history-recall.e2e.test.ts", symbol: "onTestFinished" },
 ];
 
@@ -39,6 +40,7 @@ export const vitestFiles = [
   "scripts/testing/patch-contracts.test.ts",
   "server/recall.test.ts",
   "server/recall-accent.test.ts",
+  "server/message-recall-evidence.test.ts",
   "server/message-db.test.ts",
   "server/chinese-history-recall.test.ts",
   "server/message-recall-index.test.ts",
@@ -87,6 +89,7 @@ export const inventory = [
   "server/message-recall-index.ts",
   "server/message-recall-chinese.ts",
   "server/message-recall-terms.ts",
+  "server/message-recall-evidence.ts",
   "AGENTS.md",
   "docs/engineering/AGENT_LESSONS.md",
   "docs/engineering/MAINTENANCE.md",

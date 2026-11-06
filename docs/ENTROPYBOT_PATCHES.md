@@ -15,7 +15,7 @@
 | P8 | 品牌与链接（产品名、文案、域名、GitHub） | `src/`、`server/`、`electron/`、`shared/`、`docs/`、`README.md` | `src/locales/*.test.ts` | 未合并 | 保留 NOTICE/LICENSE 归属，不改法律文本 |
 | P9 | 应用内“有新版本”提示（只检查不安装） | `electron/updater.mjs`、`src/components/AppSettingsRows.tsx` | `electron/entropybot-updater.test.mjs` | 未合并 | 手动模式专用 |
 | P10 | 应用内语义记忆设置与安全凭证（safeStorage / macOS Keychain 保护） | `src/components/MemorySettings.tsx`、Settings 导航与配置状态、`electron/workspace-credentials.mjs`、`electron/credential-patch.mjs`、`electron/main.mjs`、`server/memory-embedding-*.ts`、`server/routes/memory-embedding.ts`、配置与环境隔离 | `electron/memory-credentials.test.mjs`、`server/memory-embedding-{config,client,index,auth}.test.ts`、`server/memory-embedding-settings.e2e.test.ts`、`src/components/MemorySettings.test.ts`、`src/state/memory-status.test.ts` | 未合并 | 保留专属 slot、迁移先加密后删明文、清除空值标记、脱敏状态、受保护测试路由和 endpoint/model/dimensions 索引身份；不得回退明文保存 |
-| P11 | 中文历史自动召回与可重建派生索引 | `server/message-db.ts`、`server/recall.ts`、`server/message-recall-{index,chinese}.ts` | `server/chinese-history-recall{,.e2e}.test.ts`、`server/message-recall-index.test.ts`、`server/chinese-history-performance.test.ts`、`server/message-db.test.ts` | 未合并 | 保留原生触发器与事务回填、授权/时间过滤、短中文准入、真实正文相关性复核、作者与预算；不可退回全库扫描或仅最近窗口 |
+| P11 | 中文历史自动召回与可重建派生索引 | `server/message-db.ts`、`server/recall.ts`、`server/message-recall-{index,chinese,terms,evidence}.ts` | `server/chinese-history-recall{,.e2e}.test.ts`、`server/recall-accent.test.ts`、`server/message-recall-evidence.test.ts`、`server/message-recall-index.test.ts`、`server/chinese-history-performance.test.ts`、`server/message-db.test.ts` | 未合并 | 保留原生触发器与事务回填、授权/时间过滤、短中文准入、真实正文相关性复核、作者与预算；不可退回全库扫描或仅最近窗口 |
 
 契约清单见 `scripts/patch-contracts.mjs`，区分结构规则与必须执行的行为测试。P10 的行为测试已列入自有 CI；新增完整门槛的 workflow 接入由主控处理。设置、凭证与验证边界见 [记忆设置验收](verification/memory-embedding-settings.md)。
 
@@ -23,7 +23,7 @@
 
 本轮源码基线固定为 `c1aeda2501c5a003446acb413de46d0e16012976`。这是 Entropybot 定制源码基线，不是“上游最新版本”。源码上游固定 SHA、Entropybot 应用版本（本轮基线为 0.2.3）、外部执行引擎版本和模型版本分别记录、分别验证；源码同步不能替代引擎能力或模型效果验收。脚本不 fetch、merge、下载上游实现或恢复上游发布 workflow。
 
-最终集成清单包含 29 项结构契约，行为文件清单为 32 个 Vitest 文件、5 个 Node test 文件。契约测试共 10 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL；桌面 updater 的既有三项行为测试保持登记。
+最终集成清单包含 30 项结构契约，行为文件清单为 33 个 Vitest 文件、5 个 Node test 文件。契约测试共 10 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL；桌面 updater 的既有三项行为测试保持登记。
 
 | 契约 | 结构保护范围 | 复用的行为证据 |
 |---|---|---|
@@ -33,7 +33,7 @@
 | P6 | config 调用数据目录迁移 helper | `server/legacy-migration.test.ts` 在合成 HOME 启动真实服务并检查 `.opengrokbot` 迁移；`scripts/testing/patch-contracts.test.ts` 在独立子进程调用真实 config/ensureDirs，检查 `.openmausbot` → `.entropybot` 及内容保留；`server/config.test.ts` 使用隔离目录检查配置 |
 | P7 | builder 同时注册 `entropybot` / `openmausbot` | Node tests：package-link、chat-link、organization-entry 的新协议解析与拒绝规则；旧 scheme 此门槛仅检查注册，不承诺所有 handler 对旧 scheme 等价，也不证明 OS 已注册 |
 | P10 | main 接回凭证迁移、环境注入、存储 guard；server 注册测试路由；config 委托记忆凭证环境同步 | `memory-credentials`、`workspace-credentials`、`secure-credential-state`、`workspace-backup-policy`、`memory-embedding-{config,client,index,auth}`、`memory-embedding-settings.e2e`、MemorySettings/导航/status 与两项凭证 Node tests；覆盖 slot、先加密后删明文、失败保留、空值 tombstone、外置清除、权限/脱敏与索引身份 |
-| P11 | 消息库打开时确保中文索引、调用中文候选、短查询准入、以真实源正文复核片段 | `message-db`、`recall-accent`、`chinese-history-recall`、`message-recall-index`、`chinese-history-recall.e2e`、`chinese-history-performance`；覆盖既有 Unicode 重音匹配、旧库重建、事务失败重试、第二连接写改删、授权/时间/all-any/作者/预算、当前回合 prompt 及 2k/20k 合成性能 |
+| P11 | 消息库打开时确保中文索引、调用中文候选、短查询准入、以真实正文及原生 FTS 高亮证据复核片段 | `message-db`、`recall-accent`、`message-recall-evidence`、`chinese-history-recall`、`message-recall-index`、`chinese-history-recall.e2e`、`chinese-history-performance`；覆盖既有 Unicode 重音匹配、旧库重建、事务失败重试、第二连接写改删、授权/时间/all-any/作者/预算、当前回合 prompt 及 2k/20k 合成性能 |
 
 维护契约 M01 另保护中文回合 e2e 在创建 scratch 后注册 `onTestFinished`。本轮以合成 launcher 拒绝和 close 拒绝实际导入该 e2e 验证 scratch 删除、零网络请求；结构注册检查不替代所有资源/后代进程的运行证明。
 
