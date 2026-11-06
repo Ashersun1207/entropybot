@@ -34,7 +34,7 @@ node scripts/release-signing.mjs preflight
 node scripts/release-signing.mjs build
 ```
 
-build 在构建前写入 `release/entropybot-build-record.json`：实际 `sourceCommit`、`sourceTree`、版本、lockfile SHA256、时间和 Node/平台/架构。生成的 `release/official-builder.json` 继承原配置，显式覆盖 Developer ID 身份、`forceCodeSigning: true`、hardened runtime；关闭 builder 内部公证并固定 `--publish never`。构建后再次检查源码清洁和 SHA/tree/lock 一致，验证 App，再记录构建时 DMG/ZIP hash；失败记录停留在 `building`，不能进入 finalize。
+build 在构建前写入 `release/entropybot-build-record.json`：实际 `sourceCommit`、`sourceTree`、版本、lockfile SHA256、时间和 Node/平台/架构。生成的 `release/official-builder.json` 继承原配置，显式覆盖 Developer ID 身份、`forceCodeSigning: true`、hardened runtime 及 `dmg.sign: true`（不继承本地 ad-hoc 的 unsigned-DMG 选项）；关闭 builder 内部公证并固定 `--publish never`。构建后再次检查源码清洁和 SHA/tree/lock 一致，验证 App，再记录构建时 DMG/ZIP hash；失败记录停留在 `building`，不能进入 finalize。
 
 签名门槛要求：实际 bundle ID 为 `ai.entropybot.desktop`，版本匹配；`codesign --verify --deep --strict` 成功；实际 Authority 与 TeamIdentifier 精确匹配，具有 hardened runtime、secure Timestamp 和 CDHash。遍历 bundle 内真实文件的 Mach-O magic，逐项验证同一团队身份、runtime 和时间戳，包括原生模块及 helper；这可能暴露现有第三方 payload 的签名不兼容，必须按具体失败处理，不削弱门槛。
 
@@ -50,7 +50,7 @@ Accepted 后分别向未压缩 App 和 DMG `xcrun stapler staple ...`。ZIP 不�
 node scripts/release-signing.mjs finalize
 ```
 
-finalize 要求同一干净源码、版本、lock、身份配置和成功 build record；重新验证签名并比对构建时 App CDHash。它将 DMG **只读挂载**至本次新建的 `release/dmg-check-*` 目录，对其中 App 执行相同签名和版本门槛、比对 CDHash，并在 finally 中卸载；卸载失败即停止并保留挂载点，不强制清理。它不启动挂载镜像内的应用或可执行文件。
+finalize 要求同一干净源码、版本、lock、身份配置和成功 build record；重新验证签名并比对构建时 App 与 DMG 的 CDHash。DMG 容器须有匹配的 Developer ID/team、时间戳和 CDHash；仅容器不要求 Mach-O hardened-runtime 标志，App 和全部 Mach-O 的 runtime 门槛不变。它将 DMG **只读挂载**至本次新建的 `release/dmg-check-*` 目录，对其中 App 执行相同签名和版本门槛、比对 CDHash，并在 finally 中卸载；卸载失败即停止并保留挂载点，不强制清理。它不启动挂载镜像内的应用或可执行文件。
 
 App、DMG 都须通过 `stapler validate`，并通过对应的 `spctl --assess`。任何命令非零退出即停止。旧 ZIP 必须不存在，才由 ditto 从已验证、已 staple 的 App 新建 ZIP。最后再次核对源码，并对**最终字节**生成 `SHA256SUMS` 和 `entropybot-build.json`。manifest 分别记录 `sourceCommit` 与 `manifestGeneratedHead`、build record hash、真实签名元数据与最终 DMG/ZIP hash。该准备流程要求最终仍在同一 source HEAD，因此两字段通常相等，但意义不同。
 
@@ -66,8 +66,10 @@ build record 是本机可修改的审计记录，不是签名供应链证明，�
 
 ## 本轮验证与来源
 
-验证入口：`node --test scripts/release-signing.test.mjs`。测试使用临时 Git 仓库、合成 App/Mach-O/DMG/ZIP 与假命令；真实执行仅限本地 Git、Node 和本地兼容 manifest 对不存在 bundle 的签名查询。不执行构建、Keychain 故障、镜像挂载、公证或 Gatekeeper 操作。缺配置、错误身份/团队、脏源码、签名字段缺失、公证票据拒绝、旧 ZIP 未移走和最终 hash 关联均有负例或完整串联证据。
+验证入口：`node --test scripts/release-signing.node-test.mjs`。测试使用临时 Git 仓库、合成 App/Mach-O/DMG/ZIP 与假命令；真实执行仅限本地 Git、Node 和本地兼容 manifest 对不存在 bundle 的签名查询。不执行构建、Keychain 故障、镜像挂载、公证或 Gatekeeper 操作。缺配置、错误身份/团队、脏源码、签名字段缺失、公证票据拒绝、旧 ZIP 未移走和最终 hash 关联均有负例或完整串联证据。
 
-本路检查：Node `24.22.2` 的上述测试入口 11 项通过（无 skip/todo）；三个修改/新增脚本的 `oxlint --deny-warnings` 通过；本 worktree 的 `scripts/testing/file-size-ratchet.test.ts` 1 项通过，未提高预算。首次定向 lint 发现测试模板字符串中两个多余转义，已修正并重跑通过；不涉及产品行为失败。这些检查不等于全量应用回归。
+主控集成时发现 Node suite 的原 `.test.mjs` 名称会被 Vitest 收集成空套件，已改为 `.node-test.mjs` 并加入统一 Node 门槛，断言保留。独立复审另发现 unsigned-DMG 配置与容器 Gatekeeper 要求冲突，已为正式入口启用 DMG 签名并校验实际容器身份；新增六组负例分别覆盖 DMG team/ad-hoc/签名变化、DMG staple、DMG Gatekeeper 与嵌套代码拒绝。修正后 Node `24.22.2` 的测试入口 **12 项通过**（无 skip/todo），使用的仍是合成产物与假命令。
+
+本路初始检查：Node `24.22.2` 的原测试入口 11 项通过（无 skip/todo）；三个修改/新增脚本的 `oxlint --deny-warnings` 通过；本 worktree 的 `scripts/testing/file-size-ratchet.test.ts` 1 项通过，未提高预算。首次定向 lint 发现测试模板字符串中两个多余转义，已修正并重跑通过；不涉及产品行为失败。这些检查不等于全量应用回归。
 
 原配置仍固定自有 GitHub 来源 `Ashersun1207/entropybot`、手动更新模式与 bundle ID；签名准备没有添加依赖、安装钩子、第三方代码或上传端点。配置字段依据本地 electron-builder schema；系统门槛依据 [Electron 签名说明](https://www.electronjs.org/docs/latest/tutorial/code-signing)、[Apple 公证工作流](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)。最终组合回归与真实进程退出状态由主控单独记录，本文不声称全量回归通过。

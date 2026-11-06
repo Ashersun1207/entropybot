@@ -6,8 +6,10 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMP_BASE = Path('/private/var/folders/3_/4wcgrlpj1cx98_dychpdms240000gn/T/opencode')
@@ -65,25 +67,75 @@ if (mode.startsWith('child-')) {
 '''
 
 
-def run(argv, **kwargs):
-    return subprocess.run(argv, capture_output=True, timeout=60, **kwargs)
+class OwnedCommands:
+    """Confirm exit of our POSIX process groups; detached descendants are outside this fixture's guarantee."""
+    def __init__(self):
+        self.groups = {}
+        self.events = []
+
+    def group_exists(self, pgid):
+        try:
+            os.killpg(pgid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+
+    def wait_group(self, pgid, seconds):
+        deadline = time.monotonic() + seconds
+        while self.group_exists(pgid):
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.02)
+        self.groups.pop(pgid, None)
+        return True
+
+    def stop(self, process):
+        for name, grace in [(signal.SIGTERM, 1), (signal.SIGKILL, 2)]:
+            try:
+                os.killpg(process.pid, name)
+            except ProcessLookupError:
+                pass
+            try:
+                process.communicate(timeout=grace)
+            except subprocess.TimeoutExpired:
+                pass
+            if self.wait_group(process.pid, grace):
+                self.events.append({'pgid': process.pid, 'exit_confirmed': True})
+                return True
+        self.events.append({'pgid': process.pid, 'exit_confirmed': False})
+        return False
+
+    def run(self, argv, timeout=60, **kwargs):
+        process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   start_new_session=True, **kwargs)
+        self.groups[process.pid] = process
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except BaseException:
+            self.stop(process)
+            raise
+        if not self.wait_group(process.pid, 0.5):
+            if not self.stop(process):
+                raise RuntimeError('Fixture process group exit is unconfirmed')
+        return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
+
+    def close(self):
+        for process in list(self.groups.values()):
+            self.stop(process)
+        return not self.groups
 
 
-def preferences():
+def preferences(commands):
     values = []
     for verb in ['list-keychains', 'default-keychain']:
-        result = run(['security', verb, '-d', 'user'])
+        result = commands.run(['security', verb, '-d', 'user'])
         assert result.returncode == 0
         values.append(result.stdout)
     return values
 
 
-def main():
-    scratch = Path(tempfile.mkdtemp(prefix='credential-rollback-acceptance-', dir=TEMP_BASE))
-    os.chmod(scratch, 0o700)
-    results = {'old_source_commit': OLD_COMMIT, 'electron_scope': 'real Electron with mock keychain and mocked consent dialog'}
-    before = preferences()
-    try:
+def check_platform(commands, scratch, results):
+        run = commands.run
         expected = json.loads((ROOT / 'node_modules/electron/checksums.json').read_text())[ARCHIVE.name]
         assert hashlib.sha256(ARCHIVE.read_bytes()).hexdigest() == expected
         assert run(['ditto', '-x', '-k', str(ARCHIVE), str(scratch / 'runtime')]).returncode == 0
@@ -142,16 +194,66 @@ def main():
         assert restarted['old']['matchesSyntheticValue'] and restarted['new']['matchesSyntheticValue']
         native('lock')
         locked = native('read')
-        assert locked['old']['status'] != 0 and locked['new']['status'] != 0
+        for item in ['old', 'new']:
+            assert locked[item]['status'] == -25293 and not locked[item]['matchesSyntheticValue']
         results['private_keychain'] = {'scope': 'explicit-file native fixture only; no Electron ACL claim',
                                        'seed': seeded, 'restart': restarted, 'locked': locked}
-        results['passed'] = True
+
+
+def main(work=check_platform, query=preferences, commands_factory=OwnedCommands, chmod=os.chmod):
+    scratch = Path(tempfile.mkdtemp(prefix='credential-rollback-acceptance-', dir=TEMP_BASE))
+    results = {'old_source_commit': OLD_COMMIT, 'electron_scope': 'real Electron with mock keychain and mocked consent dialog'}
+    commands = None
+    before = None
+    failure = None
+    phase = 'initialize'
+    try:
+        commands = commands_factory()
+        chmod(scratch, 0o700)
+        phase = 'initial_preferences'
+        before = query(commands)
+        phase = 'platform_checks'
+        work(commands, scratch, results)
+        results['checks_passed'] = True
+    except BaseException as error:
+        failure = error
+        results['failed_phase'] = phase
+        results['error_type'] = type(error).__name__
     finally:
-        results['user_search_and_default_unchanged'] = preferences() == before
-        shutil.rmtree(scratch)
+        try:
+            if before is None:
+                results['user_search_and_default_unchanged'] = None
+            else:
+                results['user_search_and_default_unchanged'] = query(commands) == before
+                if not results['user_search_and_default_unchanged']:
+                    raise RuntimeError('User Keychain preference verification failed')
+        except BaseException as error:
+            results['final_preference_error_type'] = type(error).__name__
+            results['user_search_and_default_unchanged'] = False
+            if failure is None:
+                failure = error
+                results['failed_phase'] = 'final_preferences'
+        confirmed = False
+        try:
+            confirmed = commands is None or commands.close()
+        except BaseException as error:
+            results['process_cleanup_error_type'] = type(error).__name__
+            failure = failure or error
+        results['process_groups_exit_confirmed'] = confirmed
+        if confirmed:
+            try:
+                shutil.rmtree(scratch)
+            except BaseException as error:
+                results['directory_cleanup_error_type'] = type(error).__name__
+                failure = failure or error
+        if scratch.exists():
+            results['retained_scratch'] = str(scratch)
         results['scratch_removed'] = not scratch.exists()
+        results['passed'] = failure is None and confirmed and results['scratch_removed']
         print(json.dumps(results, sort_keys=True, indent=2))
-        assert results['user_search_and_default_unchanged']
+    if not results['passed']:
+        raise RuntimeError('Acceptance fixture failed; inspect its phase and retained evidence') from failure
+    return results
 
 
 if __name__ == '__main__':

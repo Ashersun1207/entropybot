@@ -55,7 +55,7 @@ export function sourceRecord(run = runCommand) {
   };
 }
 
-export function verifySignature(text, config, expectedIdentifier) {
+export function verifySignature(text, config, expectedIdentifier, requireRuntime = true) {
   const fields = Object.fromEntries(text.split("\n").filter(line => line.includes("=")).map(line => {
     const at = line.indexOf("=");
     return [line.slice(0, at), line.slice(at + 1)];
@@ -64,7 +64,7 @@ export function verifySignature(text, config, expectedIdentifier) {
     throw new Error("Final signature identity/team mismatch (ad-hoc is forbidden)");
   }
   if (expectedIdentifier && fields.Identifier !== expectedIdentifier) throw new Error("Final bundle identifier mismatch");
-  if (!/flags=.*\bruntime\b/.test(text) || !fields.Timestamp || fields.Timestamp === "none" || !/^[a-f0-9]{40,64}$/i.test(fields.CDHash ?? "")) {
+  if ((requireRuntime && !/flags=.*\bruntime\b/.test(text)) || !fields.Timestamp || fields.Timestamp === "none" || !/^[a-f0-9]{40,64}$/i.test(fields.CDHash ?? "")) {
     throw new Error("Final signature lacks hardened runtime, secure timestamp or CDHash");
   }
   return { identifier: fields.Identifier, team: fields.TeamIdentifier, identity: config.identity, cdhash: fields.CDHash, timestamp: fields.Timestamp };
@@ -75,6 +75,12 @@ function inspectSignature(target, config, identifier, run) {
   // codesign writes metadata to stderr, so the default runner merges only for this read.
   const text = run("codesign", ["-d", "--verbose=4", target]);
   return verifySignature(text, config, identifier);
+}
+
+function inspectDmgSignature(target, config, run) {
+  run("codesign", ["--verify", "--strict", target]);
+  // A DMG is a signed data container, not a Mach-O executable with hardened-runtime flags.
+  return verifySignature(run("codesign", ["-d", "--verbose=4", target]), config, undefined, false);
 }
 
 // execFileSync returns stdout only. Keep the stderr signature channel explicit.
@@ -146,10 +152,12 @@ export function officialBuild(env = process.env, run = signingCommand) {
   writeFileSync("release/official-builder.json", JSON.stringify({
     extends: path.resolve("electron-builder.yml"),
     mac: { identity: config.identity, forceCodeSigning: true, hardenedRuntime: true, notarize: false },
+    dmg: { sign: true },
   }, null, 2) + "\n");
   for (const script of ["package:prepare", "build:speech", "build:cua"]) run("pnpm", [script]);
   run("pnpm", ["exec", "electron-builder", "--config", "release/official-builder.json", "--mac", "--arm64", "--publish", "never"]);
   record.signature = verifyBundle("release/mac-arm64/Entropybot.app", source.version, config, run);
+  record.dmgSignature = inspectDmgSignature(`release/Entropybot-${source.version}-arm64.dmg`, config, run);
   const after = sourceRecord(run);
   if (after.sourceCommit !== source.sourceCommit || after.sourceTree !== source.sourceTree || after.lockSha256 !== source.lockSha256) {
     throw new Error("Source changed during build");
@@ -174,6 +182,8 @@ export function finalizeOfficial(env = process.env, run = signingCommand) {
   const signature = verifyBundle(app, record.version, config, run);
   if (signature.cdhash !== record.signature.cdhash) throw new Error("App signature changed after build");
   const dmg = `release/Entropybot-${record.version}-arm64.dmg`;
+  const dmgSignature = inspectDmgSignature(dmg, config, run);
+  if (dmgSignature.cdhash !== record.dmgSignature?.cdhash) throw new Error("DMG signature changed after build");
   const mount = mkdtempSync("release/dmg-check-");
   let attached = false;
   try {
@@ -204,7 +214,7 @@ export function finalizeOfficial(env = process.env, run = signingCommand) {
     commit: record.sourceCommit, sourceCommit: record.sourceCommit, sourceStatus: "recorded-clean-build",
     manifestGeneratedHead: generated.sourceCommit, buildRecordSha256: sha256("release/entropybot-build-record.json"),
     updateMode: UPDATE_MODE, releasesUrl: RELEASES_URL,
-    signing: { status: "developer-id-stapled-verified", ...signature }, artifacts,
+    signing: { status: "developer-id-stapled-verified", ...signature }, dmgSigning: dmgSignature, artifacts,
   };
   writeFileSync("release/entropybot-build.json", JSON.stringify(manifest, null, 2) + "\n");
   writeFileSync("release/SHA256SUMS", artifacts.map(file => `${file.sha256}  ${file.name}\n`).join(""));

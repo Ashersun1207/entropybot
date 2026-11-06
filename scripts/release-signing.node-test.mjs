@@ -52,7 +52,11 @@ function fakeCommands(fail = () => false) {
       writeFileSync("release/Entropybot-0.2.5-arm64.zip", "synthetic initial zip");
     }
     if (command === "/usr/libexec/PlistBuddy") return args[1].includes("Identifier") ? "ai.entropybot.desktop\n" : "0.2.5\n";
-    if (command === "codesign" && args[0] === "-d") return metadata();
+    if (command === "codesign" && args[0] === "-d") {
+      return args.at(-1).endsWith(".dmg")
+        ? metadata({ Identifier: "fixture.dmg", CodeDirectory: "flags=0x0(none)", CDHash: "c".repeat(40) })
+        : metadata();
+    }
     if (command === "hdiutil" && args[0] === "attach") cpSync("release/mac-arm64/Entropybot.app", path.join(args[4], "Entropybot.app"), { recursive: true });
     if (command === "hdiutil" && args[0] === "detach") rmSync(path.join(args[1], "Entropybot.app"), { recursive: true });
     if (command === "ditto") writeFileSync(args.at(-1), "synthetic final zip with stapled app");
@@ -109,6 +113,7 @@ test("clean build records source then verifies app and every Mach-O; finalize ga
   assert.equal(builder.mac.identity, config.identity);
   assert.equal(builder.mac.forceCodeSigning, true);
   assert.equal(builder.mac.notarize, false);
+  assert.equal(builder.dmg.sign, true);
   assert.ok(fake.calls.some(([command, args]) => command === "codesign" && args.at(-1).endsWith("MacOS/fixture")));
   assert.throws(() => finalizeOfficial(env, fake.run), /pre-staple ZIP/);
   unlinkSync("release/Entropybot-0.2.5-arm64.zip");
@@ -146,6 +151,29 @@ test("finalize rejects wrong team, different DMG payload and Gatekeeper failure 
       return fake.run(command, args);
     };
     assert.throws(() => finalizeOfficial(env, run), /mismatch|different build|Gatekeeper refused/);
+    assert.equal(fake.calls.some(([command]) => command === "ditto"), false);
+    assert.throws(() => readFileSync("release/entropybot-build.json"), /ENOENT/);
+  });
+});
+
+test("DMG signature, container tickets, container Gatekeeper and nested code failures block final archives", () => {
+  for (const failure of ["dmg-team", "dmg-adhoc", "dmg-changed", "dmg-staple", "dmg-gatekeeper", "nested-code"]) fixture(() => {
+    const fake = fakeCommands();
+    officialBuild(env, fake.run);
+    unlinkSync("release/Entropybot-0.2.5-arm64.zip");
+    const run = (command, args) => {
+      const target = args.at(-1);
+      if (command === "codesign" && args[0] === "-d" && target.endsWith(".dmg")) {
+        if (failure === "dmg-team") return metadata({ TeamIdentifier: "ZZZZZZZZZZ" });
+        if (failure === "dmg-adhoc") return "Signature=adhoc\n";
+        if (failure === "dmg-changed") return metadata({ CDHash: "d".repeat(40) });
+      }
+      if (failure === "nested-code" && command === "codesign" && target.endsWith("MacOS/fixture")) throw new Error("synthetic nested code rejected");
+      if (failure === "dmg-staple" && command === "xcrun" && target.endsWith(".dmg")) throw new Error("synthetic DMG ticket rejected");
+      if (failure === "dmg-gatekeeper" && command === "spctl" && args.includes("open")) throw new Error("synthetic DMG Gatekeeper rejected");
+      return fake.run(command, args);
+    };
+    assert.throws(() => finalizeOfficial(env, run), /mismatch|changed|synthetic/);
     assert.equal(fake.calls.some(([command]) => command === "ditto"), false);
     assert.throws(() => readFileSync("release/entropybot-build.json"), /ENOENT/);
   });

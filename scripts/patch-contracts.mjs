@@ -74,6 +74,8 @@ export const vitestFiles = [
   "electron/secure-credential-state.test.mjs",
   "electron/credential-namespace-migration.test.mjs",
   "electron/credential-namespace-migration-runner.test.mjs",
+  "electron/credential-namespace-migration-child.test.mjs",
+  "electron/credential-namespace-migration-rollback.test.mjs",
   "electron/secure-credential-io.test.mjs",
   "server/workspace-backup-policy.test.ts",
   "server/memory-embedding-config.test.ts",
@@ -94,6 +96,8 @@ export const nodeTestFiles = [
   "electron/organization-entry.node-test.mjs",
   "electron/workspace-credentials-save.node-test.mjs",
   "electron/credential-patch.node-test.mjs",
+  "electron/credential-namespace-migration-fixture.node-test.mjs",
+  "scripts/release-signing.node-test.mjs",
 ];
 
 export const inventory = [

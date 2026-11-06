@@ -87,6 +87,8 @@ it("reports a missing registered behavior test rather than skipping it", () => {
 it.each([
   "electron/credential-namespace-migration.test.mjs",
   "electron/credential-namespace-migration-runner.test.mjs",
+  "electron/credential-namespace-migration-child.test.mjs",
+  "electron/credential-namespace-migration-rollback.test.mjs",
   "electron/secure-credential-io.test.mjs",
 ])("requires migration behavior coverage and rejects its missing file: %s", file => {
   expect(vitestFiles.filter(registered => registered === file)).toEqual([file]);

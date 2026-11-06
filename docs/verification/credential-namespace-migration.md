@@ -9,15 +9,15 @@
 1. 正常读取 `credentials.bin` 失败、文件存在、平台为 macOS 且为打包应用时，读取一次性标记 `credential-namespace-migration.json`。
 2. 同一文件字节的失败尝试不自动重试，避免每次启动都弹钥匙串授权；文件变化后才重新尝试。成功标记同时记录迁移前字节和迁移后新库的 SHA256：新库本身不可读时不再用旧名读取；恢复旧备份导致旧字节重新出现时允许再迁移一次。
 3. 子进程使用同一可执行文件，启动参数为 `--entropybot-legacy-credential-read`。它在 `ready` 前设置 `app.setName("openmausbot")`，因此 Electron 查询 `openmausbot Safe Storage` / `openmausbot Key`，与旧条目一致。子进程使用临时 userData，跳过单实例锁，不启动窗口或服务。
-4. 子进程把凭证 JSON 以 `ENTROPYBOT_LEGACY_CREDENTIAL_RESULT <base64>` 输出到管道，父进程校验大小、base64、JSON 对象类型和危险键。
-5. 父进程先把旧文件备份为 `credentials.bin.legacy-<sha256前12位>.bak`，再用当前密钥加密写入临时文件，回读并逐字段比较，通过后才原子替换。失败时恢复旧字节。
+4. 子进程读取凭证前弹出原生确认框，默认取消；拒绝或确认框异常时不读取。明确授权后把凭证 JSON 以 `ENTROPYBOT_LEGACY_CREDENTIAL_RESULT <base64>` 输出到本地管道，父进程校验大小、base64、JSON 对象类型和危险键。base64 是可逆编码；用户确认不等于父进程身份鉴权，不承诺抵御同一系统用户的恶意进程。
+5. 父进程先把旧文件备份为 `credentials.bin.legacy-<sha256前12位>.bak`，再用当前密钥加密写入临时文件，回读并逐字段比较。await 之后、原子替换前再次核对源字节，检测到外部写入便失败；失败只清理本事务临时文件，绝不把陈旧备份覆盖到外部写入。最终同步检查到 rename 之间仍非跨进程原子 compare-and-swap。
 6. 成功后写入 `migrated` 标记；之后的明文配置迁移沿用既有流程，把 `memoryEmbeddingKey` 迁入新库并移除明文。
 
 ## 失败语义
 
 - 钥匙串授权被拒、超时（120 秒）、子进程异常、输出无效：旧 `credentials.bin`、旧备份和 `config.json` 明文都不变；记录 `failed` 标记，本次启动按“凭证库不可读”继续，禁止保存新凭证。
 - 超时或输出超限先 `SIGTERM`，5 秒后 `SIGKILL`；只有确认子进程退出后才删除临时 profile。15 秒仍无法确认时返回失败并保留该 profile，避免删除仍在写入的目录。启动临时目录或 spawn 同步失败按同一失败路径返回，不逃逸为启动崩溃。
-- 加密、回读校验或原子替换失败：恢复旧字节；失败标记尽力写入，写入失败不掩盖原始错误。
+- 加密、回读校验或原子替换失败：目标文件未被本事务替换，保留当前字节（包括外部并发写入）；只清理自己的临时文件。失败标记尽力写入，写入失败不掩盖原始错误。
 - 替换成功但标记写入失败：仍按迁移成功返回，避免把有效新库误判为不可读。
 - 备份已存在时不覆盖，保留第一次迁移前的原文件。
 
@@ -27,6 +27,8 @@
 node node_modules/vitest/vitest.mjs run \
   electron/credential-namespace-migration.test.mjs \
   electron/credential-namespace-migration-runner.test.mjs \
+  electron/credential-namespace-migration-child.test.mjs \
+  electron/credential-namespace-migration-rollback.test.mjs \
   electron/secure-credential-io.test.mjs \
   electron/memory-credentials.test.mjs \
   electron/secure-credential-state.test.mjs \
@@ -37,7 +39,9 @@ pnpm typecheck
 pnpm lint
 ```
 
-`credential-namespace-migration.test.mjs` 覆盖成功、回读不一致、加密失败、文件在决定后变化、备份不覆盖、标记写入失败、危险/超大/畸形输出和失败信息不含凭证值。Electron e2e 使用 `--use-mock-keychain` 与合成 JSON，验证子进程退出码、结果帧、stderr 不出现合成秘密，以及损坏密文返回非零且无结果帧。
+`credential-namespace-migration.test.mjs` 覆盖成功、回读不一致、加密失败、await 期间并发写入、备份不覆盖、标记写入失败、危险/超大/畸形输出和失败信息不含凭证值。child suite 覆盖确认默认拒绝且在读取前生效，rollback suite 覆盖失败后保持不可写和恢复旧备份后二次迁移。旧 Python e2e 入口已转发到 `electron/credential-namespace-migration-acceptance-fixture.py`：实际 Electron 使用 `--use-mock-keychain` 与合成 JSON，并在 fixture 内替换 dialog 返回值；只证实导出授权控制流、重启和 0.2.4 原 reader 格式兼容，不证实真实用户确认 UI 或真实 ACL。
+
+平台 fixture 的每条命令使用自有 POSIX 进程组；退出未确认时保留 scratch 并报告未知状态，确认后才删除。`credential-namespace-migration-fixture.node-test.mjs` 调用五个合成清理测试（初次/最终查询异常、chmod 失败、退出未知保留、带后代的组超时确认）。该 fixture 只覆盖自有进程组，脱组后代与系统强制终止不在保证范围内。私有 Keychain 的锁定负例要求两条目均为 `-25293` 且未取出值。正常路径与异常清理的证据分别记录，详见[隔离回滚报告](release-0.2.5-rollback.md)。
 
 ## 真实平台验收（2026-11-07）
 
@@ -55,7 +59,8 @@ pnpm lint
 ## 尚未验证
 
 - 真实 macOS 钥匙串拒绝/锁定路径；真实安装升级后的失败重试与回滚演练。
-- 真实模型/网络调用、Developer ID/公证；非 macOS 平台不走此迁移。
+- 真实向量连接已在本机已安装的先前 0.2.5 构建验证：用户要求主控操作“测试已保存连接”，只发固定合成文本，返回连通性/向量格式通过 1024 维。该操作不验证个人记忆召回质量，也不将本轮未安装源码当成真实平台已验收。
+- Developer ID/公证尚未验证；用户确认尚未开通开发者会员。非 macOS 平台不走此迁移。
 - ad-hoc 重建后的签名变化与钥匙串授权复用；本次只验证了同一构建的重启。
 
 真实迁移属于用户数据操作，应在保留备份、明文配置和旧文件的前提下，经用户确认后执行；不得为测试删除真实凭证或清空 Keychain。
