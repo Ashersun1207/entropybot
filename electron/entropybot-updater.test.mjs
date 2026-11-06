@@ -30,6 +30,7 @@ it("checks for a newer release without loading a binary updater or installing it
     expect(updater.reopenedOutOfSight()).toBe(false);
     expect(() => fixture.handlers.get("update:install")({})).toThrow(/GitHub Releases/);
     await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith("https://api.github.com/repos/Ashersun1207/entropybot/releases/latest", expect.any(Object));
     const state = fixture.handlers.get("update:get-state")({});
     expect(state.status).toBe("available");
     expect(state.version).toBe("0.2.1");
@@ -46,6 +47,7 @@ it("only an authorized window can check, and opens the fixed release URL when ne
   expect(() => fixture.handlers.get("update:check")({ trusted: false })).toThrow(/only available/);
   expect(fixture.open).not.toHaveBeenCalled();
   await fixture.handlers.get("update:check")({ trusted: true });
+  expect(fetch).toHaveBeenCalledExactlyOnceWith("https://api.github.com/repos/Ashersun1207/entropybot/releases/latest", expect.any(Object));
   expect(fixture.open).toHaveBeenCalledExactlyOnceWith("https://github.com/Ashersun1207/entropybot/releases");
 });
 

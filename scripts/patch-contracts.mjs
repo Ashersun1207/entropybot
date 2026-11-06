@@ -22,6 +22,7 @@ export const callContracts = [
 export const valueContracts = [
   { id: "P4/release-source", file: "electron/update-policy.mjs", variable: "RELEASES_URL", expected: "https://github.com/Ashersun1207/entropybot/releases" },
   { id: "P4/manual-mode", file: "electron/update-policy.mjs", variable: "UPDATE_MODE", expected: "manual" },
+  { id: "P4/desktop-source", file: "electron/updater.mjs", variable: "LATEST_RELEASE_URL", expected: "https://api.github.com/repos/Ashersun1207/entropybot/releases/latest" },
   { id: "P4/server-source", file: "server/update-check.ts", variable: "LATEST_RELEASE_URL", expected: "https://api.github.com/repos/Ashersun1207/entropybot/releases/latest" },
   { id: "P3/app-id", file: "electron-builder.yml", path: ["appId"], expected: "ai.entropybot.desktop" },
   { id: "P4/package-source", file: "electron-builder.yml", path: ["publish"], expected: [{ provider: "github", owner: "Ashersun1207", repo: "entropybot" }] },

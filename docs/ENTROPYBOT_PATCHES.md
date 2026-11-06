@@ -22,11 +22,13 @@
 
 本轮源码基线固定为 `c1aeda2501c5a003446acb413de46d0e16012976`。这是 Entropybot 定制源码基线，不是“上游最新版本”。源码上游固定 SHA、Entropybot 应用版本（本轮基线为 0.2.3）、外部执行引擎版本和模型版本分别记录、分别验证；源码同步不能替代引擎能力或模型效果验收。脚本不 fetch、merge、下载上游实现或恢复上游发布 workflow。
 
+清单包含 23 项结构契约，行为文件清单为 26 个 Vitest 文件、5 个 Node test 文件。契约测试共 10 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL；桌面 updater 的既有三项行为测试保持登记。
+
 | 契约 | 结构保护范围 | 复用的行为证据 |
 |---|---|---|
 | P1 | `index`→`buildRecall`、embedding 配置、两处 `withRecalled` 调用；recall→语义与本地 bigram 来源 | `recall.test.ts`、`memory-embeddings.test.ts`；`memory-layer.e2e.test.ts` 在假引擎收到的 prompt 中检查记忆与跨 chat 历史，关停记忆后消失 |
 | P2 | 自适应预算、selectReplay、压缩判断/摘要、delivered replay、400 回缩调用来源 | `context-budget.test.ts`、`context-rebuild.test.ts`、`context-compaction.e2e.test.ts`（自动/手动压缩、Stop、重启）；`drivers/chat-size-limit.test.ts`、`drivers/openai-chat{,-protocol}.test.ts`（假传输、真实驱动） |
-| P3/P4/P9 | appId、桌面/服务/打包更新来源固定为自有仓库、manual 模式 | `electron/entropybot-updater.test.mjs` 拒绝安装且不加载二进制 updater；`server/update-check.test.ts` 断言请求来源和版本行为；不请求真实 GitHub |
+| P3/P4/P9 | appId、发布页（P4/release-source）、桌面实际 LATEST_RELEASE_URL（P4/desktop-source）、服务 API（P4/server-source）和打包来源固定为自有仓库、manual 模式 | `electron/entropybot-updater.test.mjs` 断言真实 manualCheck 在定时检查及授权 IPC 检查中传给 mock fetch 的精确 API URL，同时拒绝安装且不加载二进制 updater；`server/update-check.test.ts` 断言服务端请求来源和版本行为；不请求真实 GitHub |
 | P6 | config 调用数据目录迁移 helper | `server/legacy-migration.test.ts` 在合成 HOME 启动真实服务并检查 `.opengrokbot` 迁移；`scripts/testing/patch-contracts.test.ts` 在独立子进程调用真实 config/ensureDirs，检查 `.openmausbot` → `.entropybot` 及内容保留；`server/config.test.ts` 使用隔离目录检查配置 |
 | P7 | builder 同时注册 `entropybot` / `openmausbot` | Node tests：package-link、chat-link、organization-entry 的新协议解析与拒绝规则；旧 scheme 此门槛仅检查注册，不承诺所有 handler 对旧 scheme 等价，也不证明 OS 已注册 |
 | P10 | main 接回凭证迁移、环境注入、存储 guard；server 注册测试路由 | `memory-credentials`、`workspace-credentials`、`secure-credential-state`、`workspace-backup-policy`、`memory-embedding-{config,client,index,auth}`、`memory-embedding-settings.e2e`、MemorySettings/导航/status 与两项凭证 Node tests；覆盖 slot、先加密后删明文、失败保留、空值 tombstone、外置清除、权限/脱敏与索引身份 |
@@ -35,7 +37,7 @@
 
 结构层解析 TypeScript/JavaScript AST 和 YAML，不靠注释、字符串片段或仅有 import 判定接线。支持空格、注释、导入本地别名和同文件函数提取；不固定 A 的中文历史检索实现或旧 unicode61 路径。跨文件迁移调用时应审查语义并更新清单。AST 调用边不证明可达性、参数正确或无同名局部遮蔽；即使调用保留在死分支，也必须由完整行为门槛验证。结构层不能证明运行中的授权范围、编辑删除一致性、凭证事务、实际 macOS Keychain、Electron 安装包或真实模型质量。
 
-`scripts/testing/patch-contracts.test.ts` 在稀疏临时源码副本中验证：未变异副本通过；保留文件/import/注释但移除实际 buildRecall 调用时按 P1 失败；文件仍在但换成上游更新源时按 P4 失败；格式/别名和函数提取控制样本通过；缺少登记测试时报错。稀疏副本仅运行结构检查，不执行测试，故变异失败不会来自缺依赖或 Vite 配置。
+`scripts/testing/patch-contracts.test.ts` 在稀疏临时源码副本中验证：未变异副本通过；保留文件/import/注释但移除实际 buildRecall 调用时仅按 P1/auto-recall 失败；文件仍在但发布页换成上游来源时仅按 P4/release-source 失败；仅替换 `electron/updater.mjs` 的桌面 API URL、保留发布页/manual 等其它内容时，仅按 P4/desktop-source 失败；格式/别名和函数提取控制样本通过；缺少登记测试时报错。稀疏副本仅运行结构检查，不执行测试，故变异失败不会来自缺依赖或 Vite 配置。
 
 ## CI 与 release 接入
 

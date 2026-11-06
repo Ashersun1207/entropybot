@@ -47,6 +47,20 @@ it("rejects an upstream replacement release source with every file intact", () =
   console.info(failures[0]);
 });
 
+it("rejects only the desktop API source contract when its URL is replaced", () => {
+  const failures = copyFixture(root => {
+    const file = join(root, "electron/updater.mjs");
+    const source = readFileSync(file, "utf8");
+    const expected = "https://api.github.com/repos/Ashersun1207/entropybot/releases/latest";
+    expect(source.split(expected)).toHaveLength(2);
+    writeFileSync(file, source.replace(expected, "https://api.github.com/repos/upstream/product/releases/latest"));
+  });
+  expect(failures).toHaveLength(1);
+  expect(failures[0]).toContain("[P4/desktop-source] electron/updater.mjs:");
+  expect(failures[0]).toContain('LATEST_RELEASE_URL expected "https://api.github.com/repos/Ashersun1207/entropybot/releases/latest", got "https://api.github.com/repos/upstream/product/releases/latest"');
+  console.info(failures[0]);
+});
+
 it("ignores formatting and imported local aliases", () => {
   expect(copyFixture(root => {
     const file = join(root, "server/index.ts");
