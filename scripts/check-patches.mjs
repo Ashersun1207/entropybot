@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { GateCommandRunner } from "./patch-gate-process.ts";
+import { assertGateLeases, createGateCapability, gateBootstrapArgs, gateVitestWorkerArg } from "./testing/verification-lifecycle.ts";
 import ts from "typescript";
 import { parse as parseYaml } from "yaml";
 import { callContracts, valueContracts, vitestFiles, nodeTestFiles, inventory } from "./patch-contracts.mjs";
@@ -102,35 +103,42 @@ export async function verifyPatchBehavior(root = repositoryRoot, options = {}) {
   const runner = new GateCommandRunner(options);
   let temporary;
   let primaryError;
+  let internalResourcesConfirmed = false;
   try {
     runner.assertActive();
     temporary = mkdtempSync(join(tmpdir(), "entropybot-patch-gate-"));
     const report = join(temporary, "vitest.json");
+    const capability = createGateCapability(temporary);
+    const bootstrap = gateBootstrapArgs(capability);
     const env = Object.fromEntries(["PATH", "SystemRoot", "WINDIR", "TMPDIR", "TEMP", "TMP", "CI"].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
     Object.assign(env, { HOME: temporary, USERPROFILE: temporary, OMB_VITEST_WORKERS: "1" });
-    await runner.run(process.execPath, [join(root, "node_modules/vitest/vitest.mjs"), "run", "--root", root, "--config", join(root, "vite.config.ts"), "--configLoader", "native", "--reporter=default", "--reporter=json", `--outputFile.json=${report}`, ...vitestFiles], { cwd: root, env }, "Vitest patch suites");
+    await runner.run(process.execPath, [...bootstrap, join(root, "node_modules/vitest/vitest.mjs"), "run", "--root", root, "--config", join(root, "vite.config.ts"), "--configLoader", "native", gateVitestWorkerArg(capability), "--reporter=default", "--reporter=json", `--outputFile.json=${report}`, ...vitestFiles], { cwd: root, env }, "Vitest patch suites");
     validateVitestReport(JSON.parse(readFileSync(report, "utf8")), root);
+    assertGateLeases(capability, vitestFiles.map(file => resolve(root, file)));
     for (const file of nodeTestFiles) {
-      const result = await runner.run(process.execPath, ["--test", "--test-reporter=tap", file], { cwd: root, env, timeoutMs: 120_000 }, file);
+      const result = await runner.run(process.execPath, [...bootstrap, "--test", "--test-reporter=tap", file], { cwd: root, env, timeoutMs: 120_000 }, file);
       validateNodeReport(result.stdout, file);
     }
     runner.assertActive();
+    assertGateLeases(capability, vitestFiles.map(file => resolve(root, file)));
+    internalResourcesConfirmed = true;
   } catch (error) {
     primaryError = error;
   } finally {
     await runner.close();
     if (temporary) {
-      if (runner.cleanupConfirmed) {
+      if (!primaryError && runner.ownedGroupStopped && internalResourcesConfirmed) {
         try { rmSync(temporary, { recursive: true, force: true }); } catch (error) {
           const message = `[cleanup] could not remove temporary data ${temporary}: ${error.message}`;
           if (primaryError) console.error(message);
           else primaryError = new Error(message, { cause: error });
         }
       }
-      else {
-        console.error(`[cleanup] retained temporary data (owned execution not confirmed stopped): ${temporary}`);
+      if (primaryError || !runner.ownedGroupStopped || !internalResourcesConfirmed) {
+        primaryError ??= new Error("Verification resources not confirmed");
+        console.error(`[cleanup] retained temporary data (gate failed or verification resources unknown): ${temporary}`);
         try {
-          writeFileSync(join(temporary, "lifecycle-failure.json"), JSON.stringify({ kind: primaryError?.kind, message: primaryError?.message, cleanupConfirmed: false, evidence: primaryError?.evidence }), { mode: 0o600 });
+          writeFileSync(join(temporary, "lifecycle-failure.json"), JSON.stringify({ kind: primaryError?.kind, message: primaryError?.message, ownedGroupStopped: runner.ownedGroupStopped, internalResourcesConfirmed, evidence: primaryError?.evidence }), { mode: 0o600 });
         } catch (error) { console.error(`[cleanup] could not write lifecycle evidence: ${error.message}`); }
       }
     }

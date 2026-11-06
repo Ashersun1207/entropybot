@@ -11,14 +11,14 @@ const CAPTURE_CHARS = 4_194_304;
 
 export class GateCommandError extends Error {
   kind: FailureKind;
-  cleanupConfirmed: boolean;
+  ownedGroupStopped: boolean;
   evidence: Evidence | undefined;
 
-  constructor(kind: FailureKind, label: string, detail: string, cleanupConfirmed = true, evidence?: Evidence) {
-    super(`[${kind}] ${label}: ${detail}${cleanupConfirmed ? "" : "; cleanup uncertain"}`);
+  constructor(kind: FailureKind, label: string, detail: string, ownedGroupStopped = true, evidence?: Evidence) {
+    super(`[${kind}] ${label}: ${detail}${ownedGroupStopped ? "" : "; owned group stop uncertain"}`);
     this.name = "GateCommandError";
     this.kind = kind;
-    this.cleanupConfirmed = cleanupConfirmed;
+    this.ownedGroupStopped = ownedGroupStopped;
     this.evidence = evidence;
   }
 }
@@ -176,7 +176,7 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
 }
 
 export class GateCommandRunner {
-  cleanupConfirmed = true;
+  ownedGroupStopped = true;
   private controller = new AbortController();
   private active: Promise<Result> | undefined;
   private failure: unknown;
@@ -242,7 +242,7 @@ export class GateCommandRunner {
       return await this.active;
     } catch (error) {
       this.failure = error;
-      if (error instanceof GateCommandError && !error.cleanupConfirmed) this.cleanupConfirmed = false;
+      if (error instanceof GateCommandError && !error.ownedGroupStopped) this.ownedGroupStopped = false;
       throw error;
     } finally { this.active = undefined; }
   }

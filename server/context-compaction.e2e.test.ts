@@ -1,11 +1,8 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { launchVerificationServer, runControlOmb, verificationServerEnvironment } from "../scripts/control-omb.ts";
+import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
 import { request } from "../scripts/mcp-server.ts";
-import { waitForExit } from "./testing/cleanup.ts";
 
 async function fixture(test: (f: Awaited<ReturnType<typeof setup>>) => Promise<void>, hang = false, fakeEnv: NodeJS.ProcessEnv = {}) {
   const f = await setup(hang, fakeEnv);
@@ -17,7 +14,6 @@ async function setup(hang: boolean, fakeEnv: NodeJS.ProcessEnv) {
   const session = await launchVerificationServer(env, undefined, undefined, undefined, undefined, { scripted: true });
   let ready = false;
   try {
-    let restarted: ChildProcess | undefined;
     const evidence: unknown[] = [];
     const api = async (path: string, body?: unknown, method = "POST") => {
       const result = await request(path, body === undefined ? {} : { method, body: JSON.stringify(body) }, session.info.url) as any;
@@ -48,20 +44,10 @@ async function setup(hang: boolean, fakeEnv: NodeJS.ProcessEnv) {
     return { session, api, cli, bot, thread, messages, task, idle, send, turns,
       compact: () => api(`/api/bots/${bot.id}/compact`, { threadId: thread }),
       restart: async (beforeLaunch?: () => void) => {
-        await waitForExit(restarted ?? session.child, { signal: "SIGTERM" });
-        beforeLaunch?.();
-        const log = openSync(session.info.logPath, "a", 0o600);
-        restarted = spawn(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("./index.ts", import.meta.url))], {
-          cwd: process.cwd(), env: verificationServerEnvironment(env, session.info.dataDir, Number(new URL(session.info.url).port)), stdio: ["ignore", log, log],
-        });
-        closeSync(log);
-        await expect.poll(async () => {
-          try { return (await fetch(`${session.info.url}/api/health`, { signal: AbortSignal.timeout(1_000) })).ok; } catch { return false; }
-        }, { timeout: 20_000 }).toBe(true);
+        await session.restart(beforeLaunch);
       },
       close: async () => {
         try {
-          if (restarted) await waitForExit(restarted, { signal: "SIGTERM" });
           writeFileSync(`${session.info.logPath}.context.json`, JSON.stringify(evidence, null, 2), { mode: 0o600 });
           console.info(`Context evidence: ${session.info.logPath}.context.json`);
         } finally { await session.close(); }

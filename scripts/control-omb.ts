@@ -1,8 +1,8 @@
 #!/usr/bin/env -S node --experimental-strip-types
 // The entropybot headless verbs for verifying an isolated fixture. A verb that
 // changes something never runs on a server it merely found.
-import { spawn, type ChildProcess } from "node:child_process";
-import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import type { ChildProcess } from "node:child_process";
+import { closeSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -12,7 +12,7 @@ import { EXIT, HeadlessError } from "../server/headless/args.ts";
 import { runHeadlessCommand } from "../server/headless/main.ts";
 import type { handleToolCall, request } from "./mcp-server.ts";
 import { launchUi, runControlOmbUi } from "./testing/control-omb-ui.ts";
-import { removeTempDir, waitForExit } from "../server/testing/cleanup.ts";
+import { VerificationLifecycle } from "./testing/verification-lifecycle.ts";
 import { hostTimeout } from "../server/testing/host-timeout.ts";
 import { freePortBlock } from "../server/testing/ports.ts";
 
@@ -126,6 +126,7 @@ export interface VerificationServer {
   fixtureDumpPath: string;
   child: ChildProcess;
   close(): Promise<void>;
+  restart(beforeLaunch?: () => void): Promise<void>;
 }
 
 /** A temporary home in `dataDir`, the fake engine's knobs from `parentEnv`, node
@@ -294,7 +295,9 @@ export async function launchVerificationServer(
   const url = `http://127.0.0.1:${port}`;
   // Native browser daemons use UNIX sockets, and a macOS temp home can exceed
   // their path limit.
-  const dataDir = mkdtempSync(join(browser && process.platform !== "win32" ? "/tmp" : tmpdir(), "entropybot-verify-data-"));
+  const lifecycle = new VerificationLifecycle({ tempRoot: browser && process.platform !== "win32" ? "/tmp" : undefined });
+  const dataDir = lifecycle.dataDir;
+  try {
   const fixtureTemp = join(dataDir, "tmp");
   const fixtureDumpPath = join(dataDir, "fake-claude-dump.json");
   mkdirSync(fixtureTemp, { recursive: true });
@@ -335,7 +338,6 @@ export async function launchVerificationServer(
     },
   }, null, 2));
 
-  const log = openSync(logPath, "a", 0o600);
   const childEnv = verificationServerEnvironment(parentEnv, dataDir, port);
   // Opt-in live Local VM fixture: keep the temporary home and fake engine,
   // granting only the explicitly selected machine connection and static UI.
@@ -352,12 +354,12 @@ export async function launchVerificationServer(
   });
   if (boatFixtureApi) childEnv.OMB_BOAT_API = boatFixtureApi;
   if (staticDir) childEnv.OMB_STATIC_DIR = staticDir;
-  const child = spawn(process.execPath, verificationServerArgs(childEnv), {
-    cwd: ROOT,
-    env: childEnv,
-    stdio: ["ignore", log, log],
-  });
-  closeSync(log);
+  const startServer = async () => {
+    const log = openSync(logPath, "a", 0o600);
+    try { await lifecycle.start(verificationServerArgs(childEnv), { cwd: ROOT, env: childEnv, log }); }
+    finally { closeSync(log); }
+  };
+  await startServer();
 
   // A CI runner's temporary folder goes with the runner, so a failed start carries the end of the server's log.
   const logTail = () => {
@@ -367,11 +369,11 @@ export async function launchVerificationServer(
       return "";
     }
   };
-  const deadline = Date.now() + hostTimeout(20_000);
-  try {
+  let deadline = Date.now() + hostTimeout(20_000);
+  const waitReady = async () => {
     for (;;) {
       if (signal?.aborted) throw new ControlOmbError("verification launch cancelled");
-      if (child.exitCode !== null || child.signalCode !== null) {
+      if (lifecycle.child.exitCode !== null || lifecycle.child.signalCode !== null) {
         throw new Error(`verification server exited before it was ready; see ${logPath}${logTail()}`);
       }
       try {
@@ -386,14 +388,11 @@ export async function launchVerificationServer(
       if (Date.now() >= deadline) throw new Error(`verification server did not become ready; see ${logPath}${logTail()}`);
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
-  } catch (error) {
-    await waitForExit(child, { signal: "SIGTERM" });
-    await removeTempDir(dataDir);
-    throw error;
-  }
+  };
+  await waitReady();
 
   // Pinned: the random starter name shares a pool with names e2e suites plan.
-  try {
+  {
     // First-run filesystem work can exceed a second on Windows.
     const timeout = AbortSignal.timeout(Math.max(1, deadline - Date.now()));
     const list = await fetch(`${url}/api/bots`, {
@@ -413,24 +412,30 @@ export async function launchVerificationServer(
       signal: signal ? AbortSignal.any([signal, renameTimeout]) : renameTimeout,
     });
     if (!rename.ok) throw new Error(`verification starter rename failed (${rename.status}); see ${logPath}`);
-  } catch (error) {
-    await waitForExit(child, { signal: "SIGTERM" });
-    await removeTempDir(dataDir);
-    throw error;
   }
 
-  let closed = false;
   return {
-    info: { url, pid: child.pid!, dataDir, logPath },
+    info: { url, get pid() { return lifecycle.child.pid!; }, dataDir, logPath },
     fixtureDumpPath,
-    child,
-    async close() {
-      if (closed) return;
-      closed = true;
-      await waitForExit(child, { signal: "SIGTERM" });
-      await removeTempDir(dataDir);
+    get child() { return lifecycle.child; },
+    close: () => lifecycle.close(),
+    async restart(beforeLaunch) {
+      try {
+        await lifecycle.stop();
+        beforeLaunch?.();
+        await startServer();
+        deadline = Date.now() + hostTimeout(20_000);
+        await waitReady();
+      } catch (error) {
+        try { await lifecycle.close(); } catch (cleanup) { console.error(`Verification fixture retained ${dataDir}: ${String(cleanup)}`); }
+        throw error;
+      }
     },
   };
+  } catch (error) {
+    try { await lifecycle.close(); } catch (cleanup) { console.error(`Verification fixture retained ${dataDir}: ${String(cleanup)}`); }
+    throw error;
+  }
 }
 
 export function controlResultSucceeded(command: string, result: unknown): boolean {
@@ -473,10 +478,14 @@ async function main() {
     process.stdout.write(`${JSON.stringify({ ok: true, ...session.info }, null, 2)}\n`);
     await new Promise<void>((resolve) => {
       let stopping = false;
+      const finish = async () => {
+        try { await session.close(); } catch (error) { process.exitCode = 1; console.error(String(error)); }
+        finally { resolve(); }
+      };
       const stop = () => {
         if (stopping) return;
         stopping = true;
-        void session.close().finally(resolve);
+        void finish();
       };
       process.once("SIGINT", stop);
       process.once("SIGTERM", stop);
@@ -488,7 +497,7 @@ async function main() {
             ok: false,
             error: `verification server exited unexpectedly; see ${session.info.logPath}`,
           }, null, 2)}\n`);
-          void removeTempDir(session.info.dataDir).finally(resolve);
+          void finish();
         }
       });
     });

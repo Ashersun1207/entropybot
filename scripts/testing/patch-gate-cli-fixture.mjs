@@ -37,7 +37,7 @@ export function gateFixture(mode) {
     }
     rmSync(root, { recursive: true, force: true });
   });
-  for (const file of new Set([...inventory, ...vitestFiles, ...nodeTestFiles, "scripts/check-patches.mjs", "scripts/patch-contracts.mjs", "scripts/patch-gate-process.ts"])) {
+  for (const file of new Set([...inventory, ...vitestFiles, ...nodeTestFiles, "scripts/check-patches.mjs", "scripts/patch-contracts.mjs", "scripts/patch-gate-process.ts", "scripts/testing/verification-lifecycle.ts", "server/verification-process-scope.ts"])) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), readFileSync(join(repositoryRoot, file)));
   }
@@ -48,6 +48,8 @@ export function gateFixture(mode) {
     import { writeFileSync } from 'node:fs';
     import { join, resolve } from 'node:path';
     import { vitestFiles } from '../../scripts/patch-contracts.mjs';
+    import { beginGateFile, consumeGateCapability, createVerificationLease } from '../../scripts/testing/verification-lifecycle.ts';
+    import { randomUUID } from 'node:crypto';
     const root = process.cwd();
     const mode = ${JSON.stringify(mode)};
     const report = process.argv.find(arg => arg.startsWith('--outputFile.json=')).slice('--outputFile.json='.length);
@@ -64,9 +66,16 @@ export function gateFixture(mode) {
       setTimeout(() => { writeFileSync(join(root, 'insurance'), 'insurance'); process.exit(90); }, 8000);
     } else if (mode === 'exit7') process.exitCode = 7;
     else if (mode === 'bad-json') writeFileSync(report, '{');
-    else if (mode !== 'missing-report') writeFileSync(report, JSON.stringify({ testResults: vitestFiles.map(file => ({
-      name: resolve(root, file), status: 'passed', assertionResults: [{status:'passed'}]
-    })) }));
+    else if (mode !== 'missing-report') {
+      for (const file of mode === 'file-confirmation-missing' ? vitestFiles.slice(1) : vitestFiles) beginGateFile(resolve(root, file))();
+      if (mode === 'lease-pending') {
+        const capability = consumeGateCapability();
+        createVerificationLease({version:1,gateNonce:capability.gateNonce,fixtureNonce:randomUUID(),serverNonce:randomUUID(),generation:1,dataDir:process.env.HOME});
+      }
+      writeFileSync(report, JSON.stringify({ testResults: vitestFiles.map(file => ({
+        name: resolve(root, file), status: 'passed', assertionResults: [{status:'passed'}]
+      })) }));
+    }
   `;
   writeFileSync(join(root, "node_modules/vitest/vitest.mjs"), script);
   for (const file of nodeTestFiles) writeFileSync(join(root, file), `import test from 'node:test'; import { appendFileSync } from 'node:fs';

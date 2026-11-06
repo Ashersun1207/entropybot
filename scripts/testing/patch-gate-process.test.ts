@@ -50,7 +50,7 @@ it("bounds captured output and makes truncation observable", async () => {
 it("reports nonzero exit and refuses subsequent commands", async () => {
   const f = fixture();
   const outcome = await f.command("nonzero");
-  expect(outcome.error).toMatchObject({ kind: "exit", cleanupConfirmed: true });
+  expect(outcome.error).toMatchObject({ kind: "exit", ownedGroupStopped: true });
   expect(outcome.error?.message).toContain("exit code 7");
   await expect(f.runner.run(process.execPath, [childFile, "normal"], { cwd, env })).rejects.toBe(outcome.error);
   expect(f.events.map(event => event.event)).toEqual(["nonzero"]);
@@ -59,7 +59,7 @@ it("reports nonzero exit and refuses subsequent commands", async () => {
 it("reports startup failure without inventing a kill target", async () => {
   const f = fixture();
   const kill = vi.spyOn(process, "kill");
-  await expect(f.runner.run(join(tmpdir(), "absent-entropybot-fixture", "node"), [], { cwd, env })).rejects.toMatchObject({ kind: "start", cleanupConfirmed: true });
+  await expect(f.runner.run(join(tmpdir(), "absent-entropybot-fixture", "node"), [], { cwd, env })).rejects.toMatchObject({ kind: "start", ownedGroupStopped: true });
   expect(kill).not.toHaveBeenCalled();
 });
 
@@ -68,7 +68,7 @@ it("times out an acknowledged hanging command and escalates ignored TERM", async
   const kill = vi.spyOn(process, "kill");
   const outcome = f.command("hang");
   await f.ready();
-  expect((await outcome).error).toMatchObject({ kind: "timeout", cleanupConfirmed: true });
+  expect((await outcome).error).toMatchObject({ kind: "timeout", ownedGroupStopped: true });
   expect(f.events.some(event => event.event === "term")).toBe(true);
   expect(f.events.some(event => event.event === "insurance")).toBe(false);
   expect(kill.mock.calls.filter(([, signal]) => signal === "SIGTERM")).toHaveLength(1);
@@ -81,7 +81,7 @@ it("retains the overall deadline across commands", async () => {
   const outcome = f.command("hang");
   await f.ready();
   const error = (await outcome).error;
-  expect(error).toMatchObject({ kind: "timeout", cleanupConfirmed: true });
+  expect(error).toMatchObject({ kind: "timeout", ownedGroupStopped: true });
   expect(error?.message).toContain("overall budget");
 });
 
@@ -90,7 +90,7 @@ it("rejects pre-aborted execution without spawning", async () => {
   controller.abort();
   const f = fixture({ signal: controller.signal });
   const kill = vi.spyOn(process, "kill");
-  expect((await f.command("normal")).error).toMatchObject({ kind: "cancelled", cleanupConfirmed: true });
+  expect((await f.command("normal")).error).toMatchObject({ kind: "cancelled", ownedGroupStopped: true });
   expect(f.events).toEqual([]);
   expect(kill).not.toHaveBeenCalled();
 });
@@ -101,7 +101,7 @@ it("checks queued cancellation again at the asynchronous spawn boundary", async 
   const kill = vi.spyOn(process, "kill");
   queueMicrotask(() => controller.abort());
   const outcome = await f.command("normal");
-  expect(outcome.error).toMatchObject({ kind: "cancelled", cleanupConfirmed: true });
+  expect(outcome.error).toMatchObject({ kind: "cancelled", ownedGroupStopped: true });
   expect(outcome.error?.evidence).toBeUndefined();
   expect(kill).not.toHaveBeenCalled();
 });
@@ -126,7 +126,7 @@ it.each(["SIGINT", "SIGTERM"] as const)("does not start a command after a real %
   await expect.poll(() => f.events.some(event => event.event === "between"), { timeout: 2_000 }).toBe(true);
   const pid = f.events.find(event => event.event === "between")!.pid;
   process.kill(pid, signal);
-  expect((await outcome).error).toMatchObject({ kind: "exit", cleanupConfirmed: true });
+  expect((await outcome).error).toMatchObject({ kind: "exit", ownedGroupStopped: true });
   expect(f.events.find(event => event.event === "gap-rejected")?.kind).toBe("cancelled");
 });
 
@@ -145,7 +145,7 @@ it.each(["tree-held", "tree-closed", "orphan-held", "orphan-closed"])("reclaims 
   await expect.poll(() => { try { return readFileSync(heartbeat, "utf8").length; } catch { return 0; } }).toBeGreaterThan(0);
   if (!mode.startsWith("orphan-")) controller.abort();
   const result = await outcome;
-  expect(result.error).toMatchObject({ kind: mode.startsWith("orphan-") ? "cleanup" : "cancelled", cleanupConfirmed: true });
+  expect(result.error).toMatchObject({ kind: mode.startsWith("orphan-") ? "cleanup" : "cancelled", ownedGroupStopped: true });
   const evidence = result.error!.evidence!;
   expect(evidence).toMatchObject({ exitAt: expect.any(Number), closeAt: expect.any(Number), groupGoneAt: expect.any(Number), termAttemptAt: expect.any(Number), killAttemptAt: expect.any(Number) });
   if (mode === "orphan-closed") expect(evidence.closeAt!).toBeLessThan(evidence.termAttemptAt!);
@@ -157,7 +157,7 @@ it.each(["tree-held", "tree-closed", "orphan-held", "orphan-closed"])("reclaims 
   process.stdout.write(JSON.stringify({ scenario: mode, events: f.events, evidence, heartbeatStopped: true, unrelatedHeartbeatAdvanced: true }) + "\n");
   expect(f.events.some(event => event.event === "insurance")).toBe(false);
   await control.runner.close();
-  expect((await controlOutcome).error?.cleanupConfirmed).toBe(true);
+  expect((await controlOutcome).error?.ownedGroupStopped).toBe(true);
 });
 
 it("reports uncertainty on denied termination instead of treating permission failure as exit", async () => {
@@ -173,8 +173,8 @@ it("reports uncertainty on denied termination instead of treating permission fai
   });
   try {
     controller.abort();
-    expect((await outcome).error).toMatchObject({ kind: "cancelled", cleanupConfirmed: false });
-    expect(f.runner.cleanupConfirmed).toBe(false);
+    expect((await outcome).error).toMatchObject({ kind: "cancelled", ownedGroupStopped: false });
+    expect(f.runner.ownedGroupStopped).toBe(false);
   } finally {
     kill.mockRestore();
     originalKill(-pid, "SIGKILL");

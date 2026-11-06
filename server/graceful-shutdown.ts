@@ -1,3 +1,5 @@
+import { verificationProcessScope } from "./verification-process-scope.ts";
+
 export interface GracefulShutdownOptions {
   cleanup: ReadonlyArray<() => void | Promise<void>>;
   exit: (code: number) => void;
@@ -14,6 +16,12 @@ export function createGracefulShutdown({
   return () => {
     if (started) return;
     started = true;
+
+    const verification = verificationProcessScope();
+    if (verification) {
+      void verification.shutdown(cleanup, exit, timeoutMs);
+      return;
+    }
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = new Promise<void>((resolve) => {

@@ -3,10 +3,12 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, afterEach } from "vitest";
+import { afterAll, afterEach, expect } from "vitest";
+import { beginGateFile } from "../../scripts/testing/verification-lifecycle.ts";
 
 import { removeTempDir } from "./cleanup.ts";
 
+const finishGateFile = beginGateFile(expect.getState().testPath);
 const home = mkdtempSync(join(tmpdir(), "omb-test-home-"));
 process.env.HOME = home;
 process.env.USERPROFILE = home;
@@ -27,5 +29,6 @@ afterEach(closeMessageDb);
 // Windows holds a live process's cwd, and a just-killed CLI lets go a beat after the kill returns.
 afterAll(async () => {
   closeMessageDb();
+  finishGateFile();
   await removeTempDir(home);
 });

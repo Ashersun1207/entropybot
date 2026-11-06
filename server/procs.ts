@@ -19,6 +19,7 @@ import { engineHomes } from "./engine-homes/engine-homes.ts";
 import type { HomedSpawn } from "./engine-homes/layout.ts";
 import { resolveCliSpawn, type ResolvedSpawn } from "./env-path.ts";
 import { spawnBotWork } from "./oom-score.ts";
+import { verificationProcessScope } from "./verification-process-scope.ts";
 
 export function resolveCli(cli: string, args: string[] = [], env?: NodeJS.ProcessEnv): ResolvedSpawn {
   return resolveCliSpawn(cli, args, env);
@@ -191,12 +192,15 @@ export function spawnCli(
   const { box: _box, engineHome: _engineHome, botWork, ...spawnOpts } = options;
   // The box's extra descriptors (its seccomp filter) follow stdio; only a plain three-entry stdio can take them.
   const stdio = boxed?.extraFds.length && Array.isArray(spawnOpts.stdio) && spawnOpts.stdio.length === 3 ? [...spawnOpts.stdio, ...boxed.extraFds] : spawnOpts.stdio;
-  const start = () => spawn(boxed?.command ?? resolved.command, boxed?.args ?? resolved.args, {
-    ...spawnOpts,
-    ...(boxed ? { env: boxed.env, stdio } : {}),
-    // POSIX: own group so kill(-pid) reaps child MCP servers; Windows: taskkill /T does it.
-    ...(process.platform === "win32" ? { windowsHide: true } : { detached: true }),
-  }) as ChildProcessByStdio<Writable, Readable, Readable>;
+  const start = () => {
+    verificationProcessScope()?.assertSpawnAllowed();
+    return spawn(boxed?.command ?? resolved.command, boxed?.args ?? resolved.args, {
+      ...spawnOpts,
+      ...(boxed ? { env: boxed.env, stdio } : {}),
+      // POSIX: own group so kill(-pid) reaps child MCP servers; Windows: taskkill /T does it.
+      ...(process.platform === "win32" ? { windowsHide: true } : { detached: true }),
+    }) as ChildProcessByStdio<Writable, Readable, Readable>;
+  };
   let child: ChildProcessByStdio<Writable, Readable, Readable>;
   try {
     child = owner === "bot" || botWork ? spawnBotWork(start) : start();
@@ -221,6 +225,12 @@ export function spawnCli(
 
   // On Windows a stdin write between taskkill and pipe close errors asynchronously; unlistened, that crashes the harness.
   child.stdin?.on("error", () => {});
+  const verification = verificationProcessScope();
+  if (verification) {
+    const stop = (graceMs: number) => killCliTree(child, graceMs);
+    try { verification.register(child, stop); }
+    catch (error) { verification.registrationFailed(child, stop); throw error; }
+  }
   return child;
 }
 

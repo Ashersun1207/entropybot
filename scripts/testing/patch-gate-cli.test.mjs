@@ -40,6 +40,25 @@ it("executes the CLI through a symlink instead of silently treating it as an imp
   expect(f.nextStarted()).toBe(true);
 });
 
+it("refuses normal report success when an authenticated fixture lease is still pending", async () => {
+  const f = gateFixture("lease-pending");
+  const result = await f.cli().done;
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain("pending or unknown");
+  expect(f.nextStarted()).toBe(false);
+  expect(existsSync(f.readState().home)).toBe(true);
+  expect(JSON.parse(readFileSync(`${f.readState().home}/lifecycle-failure.json`, "utf8"))).toMatchObject({ ownedGroupStopped: true, internalResourcesConfirmed: false });
+});
+
+it("does not treat an empty resource count as proof that every managed file bootstrapped", async () => {
+  const f = gateFixture("file-confirmation-missing");
+  const result = await f.cli().done;
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain("bootstrap/file confirmation missing");
+  expect(f.nextStarted()).toBe(false);
+  expect(existsSync(f.readState().home)).toBe(true);
+});
+
 it.each(["exit7", "bad-json", "missing-report"])("real CLI rejects %s and does not start subsequent suites", async mode => {
   const f = gateFixture(mode);
   const result = await f.cli().done;
@@ -47,7 +66,8 @@ it.each(["exit7", "bad-json", "missing-report"])("real CLI rejects %s and does n
   if (mode === "exit7") expect(result.stderr).toContain("[exit] Vitest patch suites: exit code 7");
   expect(result.stdout).not.toContain("Patch behavior gate OK");
   expect(f.nextStarted()).toBe(false);
-  expect(existsSync(f.readState().home)).toBe(false);
+  expect(existsSync(f.readState().home)).toBe(true);
+  expect(JSON.parse(readFileSync(`${f.readState().home}/lifecycle-failure.json`, "utf8")).internalResourcesConfirmed).toBe(false);
 });
 
 it.each(["SIGINT", "SIGTERM"])("real CLI handles repeated %s with one cleanup and no subsequent suite", async signal => {
@@ -61,16 +81,16 @@ it.each(["SIGINT", "SIGTERM"])("real CLI handles repeated %s with one cleanup an
   expect(result.signal).toBeNull();
   expect(result.stderr).toContain(`[cancelled] Vitest patch suites: received ${signal}`);
   expect(f.nextStarted()).toBe(false);
-  expect(existsSync(f.readState().home)).toBe(false);
+  expect(existsSync(f.readState().home)).toBe(true);
   expect(existsSync(`${f.root}/received-term`)).toBe(true);
   expect(existsSync(`${f.root}/insurance`)).toBe(false);
 });
 
-it("reclaims a partial-report timeout before removing HOME", async () => {
+it("retains HOME after a timeout even when the owned outer group stopped", async () => {
   const f = gateFixture("partial-hang");
-  await expect(verifyPatchBehavior(f.root, { commandTimeoutMs: 400, graceMs: 50, killWaitMs: 1_000 })).rejects.toMatchObject({ kind: "timeout", cleanupConfirmed: true });
+  await expect(verifyPatchBehavior(f.root, { commandTimeoutMs: 400, graceMs: 50, killWaitMs: 1_000 })).rejects.toMatchObject({ kind: "timeout", ownedGroupStopped: true });
   expect(f.nextStarted()).toBe(false);
-  expect(existsSync(f.readState().home)).toBe(false);
+  expect(existsSync(f.readState().home)).toBe(true);
   expect(existsSync(`${f.root}/insurance`)).toBe(false);
 });
 
@@ -88,9 +108,9 @@ it("retains HOME when owned termination is denied", async () => {
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
     controller.abort();
-    expect(await outcome).toMatchObject({ kind: "cancelled", cleanupConfirmed: false });
+    expect(await outcome).toMatchObject({ kind: "cancelled", ownedGroupStopped: false });
     expect(existsSync(f.readState().home)).toBe(true);
-    expect(JSON.parse(readFileSync(`${f.readState().home}/lifecycle-failure.json`, "utf8"))).toMatchObject({ kind: "cancelled", cleanupConfirmed: false });
+    expect(JSON.parse(readFileSync(`${f.readState().home}/lifecycle-failure.json`, "utf8"))).toMatchObject({ kind: "cancelled", ownedGroupStopped: false, internalResourcesConfirmed: false });
     expect(log.mock.calls.flat().join(" ")).toContain("retained temporary data");
     expect(f.nextStarted()).toBe(false);
   } finally {
@@ -100,12 +120,13 @@ it("retains HOME when owned termination is denied", async () => {
   }
 });
 
-it("fails removal separately and preserves an earlier command failure", async () => {
+it("preserves an earlier command failure and never attempts to remove its HOME", async () => {
   const f = gateFixture("exit7");
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
   faults.remove = true;
   await expect(verifyPatchBehavior(f.root)).rejects.toMatchObject({ kind: "exit" });
-  expect(log.mock.calls.flat().join(" ")).toContain("synthetic removal refusal");
+  expect(log.mock.calls.flat().join(" ")).toContain("retained temporary data");
+  expect(log.mock.calls.flat().join(" ")).not.toContain("synthetic removal refusal");
   expect(existsSync(f.readState().home)).toBe(true);
   faults.remove = false;
 });
