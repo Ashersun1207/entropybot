@@ -29,6 +29,9 @@
 | L20 | “搜索已过滤”不等于“模型提示已过滤”：superseded 条目仍随 MEMORY.md 每回合注入；过期多行条目只删首行还会漏续文 | 区分存储原文、搜索投影、模型提示投影和 capture 输入；按条目 line..end 整条过滤，先过滤再预算，空结果不回退原文，UI/审计原文保持可读 | `server/workspace.ts`、`server/memory-upkeep.ts`、`server/memory-prompt-projection.test.ts`；`1e8e00f4a` 完整门槛与独立验收通过 |
 | L21 | HTTP 2xx 不代表 feed 有效：缺 tag/空 tag/无效版本被当成“没有新版”，重试又保留旧错误；合并型状态容易残留旧版本 | 验证响应契约后才比较版本；失败固定脱敏、可重试，不显示最新；开始检查清旧 version/message，timer/IPC 共享在途，迟到结果不覆盖新结果 | `electron/updater.mjs`、`electron/entropybot-updater.test.mjs`、`SettingsModal.manual-updates.test.ts`；`1e8e00f4a` 通过 |
 
+| L22 | 只靠摘要提示“保留约束”不能防止中段约束在连续压缩中丢失；摘要文本里的伪块又可能被下一轮当成可信约束 | 用有界结构化约束块并随真实 compaction 记录传递；只接受末尾完整行结构的程序块，普通消息/引用/JSON 转义摘录不获得快照身份；空状态要写显式空尾块，不能靠省略块让旧摘录复活 | `server/active-constraints.ts`、`server/compaction-summary.ts`、`server/compaction-constraints.test.ts`；`e0ed9097d` 完整门槛与独立验收通过 |
+| L23 | 中文“编号”与英文 `\b` 不兼容；共享 must/reference 模板词会让纠正 7319 误删 8888；“尚未完成/不要取消”会被当完成；非法日期或空快照会误删/复活 | 中英文 ID 分开匹配并按明确 ID 隔离；否定/歧义保守保留；校验真实日历；空状态、超限、脱敏都要显式可见，不靠删断言或放宽预算 | 同上；覆盖两轮伪块/空状态、7319/8888、a1/b2、否定、非法日期、URL canary |
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
