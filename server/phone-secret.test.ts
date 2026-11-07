@@ -110,6 +110,23 @@ describe("PhoneSecretBridge", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["info", "aad", "both"])("rejects a renamed %s domain with a generic failure and no private save", async (changed) => {
+    const material = await keyMaterial();
+    const context = baseContext(material.keyId);
+    const send = vi.fn(() => true);
+    const bridge = new PhoneSecretBridge(send, 50);
+    bridge.receive(material.message);
+    const aad = new TextDecoder().decode(phoneSecretAAD(context));
+    const encrypted = await suite.seal(
+      { recipientPublicKey: material.publicKey, info: new TextEncoder().encode(changed === "aad" ? PHONE_SECRET_INFO : "Entropybot phone credential v1") },
+      new TextEncoder().encode("synthetic-domain-secret"),
+      new TextEncoder().encode(changed === "info" ? aad : aad.replace("openmausbot-phone-credential-v1", "entropybot-phone-credential-v1")),
+    );
+    await expect(bridge.provide({ ...context, encapsulatedKey: Buffer.from(encrypted.enc).toString("base64url"), ciphertext: Buffer.from(encrypted.ct).toString("base64url") }))
+      .rejects.toMatchObject({ status: 400, message: "The encrypted credential could not be verified" });
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("opens a custom secret's envelope for this server alone, never sending the value to the private parent", async () => {
     const material = await keyMaterial();
     const send = vi.fn(() => true);
@@ -148,9 +165,14 @@ describe("PhoneSecretBridge", () => {
     bridge.receive(material.message);
     const envelope = await seal(baseContext(material.keyId), material.publicKey);
 
-    await expect(bridge.provide({ ...envelope, botId: "another-bot" })).rejects.toMatchObject({
-      message: "The encrypted credential could not be verified",
-    });
+    for (const patch of [
+      { botId: "another-bot" }, { threadId: "another-thread" }, { messageId: "another-card" },
+      { deviceId: "another-device" }, { target: "xaiApiKey" }, { requestKey: "another-request" },
+    ]) {
+      await expect(bridge.provide({ ...envelope, ...patch })).rejects.toMatchObject({
+        message: "The encrypted credential could not be verified",
+      });
+    }
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -241,8 +263,9 @@ describe("PhoneSecretBridge", () => {
 
 describe("phoneSecretAAD", () => {
   it("has the exact stable cross-platform serialization", () => {
+    expect(PHONE_SECRET_INFO).toBe("OpenMausBot phone credential v1");
     expect(new TextDecoder().decode(phoneSecretAAD(baseContext("AAAAAAAAAAAAAAAAAAAAAA")))).toBe([
-      "entropybot-phone-credential-v1",
+      "openmausbot-phone-credential-v1",
       "AAAAAAAAAAAAAAAAAAAAAA",
       "paired-device-1",
       "bot-1",

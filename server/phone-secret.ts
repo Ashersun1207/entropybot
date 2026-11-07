@@ -4,7 +4,8 @@ import { desktopCredentialSlot, isCredentialTargetId } from "../shared/credentia
 import type { CipherSuite } from "@hpke/core";
 
 export const PHONE_SECRET_PROTOCOL_VERSION = 1 as const;
-export const PHONE_SECRET_INFO = "Entropybot phone credential v1";
+// Published iOS v1 CryptoKit clients authenticate these bytes; product branding cannot change the domain.
+export const PHONE_SECRET_INFO = "OpenMausBot phone credential v1";
 export const PHONE_SECRET_MAX_BYTES = 4_096;
 
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
@@ -96,7 +97,7 @@ export function phoneSecretAAD(context: Pick<
   "keyId" | "deviceId" | "botId" | "threadId" | "messageId" | "target" | "requestKey"
 >): Uint8Array {
   const fields = [
-    "entropybot-phone-credential-v1",
+    "openmausbot-phone-credential-v1",
     context.keyId,
     context.deviceId,
     context.botId,
