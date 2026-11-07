@@ -1,6 +1,10 @@
-# entropybot
+# Entropybot
 
 An independent development derivative of [OpenMausBot](https://github.com/milind-soni/OpenMausBot), maintained by Ashersun1207 for single-user assistants. This repository is not an official OpenMausBot release and is not affiliated with its maintainers.
+
+## Downloads and signing
+
+Download only from [this repository's releases](https://github.com/Ashersun1207/entropybot/releases). The current 0.2.6 local candidate is **ad-hoc signed and not notarized**; it has not been publicly released. Do not install an upstream OpenMausBot package for this product. See [update and release instructions](docs/ENTROPYBOT_UPDATES.md) for the supported update path.
 
 ## Local changes
 
@@ -18,6 +22,8 @@ Requires Node 24+ and pnpm 10.33.0. Run `pnpm install --frozen-lockfile`, then `
 ## Attribution and license
 
 The upstream README is preserved below. Core code retains Apache-2.0 and its original [NOTICE](NOTICE). The `enterprise/` directory retains its separate [license](enterprise/LICENSE); it is not Apache-2.0. Upstream names and artwork remain their owners' trademarks. No trademark rights or enterprise production license are granted by this derivative.
+
+> **The section below is the upstream OpenMausBot README, kept for attribution.** Its download buttons, release links, sponsorship link, website links, and “signed & notarized” statements describe OpenMausBot, not Entropybot. Use the Entropybot downloads and signing note above.
 
 ---
 
