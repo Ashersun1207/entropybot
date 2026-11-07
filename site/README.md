@@ -80,7 +80,7 @@ docker compose --env-file /opt/entropybot/.env up -d --no-deps --force-recreate 
 |---|---|
 | 页面加载 | 200；无 console 错误 |
 | 外部请求 | 无；仅 `index.html` 与 3 个本地图片请求 |
-| Lighthouse（桌面/移动） | Accessibility 100、Best Practices 100、SEO 100、Agentic Browsing 100，51 项通过、0 失败 |
+| Lighthouse（首页桌面） | Accessibility 100、Best Practices 100、SEO 100、Agentic Browsing 100，54 项通过、0 失败 |
 | 响应式 | 1440、390、320px 均无横向溢出 |
 | 主题 | 跟随系统；浅/深色切换生效，刷新后保留选择 |
 | 截图大图 | 点击打开 `dialog`，Escape 关闭，焦点返回原截图链接 |
@@ -88,7 +88,8 @@ docker compose --env-file /opt/entropybot/.env up -d --no-deps --force-recreate 
 | 相对链接 | 0 缺失 |
 | 下载链接 | `releases/latest` 当前解析到 `entropybot-v0.2.3`，与“当前公开版本”一致 |
 | 本地 Google 登录 | 404，符合“需要部署环境后端”的说明；不能直接静态托管 |
-| `/demo/` | Lighthouse 100/100/100/100，50 项通过、0 失败；390px 无溢出；聊天发送、侧栏、记忆、设置可点 |
+| 首页交互 | 2×2 功能卡、3 个职责 tab、4 条 FAQ 手风琴；tab 切换和 FAQ 展开实际点击通过 |
+| `/demo/` | Lighthouse 100/100/100/100，50 项通过、0 失败；390px 无溢出；聊天发送、侧栏、记忆、设置可点；`?view=memory`/`?view=settings` 可直达 |
 
 本轮修正：把“无需账号即可开始”改为“本地使用无需账号；Cloud 功能可另行使用 Google 登录”；下载区明确写出“0.2.6 本地候选尚未公开发布”，避免把未发布候选当成公开版本。
 
