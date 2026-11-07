@@ -16,7 +16,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: process.env.DEMO_OUT_DIR ?? fileURLToPath(new URL("../../site/demo", import.meta.url)),
+    outDir: process.env.DEMO_OUT_DIR ?? fileURLToPath(new URL("./site/demo", import.meta.url)),
     emptyOutDir: true,
   },
 });
