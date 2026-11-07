@@ -7,6 +7,7 @@ import { webSocketTransport } from "./cdp/transport.ts";
 import { fitPage, pageLimit, type BrowserMode, type HostKind, type ScreenSpec } from "./chrome/flags.ts";
 import { launchChrome, type ChromeProcess, type LaunchOptions } from "./chrome/launch.ts";
 import { clearSingleton, staleSingletonLock, type ProcessRegistry } from "./chrome/processes.ts";
+import { ChromeCleanupError, chromeCleanupState } from "./chrome/cleanup.ts";
 import { languageList } from "./chrome/wrapper.ts";
 import { downgradeRefusal, ensureProfile, forgetOpenTabs, markCleanExit, profileDir, profileHash, recordOpenedBy, versionOf, workspaceId } from "./chrome/profile.ts";
 
@@ -96,9 +97,17 @@ export class LocalBackend implements Backend {
     const platform = options.platform ?? process.platform;
     const release = options.registry?.reserve(profileDir(options.dataDir, request.key));
     try {
-      return await this.#open(request, platform);
-    } finally {
+      const opened = await this.#open(request, platform);
       release?.();
+      return opened;
+    } catch (error) {
+      const cleanup = chromeCleanupState(error, profileDir(options.dataDir, request.key));
+      if (cleanup.status === "closed") release?.();
+      if (error instanceof ChromeCleanupError && error.retryCleanup) {
+        const retry = error.retryCleanup;
+        throw new ChromeCleanupError(error.message, cleanup, { cause: error }, async () => { await retry(); release?.(); });
+      }
+      throw error;
     }
   }
 
@@ -161,13 +170,13 @@ export class LocalBackend implements Backend {
         version,
         exited: chrome.exited.then(() => undefined),
         async close() {
-          await browser.close();
-          await chrome.close(5_000);
+          try { await browser.close(); }
+          finally { await chrome.close(5_000); }
         },
       };
     } catch (error) {
       await chrome.kill();
-      throw error;
+      throw new ChromeCleanupError(error instanceof Error ? error.message : String(error), { status: "closed", userDataDir: dir }, { cause: error });
     }
   }
 }

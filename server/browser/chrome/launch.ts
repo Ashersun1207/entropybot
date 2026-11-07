@@ -6,6 +6,7 @@ import { pipeTransport, type CdpTransport } from "../cdp/transport.ts";
 import { chromeArgs, chromeEnv, type ChromeEnvInput, type ChromeFlagsInput } from "./flags.ts";
 import { diagnoseLaunchFailure } from "./host-setup.ts";
 import type { ProcessRegistry } from "./processes.ts";
+import { ChromeCleanupError, type ChromeCleanupState } from "./cleanup.ts";
 
 export interface LaunchOptions extends ChromeFlagsInput, Omit<ChromeEnvInput, "host"> {
   /** A resolved Chrome or Chrome for Testing executable. */
@@ -42,11 +43,11 @@ export interface ChromeProcess {
   kill(): Promise<ChromeExit>;
 }
 
-export class ChromeLaunchError extends Error {
+export class ChromeLaunchError extends ChromeCleanupError {
   readonly output: string;
 
-  constructor(message: string, output: string) {
-    super(message);
+  constructor(message: string, output: string, cleanup: ChromeCleanupState = { status: "unknown", userDataDir: "" }, options?: ErrorOptions, retryCleanup?: () => Promise<void>) {
+    super(message, cleanup, options, retryCleanup);
     this.name = "ChromeLaunchError";
     this.output = output;
   }
@@ -121,10 +122,7 @@ export async function launchChrome(options: LaunchOptions): Promise<ChromeProces
   });
   const pid = child.pid;
   const closed = new Promise<ChromeExit>((resolve) => {
-    child.once("close", (code, signal) => {
-      if (pid !== undefined) options.registry?.remove(pid);
-      resolve({ code, signal });
-    });
+    child.once("close", (code, signal) => resolve({ code, signal }));
   });
   const wait = async (outcome: Promise<ChromeExit>, ms: number): Promise<ChromeExit | null> => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -135,11 +133,21 @@ export async function launchChrome(options: LaunchOptions): Promise<ChromeProces
   const terminate = (signal: NodeJS.Signals) => {
     if (child.exitCode === null && child.signalCode === null) killTree(child, signal);
   };
-  const requireClosed = async (reason?: string): Promise<ChromeExit> => {
-    const result = await wait(closed, 2_000);
-    if (!result) throw new ChromeLaunchError(`${reason ? `${reason}; ` : ""}Chrome exit/stdio close was not confirmed; retain its profile and process registry for inspection.`, output);
+  const release = (result: ChromeExit): ChromeExit => {
+    try { if (pid !== undefined) options.registry?.remove(pid); }
+    catch (error) {
+      throw new ChromeLaunchError("Chrome closed, but its registry cleanup failed; retain its profile and retry cleanup.", output,
+        { status: "cleanup-failed", userDataDir: options.userDataDir }, { cause: error }, retryCleanup);
+    }
     return result;
   };
+  const requireClosed = async (reason?: string): Promise<ChromeExit> => {
+    const result = await wait(closed, 2_000);
+    if (!result) throw new ChromeLaunchError(`${reason ? `${reason}; ` : ""}Chrome exit/stdio close was not confirmed; retain its profile and process registry for inspection.`, output,
+      { status: "unknown", userDataDir: options.userDataDir }, undefined, retryCleanup);
+    return release(result);
+  };
+  const retryCleanup = async () => { await requireClosed(); };
   let version: BrowserVersion;
   try {
     if (pid !== undefined) options.registry?.add({ pid, startTime: null, userDataDir: options.userDataDir, ownerPid: process.pid, launchedAt: new Date().toISOString() });
@@ -149,16 +157,16 @@ export async function launchChrome(options: LaunchOptions): Promise<ChromeProces
     terminate("SIGKILL");
     await requireClosed(error instanceof Error ? error.message : String(error));
     const diagnosis = await diagnoseLaunchFailure({ executable: options.executablePath, output, env }).catch(() => null);
-    throw new ChromeLaunchError(diagnosis?.message ?? (error instanceof Error ? error.message : String(error)), output);
+    throw new ChromeLaunchError(diagnosis?.message ?? (error instanceof Error ? error.message : String(error)), output, { status: "closed", userDataDir: options.userDataDir }, { cause: error });
   }
   const stop = async (graceMs: number): Promise<ChromeExit> => {
     await wait(exited, graceMs);
     transport.close();
     const unpiped = await wait(closed, 2_000);
-    if (unpiped) return unpiped;
+    if (unpiped) return release(unpiped);
     terminate("SIGTERM");
     const terminated = await wait(closed, 2_000);
-    if (terminated) return terminated;
+    if (terminated) return release(terminated);
     terminate("SIGKILL");
     return requireClosed();
   };

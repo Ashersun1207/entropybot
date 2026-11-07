@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -12,6 +12,8 @@ import type { CdpPage } from "../cdp/page.ts";
 import type { HostKind } from "./flags.ts";
 import { headedIdentity, isChromeIdentity } from "./identity.ts";
 import { FIRST_START_MS, launchChrome } from "./launch.ts";
+import { chromeCleanupState, removeClosedChromeDirectory } from "./cleanup.ts";
+import { ProcessRegistry } from "./processes.ts";
 import { browserRoot } from "./profile.ts";
 
 export interface CalibratedIdentity extends Identity {
@@ -91,6 +93,7 @@ export async function calibrateIdentity(options: CalibrateOptions): Promise<Cali
   const chrome = await launchChrome({
     executablePath: options.executablePath,
     userDataDir,
+    registry: new ProcessRegistry(userDataDir),
     mode: "headless",
     host: options.host,
     home: options.home,
@@ -99,7 +102,7 @@ export async function calibrateIdentity(options: CalibrateOptions): Promise<Cali
     handshakeTimeoutMs: options.handshakeTimeoutMs ?? FIRST_START_MS,
   }).catch((error: unknown) => {
     page.close();
-    rmSync(userDataDir, { recursive: true, force: true });
+    if (chromeCleanupState(error, userDataDir).status === "closed") removeClosedChromeDirectory(userDataDir);
     throw error;
   });
   try {
@@ -111,9 +114,10 @@ export async function calibrateIdentity(options: CalibrateOptions): Promise<Cali
     await browser.close();
     return { ...identity, product: chrome.version.product.replace("HeadlessChrome/", "Chrome/"), fingerprint, calibratedAt: new Date().toISOString() };
   } finally {
-    await chrome.close(3_000);
-    page.close();
-    rmSync(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    try {
+      await chrome.close(3_000);
+      removeClosedChromeDirectory(userDataDir);
+    } finally { page.close(); }
   }
 }
 

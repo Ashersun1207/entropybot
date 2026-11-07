@@ -48,7 +48,7 @@ describe("the process sweep", () => {
     expect(strays({ processes, registered, root, alive }).map((listed) => listed.pid)).toEqual([11, 12, 16]);
   });
 
-  it("clears a stale lock, deletes unused temporary profiles and forgets processes that are gone", async () => {
+  it("clears stale locks and unused temporary profiles while retaining a live owner's unconfirmed process", async () => {
     const root = scratch();
     const busy = join(root, "profiles", "busy");
     const stale = join(root, "profiles", "stale");
@@ -72,7 +72,7 @@ describe("the process sweep", () => {
     expect(killed).toEqual([4242]);
     expect(report.temporaryRemoved).toEqual([temporary]);
     expect(existsSync(temporary)).toBe(false);
-    expect(registry.list()).toEqual([]);
+    expect(registry.list()).toEqual([{ pid: 999998, startTime: null, userDataDir: busy, ownerPid: process.pid, launchedAt: "" }]);
     if (posix) {
       expect(report.locksCleared).toEqual([stale]);
       expect(staleSingletonLock(busy)).toBe(false);

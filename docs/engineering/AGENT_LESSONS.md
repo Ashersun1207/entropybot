@@ -52,6 +52,8 @@
 
 - Node 24 的额外 stdio pipe 是 Duplex；`exit` 只证明根进程已退出，`end()` 只结束写半边，均不等于 `ChildProcess.close`。CDP launch 的 close/kill 和握手失败收尾必须回收本端 fd3/4 并有界等待实际 close，registry 在 close 后才移除；超时抛错、保留 profile/registry 证据。回归 `server/browser/chrome/launch.test.ts` 使用真实 Node 假 Chrome 和短暂继承 fd3/4 的辅助进程制造 exit 先于 close，另用 mock 验证 close 永不到及握手失败清理未知；`server/browser/cdp/connection.test.ts` 验证两端完整销毁。根进程 close 不证明所有 Chrome helper 或外部资源已消失，需单独进程审计。原 S4-actions 功能 32 pass 但缺 close 的 `ok:false` 记录不得被补验覆盖。
 
+- Chrome-close 复审 C1–C3：launch 局部等待 close 不足以保证 profile 保留。`ChromeCleanupError.cleanup` 明确区分 closed/unknown/cleanup-failed；service、校准和手动 CLI 的实际目录 owner 都必须传播该状态，unknown 不擦除、不释放控制句柄，独立 loopback 仍关闭。sweep 对活 owner 的记录不能按 root PID gone 回收；dead-owner 也须确认根进程已消失才恢复。实际 close 的事件 Promise 不执行 registry I/O，I/O 失败经调用方报告为 cleanup-failed 并可安全重试，不能从事件抛出或误报没有 close。回归 `close-retention.test.ts`、`calibrate-cleanup.test.ts`、`omb-browser-cleanup.test.ts` 及 launch/processes 测试；不以先前真实 happy-path 替代这些失败路径。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

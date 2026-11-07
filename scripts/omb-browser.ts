@@ -3,8 +3,7 @@
 // gate. `bot-tests` visits the four public bot-detection pages read-only (no
 // sign-in, no form submit) while the driver acts on each, and prints their
 // verdicts; it exits non-zero unless all four pass.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -15,6 +14,8 @@ import { calibrateIdentity, type CalibratedIdentity } from "../server/browser/ch
 import { SERVER_SCREEN, type HostKind, type ScreenSpec } from "../server/browser/chrome/flags.ts";
 import { sandboxDisabled } from "../server/browser/chrome/host-setup.ts";
 import { launchChrome } from "../server/browser/chrome/launch.ts";
+import { withChromeWorkDir } from "../server/browser/chrome/cleanup.ts";
+import { ProcessRegistry } from "../server/browser/chrome/processes.ts";
 
 const USAGE = `usage:
   node --experimental-strip-types scripts/omb-browser.ts bot-tests --chrome PATH [--screen 1512x982@2:30] [--host desktop|server|container] [--out DIR] [--label NAME]
@@ -118,6 +119,7 @@ async function start(chrome: string, host: HostKind, screen: ScreenSpec, identit
   const launched = await launchChrome({
     executablePath: chrome,
     userDataDir: join(workDir, "profile"),
+    registry: new ProcessRegistry(workDir),
     home: workDir,
     mode: "headless",
     host,
@@ -131,13 +133,13 @@ async function start(chrome: string, host: HostKind, screen: ScreenSpec, identit
     identity,
     acceptLanguage: "en-US,en",
     downloadDir: join(workDir, "downloads"),
-  });
+  }).catch(async (error: unknown) => { await launched.kill(); throw error; });
   return {
     browser,
     sent,
     async close() {
-      await browser.close().catch(() => {});
-      await launched.close(3_000);
+      try { await browser.close(); }
+      finally { await launched.close(3_000); }
     },
   };
 }
@@ -146,8 +148,7 @@ const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 async function botTests(chrome: string, options: { host: HostKind; screen: ScreenSpec; out: string; label: string }): Promise<boolean> {
   mkdirSync(options.out, { recursive: true });
-  const workDir = mkdtempSync(join(tmpdir(), "omb-browser-"));
-  try {
+  return withChromeWorkDir(async (workDir) => {
     const identity = await calibrateIdentity({ executablePath: chrome, host: options.host, home: workDir, tmpRoot: workDir, sandbox: !sandboxDisabled(process.env) });
     console.log(`identity: ${identity.userAgent}\n  ${identity.userAgentMetadata.fullVersionList.map((brand) => `${brand.brand} ${brand.version}`).join(", ")}; ${identity.userAgentMetadata.platform} ${identity.userAgentMetadata.platformVersion} ${identity.userAgentMetadata.architecture}`);
     const session = await start(chrome, options.host, options.screen, identity, workDir);
@@ -182,14 +183,11 @@ async function botTests(chrome: string, options: { host: HostKind; screen: Scree
     console.log(`${passed}/${SITES.length} pass; ${session.sent.length} CDP commands sent, forbidden: ${forbidden.length ? forbidden.join(", ") : "none"}`);
     console.log(`results: ${resolve(options.out)}`);
     return passed === SITES.length && forbidden.length === 0;
-  } finally {
-    rmSync(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-  }
+  });
 }
 
 async function snapshot(chrome: string, url: string, host: HostKind): Promise<void> {
-  const workDir = mkdtempSync(join(tmpdir(), "omb-browser-"));
-  try {
+  return withChromeWorkDir(async (workDir) => {
     const session = await start(chrome, host, SERVER_SCREEN, null, workDir);
     try {
       const page = await session.browser.waitForPage();
@@ -199,12 +197,10 @@ async function snapshot(chrome: string, url: string, host: HostKind): Promise<vo
     } finally {
       await session.close();
     }
-  } finally {
-    rmSync(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-  }
+  });
 }
 
-async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<number> {
   const { positionals, values } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -233,12 +229,9 @@ async function main(argv: string[]): Promise<number> {
     return 0;
   }
   if (command === "calibrate") {
-    const workDir = mkdtempSync(join(tmpdir(), "omb-browser-"));
-    try {
+    await withChromeWorkDir(async (workDir) => {
       console.log(JSON.stringify(await calibrateIdentity({ executablePath: chrome, host, home: workDir, tmpRoot: workDir, sandbox: !sandboxDisabled(process.env) }), null, 2));
-    } finally {
-      rmSync(workDir, { recursive: true, force: true });
-    }
+    });
     return 0;
   }
   console.log(USAGE);

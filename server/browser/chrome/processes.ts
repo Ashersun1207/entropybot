@@ -14,7 +14,7 @@ export interface RegisteredProcess {
   launchedAt: string;
 }
 
-/** `<browser root>/processes.json`: every Chrome this data directory's servers launched and have not seen exit. */
+/** `<browser root>/processes.json`: Chrome ownership retained until close and registry cleanup are confirmed; a dead owner may be recovered by sweep. */
 export class ProcessRegistry {
   readonly file: string;
   readonly #reserved = new Map<string, number>();
@@ -27,8 +27,9 @@ export class ProcessRegistry {
     try {
       const parsed = JSON.parse(readFileSync(this.file, "utf8")) as unknown;
       return Array.isArray(parsed) ? parsed.filter((entry): entry is RegisteredProcess => typeof entry?.pid === "number" && typeof entry?.userDataDir === "string") : [];
-    } catch {
-      return [];
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
     }
   }
 
@@ -229,9 +230,9 @@ export async function sweep({ root, registry, list = listProcesses, kill = killP
   const registered = registry.list();
   for (const stray of strays({ processes, registered, root, alive })) {
     await kill(stray.pid);
-    report.killed.push(stray.pid);
+    if (!alive(stray.pid)) report.killed.push(stray.pid);
   }
-  for (const entry of registered) if (!alive(entry.pid) || report.killed.includes(entry.pid)) registry.remove(entry.pid);
+  for (const entry of registered) if (!alive(entry.ownerPid) && !alive(entry.pid)) registry.remove(entry.pid);
   const inUse = new Set([
     ...processes.filter((listed) => isBrowserProcess(listed) && !report.killed.includes(listed.pid)).map((listed) => resolve(userDataDirOf(listed)!)),
     ...registry.list().map((entry) => resolve(entry.userDataDir)),

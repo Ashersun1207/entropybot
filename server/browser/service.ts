@@ -21,6 +21,8 @@ import type { Download } from "./cdp/downloads.ts";
 import { isUnanswered } from "./cdp/errors.ts";
 import type { CdpPage } from "./cdp/page.ts";
 import { browserRoot, profileDir, profileHash, profileKind, removeProfile, workspaceId } from "./chrome/profile.ts";
+import { ChromeCleanupError, chromeCleanupState, type ChromeCleanupState } from "./chrome/cleanup.ts";
+import { ProcessRegistry } from "./chrome/processes.ts";
 import { BROWSER_CONTROL_REFUSAL, ProfileControl, type TakeResult } from "./control.ts";
 import { executeTool, personUrl, toolFailure, type ToolContext } from "./dispatch.ts";
 import { HealthShown, pageHealthLine } from "./health.ts";
@@ -85,6 +87,8 @@ export class ProfileState {
   /** The Chrome the pending start is opening; a stop waits for it. */
   opening: Promise<Running> | null = null;
   stopping: Promise<void> | null = null;
+  cleanup: ChromeCleanupState;
+  cleanupError: unknown = null;
   /** Bumped by every stop: a start begun before it closes what it opened. */
   epoch = 0;
   lastUsed = Date.now();
@@ -95,6 +99,7 @@ export class ProfileState {
 
   constructor(target: BrowserTarget, dataDir: string, hub: (profile: ProfileState) => ViewerHub, takeoverMs: number) {
     this.key = target.key;
+    this.cleanup = { status: "closed", userDataDir: profileDir(dataDir, target.key) };
     this.session = target.session;
     this.control = new ProfileControl<Tab>(() => this.tabs.list(), { takeoverMs });
     this.downloadDir = join(browserRoot(dataDir), "downloads", profileHash(workspaceId(dataDir), target.key));
@@ -174,6 +179,7 @@ export class BrowserService {
 
   /** The profile's running browser, started if it is not. */
   running(profile: ProfileState): Promise<Running> {
+    if (profile.cleanupError) return Promise.reject(profile.cleanupError);
     if (profile.run && !profile.run.closing && profile.run.browser.connected) return Promise.resolve(profile.run);
     if (profile.starting) return profile.starting;
     const epoch = profile.epoch;
@@ -205,7 +211,12 @@ export class BrowserService {
     const fresh = profile.fresh;
     profile.fresh = false;
     mkdirSync(profile.downloadDir, { recursive: true, mode: 0o700 });
-    const opened = await this.#options.backend(profile.key).open({ key: profile.key, mode: "headless", fresh, viewport: profile.hub.viewport(), downloadDir: profile.downloadDir });
+    profile.cleanup = { status: "unknown", userDataDir: profile.cleanup.userDataDir };
+    const opened = await this.#options.backend(profile.key).open({ key: profile.key, mode: "headless", fresh, viewport: profile.hub.viewport(), downloadDir: profile.downloadDir }).catch((error: unknown) => {
+      profile.cleanup = chromeCleanupState(error, profile.cleanup.userDataDir);
+      if (profile.cleanup.status !== "closed") { profile.cleanupError = error; profile.control.closing = true; }
+      throw error;
+    });
     const run: Running = { opened, browser: opened.browser, offs: [], closing: false };
     const browser = opened.browser;
     const adopt = (page: CdpPage, origin: Tab["origin"]) => {
@@ -246,7 +257,17 @@ export class BrowserService {
     } catch (error) {
       run.closing = true;
       for (const off of run.offs) off();
-      await opened.close().catch(() => undefined);
+      profile.run = run;
+      profile.control.closing = true;
+      try { await opened.close(); }
+      catch (cleanup) {
+        profile.cleanup = chromeCleanupState(cleanup, profile.cleanup.userDataDir);
+        profile.cleanupError = cleanup;
+        throw cleanup;
+      }
+      profile.run = null;
+      profile.cleanup = { status: "closed", userDataDir: profile.cleanup.userDataDir };
+      profile.control.closing = false;
       throw error;
     }
     profile.run = run;
@@ -268,15 +289,10 @@ export class BrowserService {
 
   /** Chrome went away while nobody was closing it: a crash, or it was killed. */
   #exited(profile: ProfileState, run: Running): void {
-    if (profile.run !== run) return;
-    for (const off of run.offs) off();
-    profile.run = null;
-    profile.tabs.clear();
-    if (run.closing) return;
-    profile.reopened = { kind: "crash", pages: [] };
-    profile.control.settle();
-    this.#options.log?.(`browser ${profile.key}: Chrome exited unexpectedly; the next call starts it again`);
-    profile.hub.stopped("crashed");
+    if (profile.run !== run || run.closing) return;
+    void this.#stop(profile, { kind: "crash", pages: [] }).catch((error: unknown) => {
+      this.#options.log?.(`browser ${profile.key}: close was not confirmed: ${error instanceof Error ? error.message : String(error)}`);
+    });
   }
 
   /** Graceful: Chrome's own quit, so its next start reopens the tabs and keeps session cookies. */
@@ -289,20 +305,33 @@ export class BrowserService {
       profile.control.closing = true;
       profile.control.changed();
       try {
-        if (run) {
-          run.closing = true;
-          for (const off of run.offs) off();
-          profile.hub.stopped(reopened?.kind === "idle" ? "asleep" : "closed");
-          await run.opened.close().catch(() => undefined);
+        await opening?.catch((error: unknown) => { if (profile.cleanup.status !== "closed") throw error; });
+        const current = profile.run ?? run;
+        if (current) {
+          current.closing = true;
+          await current.opened.close();
+          for (const off of current.offs) off();
+        } else if (profile.cleanupError) {
+          if (profile.cleanupError instanceof ChromeCleanupError && profile.cleanupError.retryCleanup) await profile.cleanupError.retryCleanup();
+          else if (profile.cleanup.status === "unknown") throw profile.cleanupError;
         }
-        await opening?.catch(() => undefined);
-      } finally {
-        if (profile.run === run) profile.run = null;
+        profile.cleanupError = null;
+        profile.cleanup = { status: "closed", userDataDir: profile.cleanup.userDataDir };
+        profile.run = null;
         profile.tabs.clear();
         if (reopened) profile.reopened = reopened;
-        if (profile.temporary || erase) this.#erase(profile);
+        try { if (profile.temporary || erase) this.#erase(profile); }
+        catch (error) {
+          if (error instanceof ChromeCleanupError) throw error;
+          throw new ChromeCleanupError("The browser closed but profile cleanup failed.", { status: "cleanup-failed", userDataDir: profile.cleanup.userDataDir }, { cause: error });
+        }
+        profile.hub.stopped(reopened?.kind === "idle" ? "asleep" : "closed");
         profile.control.closing = false;
         profile.control.settle();
+      } catch (error) {
+        profile.cleanup = chromeCleanupState(error, profile.cleanup.userDataDir);
+        profile.cleanupError = error;
+        throw error;
       }
     })().finally(() => { if (profile.stopping === stopping) profile.stopping = null; });
     profile.stopping = stopping;
@@ -316,7 +345,11 @@ export class BrowserService {
   #eraseFiles(key: string): void {
     const root = browserRoot(this.#options.dataDir);
     const hash = profileHash(workspaceId(this.#options.dataDir), key);
-    removeProfile(profileDir(this.#options.dataDir, key));
+    const dir = profileDir(this.#options.dataDir, key);
+    if (new ProcessRegistry(root).list().some(entry => entry.userDataDir === dir)) {
+      throw new ChromeCleanupError("The browser still has unconfirmed process ownership; profile retained.", { status: "unknown", userDataDir: dir });
+    }
+    removeProfile(dir);
     for (const folder of ["downloads", "screenshots"]) rmSync(join(root, folder, hash), { recursive: true, force: true });
   }
 
@@ -368,8 +401,8 @@ export class BrowserService {
   /** Closes a profile's browser; a temporary one is erased with it. */
   async close(session: string): Promise<void> {
     const profile = this.#bySession(session);
-    this.#holds.drop(session);
     if (profile) await this.#stop(profile, null);
+    this.#holds.drop(session);
   }
 
   /** Stops the browser and deletes everything it kept: sign-ins, history, downloads. */
@@ -385,7 +418,12 @@ export class BrowserService {
   }
 
   async closeAll(): Promise<void> {
-    await Promise.all(this.profiles().map((profile) => this.#stop(profile, null)));
+    const profiles = this.profiles();
+    const results = await Promise.allSettled(profiles.map((profile) => this.#stop(profile, null)));
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failures.length) throw new ChromeCleanupError("Some browser resources could not be cleaned up.", {
+      status: profiles.some(profile => profile.cleanup.status === "unknown") ? "unknown" : "cleanup-failed", userDataDir: this.#options.dataDir,
+    }, { cause: new AggregateError(failures.map(result => result.reason)) });
   }
 
   // Bot calls.
