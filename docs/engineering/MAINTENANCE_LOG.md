@@ -80,4 +80,6 @@
 - 安装脚本审查：connector 名称、环境变量、挂载路径及 Docker entrypoint 与既有 `connector/src/settings.ts` 对齐；没有执行安装器、Docker 拉取或真实系统修改。权限仍为既有 Docker socket/root 能力，不新增权限；镜像由已有 digest 接口供应，未新增远程执行入口。旧部署容器/卷未做自动迁移，不能把名称对齐当真实 Linux 升级通过。
 - 域名：control-plane 的真实部署旧域名/secret binding 保留，测试使用对应合成 token；companion 接受固定格式托管地址但不把旧地址静默转发到新域名。无真实配对码、凭证、用户记忆或云账号参与。
 - 检查：UI/server typecheck、全仓 lint、体积守卫、安装 shell 语法、定向产品/夹具回归通过；control-plane 143 项通过。`lent` 从零残留 todo 提升实际禁词检查；另外两项 UI 命名 todo 与条件 skip 仍未关闭。最终组合全仓、补丁行为门槛与独立复审证据由外层 `docs/release-0.2.6-validation.md` 按最终 HEAD 记录，不能把此处定向记录当发布放行。
-- 未改依赖版本、lockfile、安装钩子或真实应用数据；正式签名/公证仍缺 Developer ID/会员。本轮源码修复未代替实际构建安装，S6 生产背景归因、公网 TLS 与 Windows HOME 保持未验证。
+- 未改依赖版本、lockfile、包管理器安装钩子或真实应用数据；本轮确实修改了 connector 安装脚本。正式签名/公证仍缺 Developer ID/会员。本轮源码修复未代替实际构建安装，S6 生产背景归因、公网 TLS 与 Windows HOME 保持未验证。
+- 独立复审 R1–R4 退回后：companion 补实际部署主域 `openmausbot.com`，主/次旧域各覆盖保留原地址、stored access、pair 精确调用和不安全/lookalike 地址零发送。connector e2e env、对象名、数据保留/回滚/secret 断言全部对齐；旧 home fixture 镜像仓库不符合现有协议，不能伪造同 digest 新仓库，改为要求两个可信、不同且按允许仓库固定 digest 的显式输入。Linux hook 对齐 `/opt/Entropybot`、新资源/策略、测试 env；卸载保留精确旧 launcher/policy 的受控清理，并保持 parser 拒绝时留策略文件。
+- R2/R3 的源码/语法及 macOS 可运行定向检查与 Linux 实际执行分开记录。本机无 Docker/Linux VM，未执行 root 安装、内核策略或容器升级/回滚；缺两份可信镜像，connector e2e 仍是平台交付阻断。归档 workflow 检查只证明历史契约，未作为启用发布 gate 的运行证明。

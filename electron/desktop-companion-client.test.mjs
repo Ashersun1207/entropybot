@@ -129,6 +129,35 @@ describe("desktop companion endpoint", () => {
   });
 });
 
+describe.each(["openmausbot.com", "mausbot.si"])("deployed companion domain %s", (suffix) => {
+  const endpoint = `https://${LABEL}.${suffix}`;
+
+  it("preserves the selected origin in normalization and stored access", () => {
+    expect(normalizeDesktopCompanionEndpoint(` ${LABEL.toUpperCase()}.${suffix.toUpperCase()}/ `)).toBe(endpoint);
+    const stored = { ...access, endpoint };
+    expect(desktopCompanionAccess({ [DESKTOP_COMPANION_FIELD]: stored })).toEqual(stored);
+  });
+
+  it("sends pairing only to the selected origin", async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ token, device: { id: deviceId }, serverName: access.serverName }), { status: 201 }));
+    await expect(pairDesktopCompanion({ endpoint, code: "123456", deviceName: "Fixture", fetchImpl })).resolves.toEqual({ ...access, endpoint });
+    expect(fetchImpl).toHaveBeenCalledExactlyOnceWith(`${endpoint}/api/pair`, expect.objectContaining({ method: "POST" }));
+  });
+
+  it("rejects insecure and lookalike origins before sending a pairing code", async () => {
+    const fetchImpl = vi.fn();
+    for (const invalid of [
+      `http://${LABEL}.${suffix}`, `${endpoint}.evil.test`, `${endpoint}/path`, `${endpoint}?q=1`, `${endpoint}#fragment`,
+      `https://user@${LABEL}.${suffix}`, `https://${suffix}`, `https://c-opaque.${suffix}`, `https://${LABEL}.extra.${suffix}`,
+    ]) {
+      expect(normalizeDesktopCompanionEndpoint(invalid)).toBe("");
+      expect(desktopCompanionAccess({ [DESKTOP_COMPANION_FIELD]: { ...access, endpoint: invalid } })).toBeNull();
+      await expect(pairDesktopCompanion({ endpoint: invalid, code: "123456", deviceName: "Fixture", fetchImpl })).rejects.toThrow("Entropybot HTTPS companion address");
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
 describe("desktop companion pairing", () => {
   it("sends the six-digit pairing request and accepts a valid device credential", async () => {
     const fetchImpl = vi.fn(async () =>

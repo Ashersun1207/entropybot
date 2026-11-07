@@ -46,6 +46,8 @@
 - Vitest 模块 mock 不会自动影响另一个 Node 子进程。附件启动故障通过 `launchVerificationServer` 的 disposable dataDir 启动前钩子真实制造，保留服务日志、500 拒绝、修复后 201/内容和目录回收断言；回归 `server/attachments-startup.test.ts`。外部停止/重启必须经过统一生命周期管理，保留内部退出回执，不能手动 kill 后把 close 失败当清理成功。
 - 品牌字符串不能机械覆盖真实部署域名、secret binding 或已发行协议。control-plane 测试必须按固定部署配置使用合成 token；companion 归一化保留调用者选择的主机，不能把旧域名静默改写为新域名后发送配对码。回归 `cloudflare/control-plane/test/endpoint-accounts.test.ts` 与 `electron/desktop-companion-client.test.mjs`；未以真实凭证或云账号验证。
 
+- 独立复审退回 R1–R4：域名兼容要按实际部署主/次账号覆盖 normalize、stored access、pair 和拒绝发送负例；connector 安装器改名必须追到真实 e2e 的 env/容器/卷/身份断言，不能只测脚本文本；Linux 策略内容、builder 资源、hook 根路径和加载/卸载名称需一起核对。归档 workflow 契约通过只证明历史文件，不证明当前启用的发布 gate。源码补齐不等于 Linux/Docker 实测；缺执行环境或可信镜像时显式保留平台阻断，不能机械给旧镜像 digest 换仓库名。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

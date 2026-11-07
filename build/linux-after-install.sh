@@ -8,8 +8,8 @@ set -eu
 # bot's separate Chrome uses its normal user-namespace sandbox, with an exact
 # root-owned AppArmor allowlist on Ubuntu 24.04. Never disable the sandbox or
 # change the machine-wide user-namespace restriction.
-if [ -n "${OPENMAUSBOT_POSTINSTALL_TEST_ROOT:-}" ]; then
-  TEST_ROOT="$(realpath -e -- "$OPENMAUSBOT_POSTINSTALL_TEST_ROOT")"
+if [ -n "${OPENENTROPYBOT_POSTINSTALL_TEST_ROOT:-}" ]; then
+  TEST_ROOT="$(realpath -e -- "$OPENENTROPYBOT_POSTINSTALL_TEST_ROOT")"
   case "$TEST_ROOT" in
     /tmp/*) APP_ROOT=$TEST_ROOT ;;
     *)
@@ -24,7 +24,7 @@ if [ -n "${OPENMAUSBOT_POSTINSTALL_TEST_ROOT:-}" ]; then
   APPARMOR_STATUS=$APP_ROOT/test-system/apparmor_status
   USERNS_RESTRICTION=$APP_ROOT/test-system/apparmor_restrict_unprivileged_userns
 else
-  APP_ROOT=/opt/OpenMausBot
+  APP_ROOT=/opt/Entropybot
   EXPECTED_OWNER=root:root
   TEST_MODE=0
   APPARMOR_DIR=/etc/apparmor.d
@@ -106,7 +106,7 @@ secure_browser_tree() {
 }
 
 install_browser_apparmor_profile() {
-  profile=$APP_ROOT/resources/openmausbot-browser.apparmor
+  profile=$APP_ROOT/resources/entropybot-browser.apparmor
   if [ -L "$profile" ] || [ ! -f "$profile" ] || [ "$(stat -c '%h' -- "$profile")" != 1 ]; then
     echo "OpenMausBot browser AppArmor profile is missing or unsafe: $profile" >&2
     exit 1
@@ -150,7 +150,7 @@ install_browser_apparmor_profile() {
     echo "OpenMausBot AppArmor policy directory is unsafe: $APPARMOR_DIR" >&2
     exit 1
   fi
-  target=$APPARMOR_DIR/openmausbot-browser
+  target=$APPARMOR_DIR/entropybot-browser
   if [ -L "$target" ] || { [ -e "$target" ] && [ ! -f "$target" ]; }; then
     echo "OpenMausBot AppArmor profile target is unsafe: $target" >&2
     exit 1

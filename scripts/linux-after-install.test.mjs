@@ -70,6 +70,17 @@ afterEach(() => {
 });
 
 describe("Linux DEB sandbox policy", () => {
+  it("installs the packaged policy into the application's exact sandbox profile", () => {
+    const install = fs.readFileSync(hook, "utf8");
+    const remove = fs.readFileSync(removeHook, "utf8");
+    expect(install).toContain("APP_ROOT=/opt/Entropybot");
+    expect(install).toContain("profile=$APP_ROOT/resources/entropybot-browser.apparmor");
+    expect(install).toContain("target=$APPARMOR_DIR/entropybot-browser");
+    expect(remove).toContain("remove_browser_profile entropybot-browser");
+    expect(remove).toContain("remove_browser_profile openmausbot-browser");
+    for (const script of [install, remove]) expect(script).toContain("OPENENTROPYBOT_POSTINSTALL_TEST_ROOT");
+  });
+
   it("allows user namespaces only for the exact installed browser executable", () => {
     const policy = fs.readFileSync(browserPolicy, "utf8").replace(/^\s*#.*$/gm, "");
     expect(policy).toContain("profile entropybot-browser /opt/Entropybot/resources/browser-engine/chrome/chrome-headless-shell-linux64/chrome-headless-shell flags=(unconfined)");
@@ -279,6 +290,20 @@ describe.skipIf(process.platform !== "linux")("Linux DEB upgrade hook", () => {
     expect(fs.existsSync(profile)).toBe(false);
     expect(fs.readFileSync(unrelated, "utf8")).toBe("unrelated policy");
     expect(runRemoveHook(appRoot, "purge").status).toBe(0);
+  });
+
+  it("unloads the exact legacy profile while keeping unrelated policies", () => {
+    const { appRoot, apparmorDir, systemRoot } = fixture();
+    const legacy = path.join(apparmorDir, "openmausbot-browser");
+    const unrelated = path.join(apparmorDir, "another-app");
+    fs.writeFileSync(legacy, "legacy policy");
+    fs.writeFileSync(unrelated, "unrelated policy");
+    fs.writeFileSync(path.join(systemRoot, "apparmor-profiles"), "openmausbot-browser (unconfined)\n");
+    const removed = runRemoveHook(appRoot);
+    expect(removed.status, removed.stderr).toBe(0);
+    expect(removed.stdout).toContain(`profile operation: -R ${legacy}`);
+    expect(fs.existsSync(legacy)).toBe(false);
+    expect(fs.readFileSync(unrelated, "utf8")).toBe("unrelated policy");
   });
 
   it("removes an already unloaded profile without asking the kernel again", () => {
