@@ -10,9 +10,18 @@ import type { EgressHost } from "./egress/policy.ts";
 import { REDDIT_REFUSAL } from "./egress/reddit.ts";
 import { BrowserEgress, OwnListeners } from "./egress/registry.ts";
 import { removeTempDir } from "../testing/cleanup.ts";
-import { ProcessRegistry } from "./chrome/processes.ts";
+import { ProcessRegistry, sweep } from "./chrome/processes.ts";
 import { browserRoot } from "./chrome/profile.ts";
 import { CHROME_ENGINE, ChromeEngine, chromeTarget, LiveRouter, profileKey, RuntimeRouter, type RuntimeRouterOptions } from "./engines.ts";
+
+const sweepControl = vi.hoisted(() => ({ gate: null as Promise<void> | null }));
+vi.mock("./chrome/processes.ts", async (original) => {
+  const actual = await original<typeof import("./chrome/processes.ts")>();
+  return { ...actual, sweep: vi.fn((options: Parameters<typeof actual.sweep>[0]) => actual.sweep({ ...options,
+    list: async () => { await sweepControl.gate; return []; }, alive: pid => pid === process.pid,
+    kill: async () => { throw new Error("synthetic process list is empty"); },
+  })) };
+});
 
 const AGENT_BROWSER = { command: "/opt/agent-browser", args: ["--session", "s"], env: { AGENT_BROWSER_SESSION: "s" } };
 const CHROME = { command: CHROME_ENGINE, args: ["bot:a"], env: {} };
@@ -238,44 +247,90 @@ describe("the live view router", () => {
 describe("the new engine's minute", () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {
-    vi.useRealTimers();
-    for (const cleanup of cleanups.splice(0)) await cleanup();
+    try { for (const cleanup of cleanups.splice(0)) await cleanup(); }
+    finally { sweepControl.gate = null; vi.useRealTimers(); }
   });
 
   function engine() {
+    vi.mocked(sweep).mockClear();
     const dataDir = mkdtempSync(join(tmpdir(), "omb-chrome-engine-"));
     const value = new ChromeEngine({ dataDir, host: "container", env: {}, platform: "linux", egressPort: async () => 0, idleMs: () => 180_000, egressNotice: () => null });
     cleanups.push(async () => { await value.close(); await removeTempDir(dataDir); });
     const closeIdle = vi.spyOn(value.service, "closeIdle").mockResolvedValue([]);
     const registry = new ProcessRegistry(browserRoot(dataDir));
     const launched = () => registry.add({ pid: process.pid, startTime: null, userDataDir: join(browserRoot(dataDir), "profiles", "p"), ownerPid: process.pid, launchedAt: new Date().toISOString() });
-    return { value, closeIdle, launched, exited: () => registry.remove(process.pid) };
+    return { value, closeIdle, launched, exited: () => registry.remove(process.pid), settle: () => vi.advanceTimersByTimeAsync(0) };
   }
 
   it("closes idle browsers every minute while the engine is in use", async () => {
     vi.useFakeTimers();
-    const { value, closeIdle } = engine();
+    const { value, closeIdle, settle } = engine();
     value.start({ inUse: true, prepare: false });
     expect(closeIdle).toHaveBeenCalledTimes(1);
+    await settle();
     await vi.advanceTimersByTimeAsync(120_000);
     expect(closeIdle).toHaveBeenCalledTimes(3);
+    expect(sweep).toHaveBeenCalledTimes(3);
   });
 
   it("keeps closing idle browsers once switched off while a Chrome it started still runs, and does nothing once none does", async () => {
     vi.useFakeTimers();
-    const { value, closeIdle, launched, exited } = engine();
+    const { value, closeIdle, launched, exited, settle } = engine();
     value.start({ inUse: false, prepare: false });
     await vi.advanceTimersByTimeAsync(120_000);
     expect(closeIdle).not.toHaveBeenCalled();
     launched();
     await vi.advanceTimersByTimeAsync(60_000);
     expect(closeIdle).toHaveBeenCalledTimes(1);
+    await settle();
     value.start({ inUse: true, prepare: false });
     value.start({ inUse: false, prepare: false });
+    await settle();
     await vi.advanceTimersByTimeAsync(60_000);
     expect(closeIdle).toHaveBeenCalledTimes(3);
     exited();
     await vi.advanceTimersByTimeAsync(120_000);
     expect(closeIdle).toHaveBeenCalledTimes(3);
+    expect(sweep).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps minute idle cleanup independent of a pending OS sweep, without reentering that sweep", async () => {
+    vi.useFakeTimers();
+    let release!: () => void;
+    sweepControl.gate = new Promise<void>(resolve => { release = resolve; });
+    const { value, closeIdle, settle } = engine();
+    try {
+      value.start({ inUse: true, prepare: false });
+      await settle();
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(closeIdle).toHaveBeenCalledTimes(3);
+      expect(sweep).toHaveBeenCalledTimes(1);
+      release();
+      sweepControl.gate = null;
+      await settle();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(closeIdle).toHaveBeenCalledTimes(4);
+      expect(sweep).toHaveBeenCalledTimes(2);
+    } finally { release(); sweepControl.gate = null; await settle(); }
+  });
+
+  it("does not reenter pending idle cleanup while allowing independent sweep minutes", async () => {
+    vi.useFakeTimers();
+    let release!: (value: string[]) => void;
+    const pending = new Promise<string[]>(resolve => { release = resolve; });
+    const { value, closeIdle, settle } = engine();
+    closeIdle.mockImplementationOnce(() => pending);
+    try {
+      value.start({ inUse: true, prepare: false });
+      await settle();
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(closeIdle).toHaveBeenCalledTimes(1);
+      expect(sweep).toHaveBeenCalledTimes(3);
+      release([]);
+      await settle();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(closeIdle).toHaveBeenCalledTimes(2);
+      expect(sweep).toHaveBeenCalledTimes(4);
+    } finally { release([]); await settle(); }
   });
 });

@@ -57,6 +57,8 @@
 - Chrome 启动阶段必须在真正调用 launch 的位置记录：binary/profile/downgrade/egress/screen 及参数构造阶段失败未取得 Chrome，可结构化报告 closed 并释放本次 reservation；调用 launch 后的普通 Error 仍是 unknown，只有显式 closed 或 cleanup retry 确认后才释放。成功释放 reservation 后，实际 registry ownership 继续保护 profile。回归 `backends.test.ts` 与 `close-retention.test.ts`。
 - Registry 非 ENOENT 读取失败、损坏 JSON/记录不能退回空表。ChromeEngine 的实际 timer、sweep、erase 要受控报告并保守保留目录；按故障周期去重诊断，恢复后继续维护，即使修复后的 registry 为空。回归 `engines-maintenance.test.ts` 使用实际定时入口、真实本地文件和原 sweep 算法，仅替换 OS 进程枚举/终止边界；不以旧真实 Chrome happy-path 证明本轮失败恢复。
 
+- 维护防重入改动需同时运行既有 `engines.test.ts` minute 调用方与新增维护测试；只跑新增 108 项遗漏了该文件。fake time 推进两分钟不代表真实 OS sweep 已完成，分钟夹具应执行原 sweep 算法并注入受控 list/alive/kill，明确等待本轮完成。受控 pending promise 又证明整批共享 fence 会让 idle close 与 OS sweep 互相阻塞：按任务保留防重入，未完成的同类任务仍只有一个，独立任务继续每分钟执行，close 等待全部在途任务。回归 `engines.test.ts` 的两个原 expected3/inactive 断言及双向 pending 用例，不靠降次数或把 sweep 改 noop 过关。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

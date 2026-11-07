@@ -64,7 +64,7 @@ export class ChromeEngine {
   #timer: ReturnType<typeof setInterval> | null = null;
   #inUse = false;
   #cleared = false;
-  #maintenance: Promise<void> | null = null;
+  readonly #maintenance = new Map<string, Promise<void>>();
   readonly #maintenanceProblems = new Set<string>();
 
   constructor(options: ChromeEngineOptions) {
@@ -135,22 +135,21 @@ export class ChromeEngine {
   }
 
   #tick(): void {
-    if (this.#maintenance) return;
     const jobs = [
       { name: "idle close", run: () => this.service.closeIdle() },
       { name: "registry sweep", run: () => sweep({ root: browserRoot(this.#options.dataDir), registry: this.#registry }) },
     ];
-    this.#maintenance = (async () => {
-      const results = await Promise.allSettled(jobs.map(async job => { await job.run(); }));
-      for (const [index, result] of results.entries()) {
-        const name = jobs[index]!.name;
-        if (result.status === "rejected") this.#maintenanceFailed(name, result.reason);
-        else {
-          this.#maintenanceRecovered(name);
-          if (name === "registry sweep") this.#maintenanceRecovered("registry read");
-        }
-      }
-    })().finally(() => { this.#maintenance = null; });
+    for (const job of jobs) {
+      if (this.#maintenance.has(job.name)) continue;
+      const pending = (async () => {
+        try {
+          await job.run();
+          this.#maintenanceRecovered(job.name);
+          if (job.name === "registry sweep") this.#maintenanceRecovered("registry read");
+        } catch (error) { this.#maintenanceFailed(job.name, error); }
+      })().finally(() => { this.#maintenance.delete(job.name); });
+      this.#maintenance.set(job.name, pending);
+    }
   }
 
   #maintenanceFailed(name: string, error: unknown): void {
@@ -185,7 +184,7 @@ export class ChromeEngine {
     this.#timer = null;
     this.live.closeAll();
     this.stream.closeAll();
-    await this.#maintenance;
+    await Promise.all(this.#maintenance.values());
     await this.service.closeAll();
   }
 
