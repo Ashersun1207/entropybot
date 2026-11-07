@@ -15,7 +15,7 @@ function schemeOf(text: string): string | undefined {
 }
 
 function webUrl(text: string): string | null {
-  const candidate = text.includes("://") ? text : `${LOOPBACK_PREFIX.test(text) ? "http" : "https"}://${text}`;
+  const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(text) ? text : `${LOOPBACK_PREFIX.test(text) ? "http" : "https"}://${text}`;
   try {
     const url = new URL(candidate);
     return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
