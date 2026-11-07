@@ -59,6 +59,19 @@ const MEMORY = [
   { when: "周二", title: "发布签名", body: "当前 macOS 候选是 ad-hoc，未公证；没有证书不冒充正式发布。", source: "发布记录" },
 ];
 
+function readTheme(): "midnight" | "daylight" {
+  try {
+    const preference = localStorage.getItem("entropybot-theme");
+    if (preference === "light") return "daylight";
+    if (preference === "dark") return "midnight";
+    if (preference !== "system") {
+      const saved = localStorage.getItem("entropybot-demo-theme");
+      if (saved === "daylight" || saved === "midnight") return saved;
+    }
+  } catch {}
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "midnight" : "daylight";
+}
+
 const clock = () => new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
 
 export function Demo() {
@@ -67,9 +80,7 @@ export function Demo() {
     return requested === "memory" || requested === "settings" ? requested : "chat";
   });
   const [activeId, setActiveId] = useState("cocoa");
-  const [theme, setTheme] = useState<"midnight" | "daylight">(() => {
-    try { return localStorage.getItem("entropybot-demo-theme") === "daylight" ? "daylight" : "midnight"; } catch { return "midnight"; }
-  });
+  const [theme, setTheme] = useState(readTheme);
   const [bots, setBots] = useState(BOTS);
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
@@ -82,6 +93,23 @@ export function Demo() {
     document.documentElement.dataset.skin = theme;
     try { localStorage.setItem("entropybot-demo-theme", theme); } catch {}
   }, [theme]);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const syncTheme = () => setTheme(readTheme());
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === "entropybot-theme" || event.key === null) syncTheme();
+    };
+    window.addEventListener("storage", onStorage);
+    media.addEventListener("change", syncTheme);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      media.removeEventListener("change", syncTheme);
+    };
+  }, []);
+  const chooseTheme = (next: "midnight" | "daylight") => {
+    setTheme(next);
+    try { localStorage.setItem("entropybot-theme", next === "daylight" ? "light" : "dark"); } catch {}
+  };
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   useEffect(() => { scroll.current?.scrollTo({ top: scroll.current.scrollHeight }); }, [active.messages.length, typing, view]);
 
@@ -171,7 +199,7 @@ export function Demo() {
                 name="demo-message"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }}
+                onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); send(); } }}
                 placeholder={`给 ${active.name} 发消息`}
                 rows={1}
                 aria-label={`给 ${active.name} 发消息`}
@@ -203,7 +231,7 @@ export function Demo() {
             <header className="demo-page-head"><div><p>设置</p><h1>外观与演示</h1></div></header>
             <div className="demo-settings">
               <div className="demo-setting"><div><strong>界面主题</strong><span>和应用一样，演示也支持深色与浅色。</span></div>
-                <div className="demo-segment"><button className={theme === "midnight" ? "is-on" : ""} onClick={() => setTheme("midnight")}>深色</button><button className={theme === "daylight" ? "is-on" : ""} onClick={() => setTheme("daylight")}>浅色</button></div>
+                <div className="demo-segment"><button className={theme === "midnight" ? "is-on" : ""} onClick={() => chooseTheme("midnight")}>深色</button><button className={theme === "daylight" ? "is-on" : ""} onClick={() => chooseTheme("daylight")}>浅色</button></div>
               </div>
               <div className="demo-setting"><div><strong>模型</strong><span>演示只显示模型选择，不会发送请求。</span></div><span className="demo-value">Claude Sonnet</span></div>
               <div className="demo-setting"><div><strong>数据</strong><span>所有内容均为合成数据，不读取你的聊天、记忆或凭证。</span></div><span className="demo-value">仅演示</span></div>
