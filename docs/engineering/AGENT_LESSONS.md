@@ -79,6 +79,10 @@
 
 - Ubuntu CI run `42506798776` 在 Vitest 51 文件/1055 项通过并写报告后，因根退出 250ms 后后代/输出流仍活动而失败；固定窗口应触发自有 detached 组 TERM→既有 grace→KILL 清理，不能直接把可确认回收的 code 0 命令标为失败。成功仍须组消失且实际 child close；非零退出、取消、超时保留原失败，预算内未确认则 cleanup 失败并保留证据，不代表内部独立组全部回收。回归 `scripts/testing/patch-gate-process.test.ts`：真实持管道后代分别 TERM/KILL 回收、非零根退出、EPERM 未确认及无关 control；原代码 3 红/16 绿，修复后 process/CLI/size 共 41 项通过，工具类型与相关 lint 通过（macOS Node 24.22.2）。回执与后续 `check-patches --verify` 记录在外层 `private/engineering-foundation-evidence/ci-gate-cleanup/`；Ubuntu 修复后实跑待主控推送复核。修复身份以本条所属提交为准。
 
+## 小范围行为回归补充
+
+- 地址栏检测外层协议时，不能把路径、查询或 fragment 中的 `://` 当作外层协议。回归入口为 `src/lib/browser-address.test.ts`。修复必须同时保留非 Web 协议拒绝行为；本次第一版只匹配 HTTP(S) 曾让 FTP 被补成 HTTPS，既有负例立即捕获，最终改为匹配开头的完整协议结构。该证据覆盖公开解析函数及调用者静态接线，未覆盖真实浏览器导航。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

@@ -16,6 +16,17 @@ describe("resolveAddressBarInput", () => {
     expect(resolveAddressBarInput("http://example.com")).toBe("http://example.com/");
   });
 
+  it("opens bare addresses containing a URL in their path, query or fragment", () => {
+    for (const [input, expected] of [
+      ["example.com/?next=https://other.example/", "https://example.com/?next=https://other.example/"],
+      ["localhost:5173/?next=https://example.com/", "http://localhost:5173/?next=https://example.com/"],
+      ["example.com/https://other.example/", "https://example.com/https://other.example/"],
+      ["example.com/#https://other.example/", "https://example.com/#https://other.example/"],
+    ]) {
+      expect(resolveAddressBarInput(input)).toBe(expected);
+    }
+  });
+
   it("searches for a single word and for anything that is not an address", () => {
     expect(resolveAddressBarInput("google")).toBe("https://duckduckgo.com/?q=google");
     expect(resolveAddressBarInput("weather")).toBe("https://duckduckgo.com/?q=weather");
