@@ -47,7 +47,29 @@ node --experimental-strip-types scripts/capture-site-app.ts
 
 ## 部署
 
+线上地址：<https://bot.cloudentropy.ai/>（演示 <https://bot.cloudentropy.ai/demo/>）。DNS 为 `muse.cloudentropy.ai` 的 CNAME。
+
 官网静态根目录为 `/opt/entropybot/site`，Caddy 容器只读挂载到 `/srv/site`。发布前先备份旧目录；上传新图片后再原子替换 `index.html`，避免页面引用尚未上传的资源。此更新无需重启容器。
+
+### 2026-11-08 部署记录
+
+先备份旧首页到 `/opt/entropybot/backups/site-index-2026-11-08.html`（13,997 B，`ab872dee…`），再上传 `demo/`，校验内容后以 `mv` 原子替换 `index.html`；未重启容器、未改动 `/opt/entropybot/private` 与 `deploy/`。
+
+| 路径 | 线上状态 | SHA-256（前 16 位） |
+|---|---|---|
+| `/` | 200，22,832 B | `d58132879a5f527c` |
+| `/demo/` | 200，22 个文件 | `648f3695a6c68941` |
+| `/demo/assets/index-BSAcwuu3.css` | 200 | `d0cb6c87f3ce3bb1` |
+| `/demo/assets/index-CBxrSY1W.js` | 200 | `5e9d7c882721134a` |
+| `/assets/app-light.webp` | 200 | `4f3687365fab225e` |
+| `/assets/app-dark.webp` | 200 | `e7090352308a69b3` |
+| `/assets/app-icon.png` | 200 | `12bf38519d777d96` |
+
+线上核对：首页 2×2 功能卡、3 个职责 tab、4 条 FAQ 点击可用；截图大图打开/Escape 关闭正常；1440、390、320px 无横向溢出；无外部请求、无 console 错误；`/demo/?view=memory` 可直达。移动端 Lighthouse 首页与 `/demo/` 均为 Accessibility/Best Practices/SEO/Agentic Browsing 100、0 失败。
+
+本轮同时修正演示内部件对比度：用户气泡内时间戳原为 `color-mix(…62%, transparent)`，实测 3.56:1，不足 4.5:1；改为 82% 后约 4.9:1，桌面与移动 Lighthouse 均恢复 100。
+
+`/auth/google/start?rd=/welcome` 返回 200，由部署环境的授权代理提供；本轮未执行真实 Google 登录。
 
 仅发布 `index.html`、`assets/` 与 `demo/`。不要上传此目录之外的文件；`/opt/entropybot/private` 为授权后的页面，`/opt/entropybot/deploy` 保存现有 Caddy 和 Google 授权代理配置。
 
@@ -74,7 +96,7 @@ docker compose --env-file /opt/entropybot/.env up -d --no-deps --force-recreate 
 
 ## 2026-11-08 设计原则检验
 
-环境：本地 `python3 -m http.server 5187`，Chrome DevTools 桌面/移动模拟；未部署、未登录 Google、未调用真实模型。
+环境：本地 `python3 -m http.server 5187`，Chrome DevTools 桌面/移动模拟；已部署到 `bot.cloudentropy.ai`，未登录 Google、未调用真实模型。
 
 | 检查项 | 结果 |
 |---|---|
@@ -90,10 +112,11 @@ docker compose --env-file /opt/entropybot/.env up -d --no-deps --force-recreate 
 | 本地 Google 登录 | 404，符合“需要部署环境后端”的说明；不能直接静态托管 |
 | 首页交互 | 2×2 功能卡、3 个职责 tab、4 条 FAQ 手风琴；tab 切换和 FAQ 展开实际点击通过 |
 | `/demo/` | Lighthouse 100/100/100/100，50 项通过、0 失败；390px 无溢出；聊天发送、侧栏、记忆、设置可点；`?view=memory`/`?view=settings` 可直达 |
+| 线上部署 | 2026-11-08 已发布；主页、演示、三张图片与授权入口均返回 200，哈希与本地一致 |
 
 本轮修正：把“无需账号即可开始”改为“本地使用无需账号；Cloud 功能可另行使用 Google 登录”；下载区明确写出“0.2.6 本地候选尚未公开发布”，避免把未发布候选当成公开版本。
 
-未验证：真实托管环境的 `/auth/google/start`、Safari/Firefox、Lighthouse 性能分数、真实下载安装。截图是演示数据，不是用户真实记录。
+未验证：真实 Google 登录、Safari/Firefox、Lighthouse 性能分数、真实下载安装。截图是演示数据，不是用户真实记录。
 
 ## 页面行为
 

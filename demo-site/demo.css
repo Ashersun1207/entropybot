@@ -51,7 +51,7 @@ button { color: inherit; }
 .demo-row:not(.is-user) .demo-message { border-bottom-left-radius: 5px; }
 .demo-message p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .demo-message time { display: block; margin-top: 5px; color: var(--color-ink-tertiary); font-size: 9px; }
-.demo-row.is-user .demo-message time { color: color-mix(in srgb, var(--color-bubble-user-ink) 62%, transparent); }
+.demo-row.is-user .demo-message time { color: color-mix(in srgb, var(--color-bubble-user-ink) 82%, transparent); }
 .demo-tool { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--color-edge); color: var(--color-ink-tertiary); font-size: 10px; }
 .demo-tool svg:last-child { margin-left: auto; color: var(--color-success); }
 .demo-typing { padding: 11px 13px; }
