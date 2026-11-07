@@ -1,17 +1,14 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import { closeSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
 
 import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
-import { waitForExit } from "./testing/cleanup.ts";
 
 it("survives a real server crash: queued sends keep receipts, cancellation and uncertain dispatch never replay", async () => {
   const fixture = await launchVerificationServer();
   const { url, dataDir, logPath } = fixture.info;
-  let restarted: ChildProcess | undefined;
   const evidence: unknown[] = [];
   const api = async (method: string, path: string, body?: unknown, status = 200) => {
     const response = await fetch(`${url}${path}`, {
@@ -50,30 +47,6 @@ it("survives a real server crash: queued sends keep receipts, cancellation and u
     const db = new DatabaseSync(join(dataDir, "messages.db"), { readOnly: true });
     try { return db.prepare("SELECT id, status FROM chat_followups ORDER BY rowid").all(); }
     finally { db.close(); }
-  };
-  const restart = async () => {
-    const env: NodeJS.ProcessEnv = {};
-    for (const [key, value] of Object.entries(process.env)) {
-      if (["SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "LANG", "LC_ALL", "TZ"].includes(key.toUpperCase()) && value) env[key.toUpperCase()] = value;
-    }
-    Object.assign(env, {
-      HOME: dataDir, USERPROFILE: dataDir, OMB_DATA_DIR: dataDir,
-      APPDATA: join(dataDir, "AppData", "Roaming"), LOCALAPPDATA: join(dataDir, "AppData", "Local"),
-      XDG_CONFIG_HOME: join(dataDir, ".config"), XDG_CACHE_HOME: join(dataDir, ".cache"),
-      XDG_DATA_HOME: join(dataDir, ".local", "share"), HERMES_HOME: join(dataDir, ".hermes"),
-      TEMP: join(dataDir, "tmp"), TMP: join(dataDir, "tmp"), TMPDIR: join(dataDir, "tmp"),
-      OMB_PORT: new URL(url).port, OMB_WEBHOOK_PORT: String(Number(new URL(url).port) + 1), PATH: dirname(process.execPath),
-    });
-    const log = openSync(logPath, "a", 0o600);
-    restarted = spawn(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("./index.ts", import.meta.url))], {
-      cwd: fileURLToPath(new URL("..", import.meta.url)), env, stdio: ["ignore", log, log],
-    });
-    closeSync(log);
-    await expect.poll(async () => {
-      expect(restarted?.exitCode, `see ${logPath}`).toBeNull();
-      try { return (await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1_000) })).ok; }
-      catch { return false; }
-    }, { timeout: 20_000 }).toBe(true);
   };
   try {
     const wrapper = join(dataDir, "queued-claude.mjs");
@@ -182,23 +155,23 @@ it("survives a real server crash: queued sends keep receipts, cancellation and u
       { id: claimed.queueId, status: "dispatching" }, { id: channelQueued.queueId, status: "pending" },
     ]));
 
-    await waitForExit(fixture.child, { signal: "SIGKILL" });
-    writeFileSync(join(dataDir, "restarted"), "allow restored fake turns to finish");
-    const crashed = new DatabaseSync(join(dataDir, "messages.db"));
-    try {
-      // The narrowest crash window: the dispatch claim reached disk, the transcript line did not. One row names its sender, one
-      // is from a build that kept none, one was spoken in a Live call, and one typed row carries a stray call id.
-      const claim = crashed.prepare(
-        "INSERT INTO chat_followups(id, kind, owner_id, thread_id, send_id, status, payload) VALUES (?, 'bot', ?, ?, NULL, 'dispatching', ?)",
-      );
-      claim.run("claimed_before_append_named", unappended.id, unappended.threadId, JSON.stringify({ text: "Claimed, never appended", sender: PAIRED_ROW }));
-      claim.run("claimed_before_append_legacy", unappended.id, unappended.threadId, JSON.stringify({ text: "Claimed by an older build" }));
-      claim.run("claimed_before_append_call", unappended.id, unappended.threadId, JSON.stringify({ text: "Claimed from a call", via: "call", callId: "call-restart-fixture" }));
-      claim.run("claimed_before_append_stray", unappended.id, unappended.threadId, JSON.stringify({ text: "Typed, with a stray call id", callId: "call-stray" }));
-      crashed.prepare("UPDATE messages SET json = json_set(json, '$.text', '') WHERE thread_id = ? AND id = ?")
-        .run(lost.threadId, lostTarget.message.id);
-    } finally { crashed.close(); }
-    await restart();
+    await fixture.restart(() => {
+      writeFileSync(join(dataDir, "restarted"), "allow restored fake turns to finish");
+      const crashed = new DatabaseSync(join(dataDir, "messages.db"));
+      try {
+        // The narrowest crash window: the dispatch claim reached disk, the transcript line did not. One row names its sender, one
+        // is from a build that kept none, one was spoken in a Live call, and one typed row carries a stray call id.
+        const claim = crashed.prepare(
+          "INSERT INTO chat_followups(id, kind, owner_id, thread_id, send_id, status, payload) VALUES (?, 'bot', ?, ?, NULL, 'dispatching', ?)",
+        );
+        claim.run("claimed_before_append_named", unappended.id, unappended.threadId, JSON.stringify({ text: "Claimed, never appended", sender: PAIRED_ROW }));
+        claim.run("claimed_before_append_legacy", unappended.id, unappended.threadId, JSON.stringify({ text: "Claimed by an older build" }));
+        claim.run("claimed_before_append_call", unappended.id, unappended.threadId, JSON.stringify({ text: "Claimed from a call", via: "call", callId: "call-restart-fixture" }));
+        claim.run("claimed_before_append_stray", unappended.id, unappended.threadId, JSON.stringify({ text: "Typed, with a stray call id", callId: "call-stray" }));
+        crashed.prepare("UPDATE messages SET json = json_set(json, '$.text', '') WHERE thread_id = ? AND id = ?")
+          .run(lost.threadId, lostTarget.message.id);
+      } finally { crashed.close(); }
+    }, { signal: "SIGKILL" });
     expect((await messages(stoppedTask.threadId)).some((message) => message.queueId === stoppedReceipt.queueId && message.kind === "activity")).toBe(false);
     expect(prompts(stoppedTask.threadId)).toHaveLength(1);
     await expect.poll(async () => (await messages(bot.threadId)).filter((message) => message.sendId === body.sendId).length, { timeout: 15_000 }).toBe(1);
@@ -236,13 +209,11 @@ it("survives a real server crash: queued sends keep receipts, cancellation and u
     ]);
     expect((await api("POST", `/api/bots/${uncertain.id}/messages`, uncertainBody, 202)).message.queueId).toBe(claimed.queueId);
     expect(prompts(later.threadId)).toHaveLength(1);
-    await waitForExit(restarted, { signal: "SIGTERM" });
-    await restart();
+    await fixture.restart(undefined, { signal: "SIGTERM" });
     expect((await messages(later.threadId)).filter((message) => message.queueId === claimed.queueId)).toEqual(interrupted.filter((message) => message.queueId === claimed.queueId));
     expect(prompts(later.threadId)).toHaveLength(1);
     evidence.push({ settled, channelSettled, journal: journal(), recoveredBot: await messages(bot.threadId), recoveredChannel: await messages(channel.threadId), interrupted });
   } finally {
-    await waitForExit(restarted, { signal: "SIGTERM" });
     const evidencePath = `${logPath}.chat-followups-restart.json`;
     writeFileSync(evidencePath, JSON.stringify({ fixture: fixture.info, evidence }, null, 2));
     console.log(JSON.stringify({ logPath, evidencePath }));
