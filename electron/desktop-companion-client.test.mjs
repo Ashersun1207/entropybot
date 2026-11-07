@@ -69,7 +69,7 @@ describe("desktop companion endpoint", () => {
       `https://${LABEL}.entropybot.si`,
     );
     expect(normalizeDesktopCompanionEndpoint(` ${LABEL.toUpperCase()}.Mausbot.SI/ `)).toBe(
-      `https://${LABEL}.entropybot.si`,
+      `https://${LABEL}.mausbot.si`,
     );
     for (const endpoint of [
       "https://unrelated.example.com",

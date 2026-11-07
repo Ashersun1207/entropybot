@@ -126,6 +126,7 @@ export interface VerificationServer {
   fixtureDumpPath: string;
   child: ChildProcess;
   close(): Promise<void>;
+  stop(signal?: "SIGTERM" | "SIGKILL"): Promise<void>;
   restart(beforeLaunch?: () => void, options?: { signal?: "SIGTERM" | "SIGKILL"; env?: NodeJS.ProcessEnv }): Promise<void>;
 }
 
@@ -274,6 +275,8 @@ export async function launchVerificationServer(
   boatFixtureApi?: string,
   /** Programmatic web UI qualification against the fixture's static server. */
   staticDir?: string,
+  /** Programmatic tests only: obstruct or seed the disposable data directory just before spawn. */
+  beforeSpawn?: (dataDir: string) => void,
 ): Promise<VerificationServer> {
   if (boatFixtureApi) {
     if (!/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/.test(boatFixtureApi)) {
@@ -338,6 +341,7 @@ export async function launchVerificationServer(
     },
   }, null, 2));
 
+  beforeSpawn?.(dataDir);
   const childEnv = verificationServerEnvironment(parentEnv, dataDir, port);
   // Opt-in live Local VM fixture: keep the temporary home and fake engine,
   // granting only the explicitly selected machine connection and static UI.
@@ -419,6 +423,7 @@ export async function launchVerificationServer(
     fixtureDumpPath,
     get child() { return lifecycle.child; },
     close: () => lifecycle.close(),
+    stop: (signal) => lifecycle.stop(signal),
     async restart(beforeLaunch, options) {
       try {
         await lifecycle.stop(options?.signal);

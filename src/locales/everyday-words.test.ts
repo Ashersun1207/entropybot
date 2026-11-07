@@ -72,12 +72,12 @@ const INTERNAL_WORDS: readonly Word[] = [
   { word: "VPS", pattern: /\bVPS\b/, say: "your own machine" },
   { word: "Local VM", pattern: /\bLocal VMs?\b/i, say: "private desktop" },
   { word: "workspace", pattern: /\bworkspaces?\b/i, say: "installation, or leave it out" },
+  { word: "lent", pattern: /\b(?:lent|lends?|lending)\b/i, say: "shared, or let … use" },
 ];
 
 const PENDING_WORDS: readonly Word[] = [
   { word: "This computer", pattern: /\bThis computer\b/, say: "this Mac or this PC" },
   { word: "My Cloud", pattern: /\bMy Cloud\b/, say: "the Cloud" },
-  { word: "lent", pattern: /\b(?:lent|lends?|lending)\b/i, say: "shared, or let … use" },
 ];
 
 const ALLOWED: Record<string, string> = {
@@ -118,7 +118,7 @@ describe("everyday screens", () => {
   it("catch each internal word, and let placeholders, commands, MCP servers and Discord or Slack servers through", () => {
     for (const bad of [
       "Switch to another engine", "Add an instance", "Restart the server", "Connect apps through Composio",
-      "Start the cloud computer", "Self-hosted VPS", "Create Local VM", "Choose a workspace",
+      "Start the cloud computer", "Self-hosted VPS", "Create Local VM", "Choose a workspace", "A lent Cloud", "Start lending",
     ]) expect(wordsIn(bad), bad).not.toEqual([]);
     for (const good of [
       "Switch this bot to another AI", "Pick a Discord server", "Post in your Slack servers", "Copy to {server}", "Add your own server",

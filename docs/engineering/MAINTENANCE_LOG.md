@@ -72,3 +72,12 @@
 - D 对 A/B+cleanup、E 对签名准备修正分别只读 approve。主控 lint、typecheck、定向契约/体积、12 项签名 Node 测试及正常合成平台验收通过。产品/测试提交 `f7634cc73` 的最终统一门槛实际通过：30 结构契约、51 个 Vitest 文件/1051 项、7 个 Node 文件/42 项，无失败/skip/todo；Vitest 阶段 161.47 秒。首次 typecheck 因 60 秒工具预算中止，300 秒预算重跑 exit 0。更大范围全仓 Vitest/Node 回归由 A 路独立执行，结果与限制见外层日志，不把统一补丁门槛冒称全仓通过。后续收口只更新本文，不改变已验的产品/测试源码。
 - 依赖/lockfile/安装钩子未变化；未新增用户数据外发、证书导入或发布动作。正式构建会复用既有固定来源资源准备，需在未来获授权的构建中再次审查执行证据。用户没有开发者会员与可用身份，正式签名/公证继续阻断。本轮没有替换/重启当前安装应用，只有用户授权的固定合成文本连接测试返回 1024 维。
 - 限制：真实 Electron ACL Deny/lock、稳定签名升级/回滚、全部脱组后代、自有源码记录抵御同 UID 篡改、Windows 均未获本轮证明。旧版本 reader 只在 mock 中证明格式兼容，不能替代真实旧安装包回退验收。
+
+## 2026-11-07：0.2.6 全仓失败修复增量
+
+- 范围：`1f3e641db` 后的回归失败修复，独立 `release-completion-fixes` worktree。早期 13 组全仓未通过（39 失败、251 skip、3 todo，control-plane 启动失败）；不能以本轮定向结果追认早期全仓成功。
+- 生命周期：测试使用受管 stop/restart 获取内部退出回执，附件启动故障通过私有 dataDir 真实阻塞而非跨进程模块 mock；仍保留日志、失败上传、修复后内容及资源回收断言。CLI 合成 checkout 补齐传递依赖，保留取消/超时/未知资源保留 HOME 的断言。
+- 安装脚本审查：connector 名称、环境变量、挂载路径及 Docker entrypoint 与既有 `connector/src/settings.ts` 对齐；没有执行安装器、Docker 拉取或真实系统修改。权限仍为既有 Docker socket/root 能力，不新增权限；镜像由已有 digest 接口供应，未新增远程执行入口。旧部署容器/卷未做自动迁移，不能把名称对齐当真实 Linux 升级通过。
+- 域名：control-plane 的真实部署旧域名/secret binding 保留，测试使用对应合成 token；companion 接受固定格式托管地址但不把旧地址静默转发到新域名。无真实配对码、凭证、用户记忆或云账号参与。
+- 检查：UI/server typecheck、全仓 lint、体积守卫、安装 shell 语法、定向产品/夹具回归通过；control-plane 143 项通过。`lent` 从零残留 todo 提升实际禁词检查；另外两项 UI 命名 todo 与条件 skip 仍未关闭。最终组合全仓、补丁行为门槛与独立复审证据由外层 `docs/release-0.2.6-validation.md` 按最终 HEAD 记录，不能把此处定向记录当发布放行。
+- 未改依赖版本、lockfile、安装钩子或真实应用数据；正式签名/公证仍缺 Developer ID/会员。本轮源码修复未代替实际构建安装，S6 生产背景归因、公网 TLS 与 Windows HOME 保持未验证。

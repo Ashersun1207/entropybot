@@ -51,11 +51,11 @@ describe("endpoint account configuration", () => {
 
   it("parses the production account list once its token is saved, and only then", () => {
     const production = JSON.parse(env.TEST_PRODUCTION_ENDPOINT_ACCOUNTS) as unknown[];
-    const configured = readConfig(withAccounts(production));
+    const configured = readConfig(withAccounts(production, { CLOUDFLARE_API_TOKEN_MAUSBOT_SI: TOKEN }));
     expect(configured.endpointAccountIssues).toEqual([]);
     expect(configured.endpointAccounts.slice(1).map(({ apiToken: _token, ...account }) => account)).toEqual([{
       accountId: "bbb5305f06e28a6f2abaac299f3b09dc",
-      companionHostSuffix: "entropybot.si",
+      companionHostSuffix: "mausbot.si",
       dnsRecordLimit: 3500,
       minAppVersion: "0.1.104",
       newEndpoints: true,
@@ -69,15 +69,13 @@ describe("endpoint account configuration", () => {
   });
 
   it("deploys every account's limits at its real Cloudflare quotas", () => {
-    // bot.cloudentropy.ai and entropybot.si are both Pro zones (3,500 DNS records;
-    // entropybot.si was Free, 200, until Oct 21). Both accounts allow 1,000 tunnels.
     const production = JSON.parse(env.TEST_PRODUCTION_ENDPOINT_ACCOUNTS) as unknown[];
-    const deployed = readConfig(withAccounts(production)).endpointAccounts;
+    const deployed = readConfig(withAccounts(production, { CLOUDFLARE_API_TOKEN_MAUSBOT_SI: TOKEN })).endpointAccounts;
     expect(deployed.map(({ companionHostSuffix, dnsRecordLimit, tunnelLimit }) => (
       { companionHostSuffix, dnsRecordLimit, tunnelLimit }
     ))).toEqual([
-      { companionHostSuffix: "bot.cloudentropy.ai", dnsRecordLimit: 3500, tunnelLimit: 1000 },
-      { companionHostSuffix: "entropybot.si", dnsRecordLimit: 3500, tunnelLimit: 1000 },
+      { companionHostSuffix: "openmausbot.com", dnsRecordLimit: 3500, tunnelLimit: 1000 },
+      { companionHostSuffix: "mausbot.si", dnsRecordLimit: 3500, tunnelLimit: 1000 },
     ]);
   });
 

@@ -4,6 +4,9 @@ import path from "node:path";
 
 // Mirrors WORKSPACE_CREDENTIAL_ENV in server/credential-env.ts; a test asserts the two lists never drift apart.
 export const CREDENTIAL_ENV_NAMES = [
+  "OMB_MEMORY_EMBEDDING_KEY",
+  "OMB_MEMORY_EMBEDDING_STORAGE",
+  "DASHSCOPE_API_KEY",
   "XAI_API_KEY",
   "MISTRAL_API_KEY",
   "CEREBRAS_API_KEY",

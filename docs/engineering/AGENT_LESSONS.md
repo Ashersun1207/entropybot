@@ -40,6 +40,12 @@
 | L28 | 选择性 DYLD interpose 不能保证隔离真实 Keychain；service 带长度不能按 NUL 字符串读；默认项/搜索列表未变不证明无凭证访问 | 禁用该探针并撤回绝对保证，不在用户账号补 hook 试错；原生显式私有 Keychain 与 Electron mock 的证据分别记录。平台 fixture 创建资源即登记清理；查询异常也需报告原始错误；退出未确认保留目录 | `keychain-service-probe.py` 已无条件停用；`credential-namespace-migration-fixture.node-test.mjs` 覆盖五类合成清理路径。自有进程组之外的脱组后代不在保证内 |
 | L29 | manifest 生成时 HEAD 不是产物构建提交；Node suite 命名 `.test.mjs` 会被 Vitest 当空套件；unsigned DMG 无法满足正式容器主签名门槛 | 正式构建要求干净已提交版本并记录 source/tree/lock；最终签名/票据后算产物 hash。Node 使用 `.node-test.mjs` 并入 Node 门槛。正式 override 开启 DMG 签名，校验容器与嵌套代码，缺证书不降级。纯清理测试用自己的临时根，Ubuntu/macOS 实际执行，不跳过凑绿 | `scripts/release-signing.node-test.mjs`、统一 patch gate；真实 Developer ID/公证未验，用户无会员/证书，旧包 sourceStatus 不能追认为已验证 |
 
+## 0.2.6 全仓回归补充
+
+- CLI 夹具复制可执行入口时必须同步复制其传递依赖；`verification-lifecycle.ts` 引入 `verification-external-stop.ts` 后，缺文件使真实 CLI 在报告/租约检查前启动失败，表现为模块解析失败、等待超时和 HOME 断言连锁失败。补齐实际依赖，回归入口 `scripts/testing/patch-gate-cli.test.mjs`，21 项通过；不能因次生失败降低生命周期检查。
+- Vitest 模块 mock 不会自动影响另一个 Node 子进程。附件启动故障通过 `launchVerificationServer` 的 disposable dataDir 启动前钩子真实制造，保留服务日志、500 拒绝、修复后 201/内容和目录回收断言；回归 `server/attachments-startup.test.ts`。外部停止/重启必须经过统一生命周期管理，保留内部退出回执，不能手动 kill 后把 close 失败当清理成功。
+- 品牌字符串不能机械覆盖真实部署域名、secret binding 或已发行协议。control-plane 测试必须按固定部署配置使用合成 token；companion 归一化保留调用者选择的主机，不能把旧域名静默改写为新域名后发送配对码。回归 `cloudflare/control-plane/test/endpoint-accounts.test.ts` 与 `electron/desktop-companion-client.test.mjs`；未以真实凭证或云账号验证。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

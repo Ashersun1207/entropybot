@@ -41,7 +41,7 @@ export interface KeyTarget {
 export type KeyId =
   | "openai" | "anthropic" | "xai" | "openrouter" | "mistral" | "cerebras" | "groq" | "greenference" | "meta" | "deepseek" | "opencodeGo" | "opencodeProviders"
   | "lmStudio" | "openaiCompat" | "liveCalls" | "liveKey" | "elevenlabs" | "fishAudio" | "geminiTts" | "box" | "vps" | "onePassword" | "composio" | "treg" | "postiz"
-  | "jev" | "openrouterHelper" | "workersAi" | "imageOpenai" | "imageCustom";
+  | "memory" | "jev" | "openrouterHelper" | "workersAi" | "imageOpenai" | "imageCustom";
 
 export type KeyMark = { driverKind: string; preset?: ProviderIconPreset } | { icon: LucideIcon };
 
@@ -107,6 +107,8 @@ export const KEY_CATALOG: readonly KeyEntry[] = [
   { id: "deepseek", section: "ai", labelKey: "keys.deepseek.label", purposeKey: "keys.purpose.deepseek", name: "DeepSeek", env: ["OMB_DEEPSEEK_API_KEY"],
     words: ["deepseek", "dsh", "harness"], mark: provider("deepseekAgent", "deepseek"), kind: "key",
     target: providerKey("deepseek", { placeholder: "sk-…", href: "https://platform.deepseek.com/api_keys", analytics: "deepseek" }) },
+  { id: "memory", section: "ai", labelKey: "settings.section.memory", purposeKey: "memorySettings.enabled", name: "Memory", env: ["OMB_MEMORY_EMBEDDING_KEY", "OMB_MEMORY_EMBEDDING_STORAGE", "DASHSCOPE_API_KEY"],
+    words: ["memory", "semantic", "embedding", "recall", "记忆"], mark: { icon: Search }, kind: "elsewhere", opens: "memory" },
   { id: "opencodeGo", section: "ai", labelKey: "keys.opencode.label", purposeKey: "keys.purpose.opencodeGo", name: "OpenCode", env: ["OPENCODE_API_KEY"],
     words: ["opencode", "zen", "go"], mark: provider("opencodeGo"), kind: "key",
     target: { patch: (value) => ({ opencodeGo: { apiKey: value } }), slot: "opencodeGoApiKey", saved: (config) => flag(config.opencodeGo),

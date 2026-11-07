@@ -37,7 +37,7 @@ export function gateFixture(mode) {
     }
     rmSync(root, { recursive: true, force: true });
   });
-  for (const file of new Set([...inventory, ...vitestFiles, ...nodeTestFiles, "scripts/check-patches.mjs", "scripts/patch-contracts.mjs", "scripts/patch-gate-process.ts", "scripts/testing/verification-lifecycle.ts", "server/verification-process-scope.ts"])) {
+  for (const file of new Set([...inventory, ...vitestFiles, ...nodeTestFiles, "scripts/check-patches.mjs", "scripts/patch-contracts.mjs", "scripts/patch-gate-process.ts", "scripts/testing/verification-lifecycle.ts", "scripts/testing/verification-external-stop.ts", "server/verification-process-scope.ts"])) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), readFileSync(join(repositoryRoot, file)));
   }

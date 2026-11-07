@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 
 import { launchVerificationServer, runControlOmb, type VerificationServer } from "../scripts/control-omb.ts";
-import { waitForExit } from "./testing/cleanup.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 
 let fixture: VerificationServer | undefined;
@@ -41,7 +40,7 @@ it.each(["SIGKILL", "SIGTERM"] as const)("a turn and a routine run cut by %s kee
   await cli("send", "--bot", bot.id, "--task", bot.activeTaskId, "--text", "Plan the offsite");
   await expect.poll(() => Object.keys(task(bot.id, bot.activeTaskId)?.resumeCursors ?? {}).length, { timeout: hostTimeout(30_000) }).toBe(1);
 
-  await waitForExit(fixture.child, { signal });
+  await fixture.stop(signal);
 
   const saved = task(bot.id, bot.activeTaskId);
   expect(saved.title).toBe("Plan the offsite");

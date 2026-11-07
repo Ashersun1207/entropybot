@@ -6,7 +6,7 @@ import { EVALS_LANE, PACKAGED_SERVER_LANE, vitestLane } from "./ci-linux-lanes.m
 import { SELECTABLE_JOBS, vitestMatrix } from "./ci-scope.mjs";
 import { interpolate } from "./testing/github-expression.ts";
 
-const workflow = parse(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"));
+const workflow = parse(readFileSync(new URL("../.github/upstream-workflows/ci.yml", import.meta.url), "utf8"));
 const requiredRuntimeJobs = ["vitest", "behavior-evals", "packaged-server", "windows-cua", "electron-smokes"];
 
 function runGate(needs: Record<string, unknown>) {
@@ -54,7 +54,7 @@ describe("CI concurrency", () => {
   });
 
   it("stops a closed PR's run by joining ci.yml's PR group", () => {
-    const stop = parse(readFileSync(new URL("../.github/workflows/ci-stop-closed.yml", import.meta.url), "utf8"));
+    const stop = parse(readFileSync(new URL("../.github/upstream-workflows/ci-stop-closed.yml", import.meta.url), "utf8"));
     expect(stop.on).toEqual({ pull_request: { types: ["closed"] } });
     expect(stop.concurrency).toEqual({ group: "ci-pr-${{ github.event.pull_request.number }}", "cancel-in-progress": true });
     // For pull_request events ci.yml's group expression reduces to pr-<number>.
@@ -64,7 +64,7 @@ describe("CI concurrency", () => {
   it("never lets a merged PR's stop run join main's group", () => {
     // A merged PR's closed event reports the base branch as github.ref, so a
     // ref-named group would cancel main's CI on every merge.
-    const stop = parse(readFileSync(new URL("../.github/workflows/ci-stop-closed.yml", import.meta.url), "utf8"));
+    const stop = parse(readFileSync(new URL("../.github/upstream-workflows/ci-stop-closed.yml", import.meta.url), "utf8"));
     expect(stop.concurrency.group).not.toContain("github.ref");
     expect(stop.concurrency.group).toContain("github.event.pull_request.number");
     expect(stop.permissions).toEqual({});
@@ -135,7 +135,7 @@ describe("CI concurrency", () => {
   });
 
   it("makes a release wait for its commit's CI gate before any draft", () => {
-    const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
+    const release = parse(readFileSync(new URL("../.github/upstream-workflows/release.yml", import.meta.url), "utf8"));
     expect(release.jobs.assemble.needs).toContain("ci");
     expect(release.jobs.ci.needs).toBe("prepare");
     expect(release.jobs.ci.permissions).toEqual({ actions: "write", contents: "write" });
@@ -149,7 +149,7 @@ describe("CI concurrency", () => {
   });
 
   it("checks out every module the release gate imports", () => {
-    const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
+    const release = parse(readFileSync(new URL("../.github/upstream-workflows/release.yml", import.meta.url), "utf8"));
     const checkout = release.jobs.ci.steps.find((step: { uses?: string }) => step.uses?.startsWith("actions/checkout@"));
     const sparse = (checkout.with["sparse-checkout"] as string).split("\n").map((line) => line.trim()).filter(Boolean);
     const imports = [...readFileSync(new URL("./release-ci.mjs", import.meta.url), "utf8").matchAll(/^import .* from "\.\/([^"]+)";$/gm)]
@@ -159,8 +159,8 @@ describe("CI concurrency", () => {
   });
 
   it("builds the Windows Defender check's installer exactly as the release's Windows job does", () => {
-    const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
-    const check = parse(readFileSync(new URL("../.github/workflows/windows-defender-check.yml", import.meta.url), "utf8"));
+    const release = parse(readFileSync(new URL("../.github/upstream-workflows/release.yml", import.meta.url), "utf8"));
+    const check = parse(readFileSync(new URL("../.github/upstream-workflows/windows-defender-check.yml", import.meta.url), "utf8"));
     type Step = { uses?: string; with?: unknown; run?: string; shell?: string };
     const toolchainToInstaller = (steps: Step[]) => steps.slice(1, steps.findIndex((step) => step.run === "pnpm package:win") + 1)
       .map(({ uses, with: inputs, run, shell }) => ({ uses, with: inputs, run, shell }));
@@ -303,7 +303,7 @@ describe("CI concurrency", () => {
   });
 
   it("keeps the redundant Windows workflow available only for manual debugging", () => {
-    const smoke = parse(readFileSync(new URL("../.github/workflows/shared-terminal-smoke.yml", import.meta.url), "utf8"));
+    const smoke = parse(readFileSync(new URL("../.github/upstream-workflows/shared-terminal-smoke.yml", import.meta.url), "utf8"));
     expect(smoke.on).toEqual({ workflow_dispatch: null });
     const commands = smoke.jobs.windows.steps.map((step: { run?: string }) => step.run);
     expect(commands).toContain("node --test electron/shared-computer-access.node-test.mjs");
@@ -393,7 +393,7 @@ describe("CI on Boat", () => {
   });
 
   it("starts Boat VMs from no other workflow", () => {
-    const directory = new URL("../.github/workflows/", import.meta.url);
+    const directory = new URL("../.github/upstream-workflows/", import.meta.url);
     const onBoat = readdirSync(directory).filter((file) => /\.ya?ml$/.test(file))
       .filter((file) => /runs-on:[^\n]*boat|'boat(?:-\w+)?'/.test(readFileSync(new URL(file, directory), "utf8")));
     expect(onBoat).toEqual(["ci.yml"]);
