@@ -1,17 +1,15 @@
-import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
 
-import { launchVerificationServer, runControlOmb, verificationServerEnvironment } from "../scripts/control-omb.ts";
+import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
 import { request } from "../scripts/mcp-server.ts";
 import { UNSEEN_END } from "./delta-context.ts";
 import { ENVELOPE_MARK } from "./runtime/envelope.ts";
-import { waitForExit } from "./testing/cleanup.ts";
 import { readHandoffs } from "./testing/handoff-rows.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 import { openSse } from "./testing/sse.ts";
@@ -35,7 +33,6 @@ async function fixture(test: (f: any) => Promise<void>, options: { env?: NodeJS.
   const cli = (...args: string[]) => runControlOmb(args, { env: { OPENENTROPYBOT_URL: session.info.url } }) as Promise<any>;
   const api = (path: string, body?: unknown, method = "POST") =>
     request(path, body === undefined ? {} : { method, body: JSON.stringify(body) }, session.info.url) as Promise<any>;
-  let restarted: ChildProcess | undefined;
   try {
     const dataDir = session.info.dataDir;
     const planPath = join(dataDir, "room-plan.json");
@@ -149,24 +146,16 @@ async function fixture(test: (f: any) => Promise<void>, options: { env?: NodeJS.
       await cli("set-model", "--bot", chief.id, "--instance", instanceId, "--model", model, "--task", thread);
     };
     const open = (path: string) => writeFileSync(path, "open");
-    const restart = async (edit: (bots: any[]) => void, signal: NodeJS.Signals = "SIGTERM", extraEnv: NodeJS.ProcessEnv = {}) => {
-      await waitForExit(restarted ?? session.child, { signal });
-      const bots = JSON.parse(readFileSync(join(dataDir, "bots.json"), "utf8"));
-      edit(bots);
-      writeFileSync(join(dataDir, "bots.json"), JSON.stringify(bots, null, 2));
-      const env = { ...verificationServerEnvironment(parentEnv, dataDir, Number(new URL(session.info.url).port)), ...extraEnv };
-      const log = openSync(session.info.logPath, "a", 0o600);
-      restarted = spawn(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("./index.ts", import.meta.url))],
-        { cwd: fileURLToPath(new URL("..", import.meta.url)), env, stdio: ["ignore", log, log] });
-      closeSync(log);
-      await expect.poll(async () => {
-        try { return (await fetch(`${session.info.url}/api/health`, { signal: AbortSignal.timeout(1_000) })).ok; } catch { return false; }
-      }, { timeout: 20_000 }).toBe(true);
+    const restart = async (edit: (bots: any[]) => void, signal: "SIGTERM" | "SIGKILL" = "SIGTERM", extraEnv: NodeJS.ProcessEnv = {}) => {
+      await session.restart(() => {
+        const bots = JSON.parse(readFileSync(join(dataDir, "bots.json"), "utf8"));
+        edit(bots);
+        writeFileSync(join(dataDir, "bots.json"), JSON.stringify(bots, null, 2));
+      }, { signal, env: extraEnv });
     };
     await test({ session, dataDir, cli, api, chief, lead, qa, ops, plan, save, send, wait, idle, turns, prompt, messages, nodes, root, task, handed,
       launches, nativeSession, consumed, codexLaunches, codexCalls, codexModels, selectModel, setMode, delegate, gate, holdDelegation, open, thread, useModel, restart });
   } finally {
-    if (restarted) await waitForExit(restarted, { signal: "SIGTERM" });
     await session.close();
   }
 }

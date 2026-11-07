@@ -17,29 +17,29 @@ export function waitForExit(
 ): Promise<void> {
   const { signal, graceMs = 5_000 } = typeof options === "number" ? { graceMs: options } : options;
 
-  return new Promise<void>((resolve) => {
-    // A process killed by a signal reports it in signalCode and leaves exitCode null.
-    if (!child || child.exitCode !== null || child.signalCode !== null) return resolve();
-
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const done = () => {
-      if (timer) clearTimeout(timer);
-      resolve();
+  return new Promise<void>((resolve, reject) => {
+    if (!child) return resolve();
+    const exited = child.exitCode !== null || child.signalCode !== null;
+    if (exited && !child.connected && child.stdio.every(stream => !stream || stream.destroyed)) return resolve();
+    let timer: ReturnType<typeof setTimeout>;
+    const finish = (error?: Error) => {
+      clearTimeout(timer);
+      child.off("close", done);
+      if (error) reject(error); else resolve();
     };
-    child.on("close", done);
-
-    if (signal) {
-      try {
-        child.kill(signal);
-      } catch {}
-    }
-
+    const done = () => finish();
+    child.once("close", done);
     timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      timer = setTimeout(done, 2_000);
+      try { if (!exited) child.kill("SIGKILL"); }
+      catch (error) { finish(error as Error); return; }
+      timer = setTimeout(() => finish(new Error("Child exit/close was not confirmed; preserve its directory")), 2_000);
       timer.unref?.();
     }, graceMs);
     timer.unref?.();
+    if (signal && !exited) {
+      try { child.kill(signal); }
+      catch (error) { finish(error as Error); }
+    }
   });
 }
 

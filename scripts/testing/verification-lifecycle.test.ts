@@ -25,7 +25,7 @@ function fixture(options: ConstructorParameters<typeof VerificationLifecycle>[0]
       }
     } catch (error) { if (!String(error).includes("has not started")) throw error; }
     if (log >= 0) closeSync(log);
-    rmSync(lifecycle.dataDir, { recursive: true, force: true });
+    if (existsSync(lifecycle.dataDir)) console.info(`Verification negative-case directory retained: ${lifecycle.dataDir}`);
   });
   log = openSync(join(lifecycle.dataDir, "test.log"), "a");
   const start = (mode: string, missingCwd = false, extra = "") => {
@@ -128,6 +128,32 @@ it("requires the new generation's receipt after a stopped generation", async () 
   expect(f.lifecycle.identity.serverNonce).not.toBe(old.serverNonce);
   await expect(f.lifecycle.close()).rejects.toThrow("identity mismatch");
   expect(existsSync(f.lifecycle.dataDir)).toBe(true);
+});
+
+it("confirms a sealed CLI inventory after an actual crash before starting a replacement generation", async () => {
+  const f = fixture({ stopTimeoutMs: 3_000 });
+  await f.start("awaited");
+  const first = f.lifecycle.identity;
+  await f.lifecycle.stop("SIGKILL");
+  const receipt = JSON.parse(readFileSync(join(f.lifecycle.dataDir, "verification-external-stop-1.json"), "utf8"));
+  expect(receipt).toMatchObject({ identity: first, signal: "SIGKILL", exited: true, closed: true, groupsGone: true });
+  expect(receipt.groups).toHaveLength(1);
+  expect(() => process.kill(-receipt.groups[0], 0)).toThrow();
+  await f.start("sealed");
+  expect(f.lifecycle.identity.generation).toBe(first.generation + 1);
+  await f.lifecycle.close();
+  expect(existsSync(f.lifecycle.dataDir)).toBe(false);
+});
+
+it("preserves the directory and refuses restart when a crash inventory is unavailable", async () => {
+  const f = fixture({ stopTimeoutMs: 100 });
+  await f.start("sealed");
+  const send = vi.spyOn(f.lifecycle.child, "send").mockImplementation(() => true);
+  try {
+    await expect(f.lifecycle.stop("SIGKILL")).rejects.toThrow("inventory deadline");
+    expect(existsSync(f.lifecycle.dataDir)).toBe(true);
+    await expect(f.start("sealed")).rejects.toThrow("inventory deadline");
+  } finally { send.mockRestore(); }
 });
 
 it("does not allow a new generation after an unknown stop", async () => {

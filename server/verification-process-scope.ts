@@ -90,6 +90,13 @@ export class VerificationProcessScope {
 
   seal() { this.sealed = true; }
 
+  externalStopInventory(): { groups: number[]; reason?: string } {
+    this.seal();
+    const groups = [...this.records.keys()].map(child => child.pid);
+    const reason = this.failure || (groups.some(pid => !Number.isSafeInteger(pid) || pid! <= 1) ? "Unidentified verification CLI" : "");
+    return { groups: groups.filter((pid): pid is number => pid !== undefined), ...(reason ? { reason } : {}) };
+  }
+
   drain(budgetMs = 2_000, graceMs = 500): Promise<VerificationReceipt> {
     if (this.draining) return this.draining;
     this.seal();

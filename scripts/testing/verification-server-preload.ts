@@ -14,13 +14,17 @@ await new Promise<void>((resolve, reject) => {
       if (!validVerificationIdentity(frame.identity) || frame.identity.dataDir !== realpathSync(process.env.OMB_DATA_DIR ?? "")
         || frame.identity.dataDir !== realpathSync(process.env.HOME ?? "")) throw new Error("Verification INIT identity/directory mismatch");
       const identity = frame.identity;
-      installVerificationProcessScope(identity, (value, budgetMs) => new Promise<boolean>(done => {
+      const scope = installVerificationProcessScope(identity, (value, budgetMs) => new Promise<boolean>(done => {
         const deadline = setTimeout(() => done(false), budgetMs);
         try {
           if (!process.send || !process.connected) { clearTimeout(deadline); done(false); return; }
           process.send(value, error => { clearTimeout(deadline); done(!error); });
         } catch { clearTimeout(deadline); done(false); }
       }));
+      process.on("message", (request: unknown) => {
+        if ((request as { type?: string })?.type !== "verification:external-stop") return;
+        process.send!({ type: "verification:inventory", identity, serverPid: process.pid, ...scope.externalStopInventory() });
+      });
       process.send!({ type: "verification:ready", identity, serverPid: process.pid }, error => {
         cleanup();
         if (error) reject(error); else resolve();

@@ -28,6 +28,22 @@ it("seals before new creation and confirms each registered actual handle once", 
   scope.dispose();
 });
 
+it("seals an external-stop inventory without claiming the recorded groups have stopped", () => {
+  const scope = new VerificationProcessScope(identity(), async () => true);
+  scope.register(Object.assign(child(), { pid: 32100 }), async () => true);
+  expect(scope.externalStopInventory()).toEqual({ groups: [32100] });
+  expect(() => scope.assertSpawnAllowed()).toThrow("sealed");
+  expect(scope.receipt()).toMatchObject({ status: "unknown", registered: 1, confirmed: 0 });
+  scope.dispose();
+});
+
+it("refuses an external inventory with an unidentified process", () => {
+  const scope = new VerificationProcessScope(identity(), async () => true);
+  scope.register(child(), async () => true);
+  expect(scope.externalStopInventory()).toMatchObject({ reason: "Unidentified verification CLI" });
+  scope.dispose();
+});
+
 it.each(["false", "reject", "timeout"])("keeps %s stop results unknown", async mode => {
   const scope = new VerificationProcessScope(identity(), async () => true);
   scope.register(child(), async () => {

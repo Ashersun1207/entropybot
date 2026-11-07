@@ -126,7 +126,7 @@ export interface VerificationServer {
   fixtureDumpPath: string;
   child: ChildProcess;
   close(): Promise<void>;
-  restart(beforeLaunch?: () => void): Promise<void>;
+  restart(beforeLaunch?: () => void, options?: { signal?: "SIGTERM" | "SIGKILL"; env?: NodeJS.ProcessEnv }): Promise<void>;
 }
 
 /** A temporary home in `dataDir`, the fake engine's knobs from `parentEnv`, node
@@ -301,7 +301,7 @@ export async function launchVerificationServer(
   const fixtureTemp = join(dataDir, "tmp");
   const fixtureDumpPath = join(dataDir, "fake-claude-dump.json");
   mkdirSync(fixtureTemp, { recursive: true });
-  const evidenceDir = join(tmpdir(), "entropybot-verification-evidence");
+  const evidenceDir = process.env.OMB_VERIFICATION_EVIDENCE_DIR ?? join(tmpdir(), "entropybot-verification-evidence");
   mkdirSync(evidenceDir, { recursive: true });
   const logPath = join(evidenceDir, `server-${Date.now()}-${process.pid}.log`);
   writeFileSync(join(dataDir, "config.json"), JSON.stringify({
@@ -419,10 +419,11 @@ export async function launchVerificationServer(
     fixtureDumpPath,
     get child() { return lifecycle.child; },
     close: () => lifecycle.close(),
-    async restart(beforeLaunch) {
+    async restart(beforeLaunch, options) {
       try {
-        await lifecycle.stop();
+        await lifecycle.stop(options?.signal);
         beforeLaunch?.();
+        Object.assign(childEnv, options?.env);
         await startServer();
         deadline = Date.now() + hostTimeout(20_000);
         await waitReady();

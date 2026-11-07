@@ -70,13 +70,15 @@ async function fixtureWorld() {
   await new Promise<void>((ready) => bridge.listen(port, "127.0.0.1", ready));
 
   const binaryPath = join(tools, "agent-browser");
-  // The stand-in agent-browser: always running; `mcp` lists the page tools and answers them from the page.
   writeFileSync(binaryPath, `#!${process.execPath}
 const args = process.argv.slice(2).filter((arg) => arg !== "--json" && arg !== "--no-webmcp");
 const say = (value) => { process.stdout.write(JSON.stringify(value)); process.exit(0); };
 const bridge = (path, body) => fetch("http://127.0.0.1:${port}" + path, { method: "POST", body: JSON.stringify(body) }).then((response) => response.text());
-if (args[0] === "session" && args[1] === "list") say({ success: true, data: { sessions: [process.env.AGENT_BROWSER_SESSION] } });
-else if (args[0] === "close" || args[0] === "set") process.exit(0);
+const fs = require("node:fs");
+const closed = ${JSON.stringify(join(tools, "closed-"))} + process.env.AGENT_BROWSER_SESSION;
+if (args[0] === "session" && args[1] === "list") say({ success: true, data: { sessions: fs.existsSync(closed) ? [] : [process.env.AGENT_BROWSER_SESSION] } });
+else if (args[0] === "close") { fs.writeFileSync(closed, "closed"); process.exit(0); }
+else if (args[0] === "set") process.exit(0);
 else if (args[0] === "mcp") {
   const tool = (name) => ({ name, description: name, inputSchema: { type: "object", properties: { script: { type: "string" }, selector: { type: "string" }, text: { type: "string" } } } });
   const answer = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");
@@ -108,10 +110,14 @@ else bridge("/engine", { args }).then((text) => { process.stdout.write(text); pr
   return {
     page, base, planPath, evidence, api, mailboxTools, inbox,
     close: async () => {
-      page.close();
-      await fixture.close();
-      await new Promise((done) => bridge.close(done));
-      await removeTempDir(tools);
+      let confirmed = false;
+      try { await fixture.close(); confirmed = true; }
+      finally {
+        page.close();
+        bridge.closeAllConnections();
+        await new Promise<void>((done) => bridge.close(() => done()));
+        if (confirmed) await removeTempDir(tools);
+      }
     },
   };
 }

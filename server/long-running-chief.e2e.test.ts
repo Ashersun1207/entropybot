@@ -1,21 +1,17 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 
-import { launchVerificationServer, runControlOmb, verificationServerArgs, verificationServerEnvironment } from "../scripts/control-omb.ts";
+import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
 import { CONTROL_WAITED } from "./control-client.ts";
 import { CONSENT_RULE } from "./peer-provenance.ts";
-import { waitForExit } from "./testing/cleanup.ts";
 import { readHandoffs } from "./testing/handoff-rows.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 import { openSse, type SseRecorder } from "./testing/sse.ts";
 
-const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const SETTLED = "Your downstream room requests have settled.";
 const jsonl = (path: string) => existsSync(path)
   ? readFileSync(path, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)) : [];
@@ -58,8 +54,6 @@ async function chiefJob(test: (f: any) => Promise<void>) {
   const session = await launchVerificationServer(parentEnv, undefined, undefined, undefined, undefined, { scripted: true });
   const url = session.info.url;
   const dataDir = session.info.dataDir;
-  let server: ChildProcess = session.child;
-  let restarted = false;
   let events: SseRecorder | undefined;
   const notifications: Array<{ kind?: string; title?: string; body?: string }> = [];
   const listen = async () => {
@@ -152,17 +146,9 @@ async function chiefJob(test: (f: any) => Promise<void>) {
       writeFileSync(join(dataDir, "stall-turns"), "now");
       try { await expect.poll(until, { timeout: 20_000 }).toBe(true); } finally { rmSync(join(dataDir, "stall-turns"), { force: true }); }
     };
-    const restart = async (signal: NodeJS.Signals, extraEnv: NodeJS.ProcessEnv = {}) => {
+    const restart = async (signal: "SIGTERM" | "SIGKILL", extraEnv: NodeJS.ProcessEnv = {}) => {
       events?.close();
-      await waitForExit(server, { signal });
-      const env = { ...verificationServerEnvironment(parentEnv, dataDir, Number(new URL(url).port)), ...extraEnv };
-      const log = openSync(session.info.logPath, "a", 0o600);
-      server = spawn(process.execPath, verificationServerArgs(env), { cwd: ROOT, env, stdio: ["ignore", log, log] });
-      restarted = true;
-      closeSync(log);
-      await expect.poll(async () => {
-        try { return (await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1_000) })).ok; } catch { return false; }
-      }, { timeout: 30_000 }).toBe(true);
+      await session.restart(undefined, { signal, env: extraEnv });
       await listen();
     };
     await test({ api, bot, dataDir, clive, mira, eli, compat, script, newJob, say, tree, root, child, eventsOf, turns, turn, prompt,
@@ -171,10 +157,11 @@ async function chiefJob(test: (f: any) => Promise<void>) {
     expect(turns().filter((record) => record.unplanned).map((record) => prompt(record).slice(0, 300))).toEqual([]);
   } finally {
     events?.close();
-    if (restarted) await waitForExit(server, { signal: "SIGTERM" });
-    await session.close();
-    model.closeAllConnections();
-    await new Promise<void>((resolve) => model.close(() => resolve()));
+    try { await session.close(); }
+    finally {
+      model.closeAllConnections();
+      await new Promise<void>((resolve) => model.close(() => resolve()));
+    }
   }
 }
 

@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { sameVerificationIdentity, validVerificationIdentity, type VerificationIdentity, type VerificationReceipt } from "../../server/verification-process-scope.ts";
+import { captureVerificationGroups, signalVerificationGroups, verificationGroupsGone } from "./verification-external-stop.ts";
 
 const CAP_SLOT = Symbol.for("entropybot.verification.gate.bootstrap.v1");
 export type GateCapability = { version: 1; directory: string; gateNonce: string; secret: string };
@@ -255,7 +256,7 @@ export class VerificationLifecycle {
     return child;
   }
 
-  stop(): Promise<void> {
+  stop(signal: "SIGTERM" | "SIGKILL" = "SIGTERM"): Promise<void> {
     const state = this.current;
     if (!state) return Promise.resolve();
     if (state.stop) return state.stop;
@@ -263,16 +264,29 @@ export class VerificationLifecycle {
       const deadline = performance.now() + this.stopTimeoutMs;
       let killed = false;
       try {
-        if (!state.exited && state.spawned) state.child.kill("SIGTERM");
-        while (!state.closed || state.spawned && !state.exited) {
+        const groups = signal === "SIGKILL" ? await captureVerificationGroups(state.child, state.identity, Math.min(3_000, this.stopTimeoutMs)) : [];
+        if (!state.exited && state.spawned) state.child.kill(signal);
+        if (signal === "SIGKILL") signalVerificationGroups(groups, "SIGTERM");
+        while (!state.closed || state.spawned && !state.exited || !verificationGroupsGone(groups)) {
           if (performance.now() >= deadline) throw new Error("Verification server exit/close deadline exceeded");
           if (!killed && performance.now() >= deadline - Math.min(1_000, this.stopTimeoutMs / 2)) {
             killed = true;
             if (!state.exited) state.child.kill("SIGKILL");
+            signalVerificationGroups(groups, "SIGKILL");
           }
           await new Promise(resolve => setTimeout(resolve, 20));
         }
-        if (state.spawned && (!state.ready || state.problem || state.receipt?.status !== "stopped" || state.child.exitCode !== 0)) throw new Error(state.problem ?? "Verification internal stop receipt missing or server exit unsuccessful");
+        const confirmed = signal === "SIGKILL" ? state.child.signalCode === "SIGKILL" : state.receipt?.status === "stopped" && state.child.exitCode === 0;
+        if (state.spawned && (!state.ready || state.problem || !confirmed)) throw new Error(state.problem ?? "Verification internal stop receipt missing or server exit unsuccessful");
+        if (signal === "SIGKILL") {
+          const proof = JSON.stringify({ identity: state.identity, groups, signal, exited: state.exited, closed: state.closed, groupsGone: true });
+          writeFileSync(join(this.dataDir, `verification-external-stop-${state.identity.generation}.json`), proof, { mode: 0o600 });
+          const evidence = process.env.OMB_VERIFICATION_EVIDENCE_DIR;
+          if (evidence) {
+            mkdirSync(evidence, { recursive: true });
+            writeFileSync(join(evidence, `external-stop-${state.identity.fixtureNonce}-${state.identity.generation}.json`), proof, { mode: 0o600, flag: "wx" });
+          }
+        }
         state.lease.update("stopped");
       } catch (error) {
         try { state.lease.update("unknown", error instanceof Error ? error.message : "fixture stop failed"); }
