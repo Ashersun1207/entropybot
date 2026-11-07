@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 
 import { agentBrowserDevToolsPorts, agentBrowserStreamPorts } from "../../browser-engine.ts";
 import { BrowserEgress, OwnListeners, staticOwnPorts, UNSHARED_NOTICE } from "./registry.ts";
+import { resolveTarget } from "./gate.ts";
+import { namesThisMachine } from "./policy.ts";
 import type { ListenerOwnership } from "./ownership.ts";
 
 const noScans = { streamPorts: () => [], devToolsPorts: () => [] };
@@ -72,7 +74,8 @@ describe("one gate per browser session", () => {
   const ownership = { botOwned: async () => false } as unknown as ListenerOwnership;
   const egress = (config = {}) => {
     const value = new BrowserEgress();
-    value.configure({ host: "server", config: () => config, listeners: new OwnListeners("server", { env: {}, ...noScans }), ownership });
+    value.configure({ host: "server", config: () => config, listeners: new OwnListeners("server", { env: {}, ...noScans }), ownership,
+      resolve: async (host) => namesThisMachine(host) ? resolveTarget(host) : [] });
     return value;
   };
 

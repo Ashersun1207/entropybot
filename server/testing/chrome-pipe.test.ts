@@ -12,6 +12,13 @@ describe("the test Chrome launcher", () => {
     expect(chromeLaunchArgs("/profile", ["--proxy-server=socks5://127.0.0.1:1"], process.platform)).toEqual(expect.arrayContaining(["--remote-debugging-pipe", "--user-data-dir=/profile", "--proxy-server=socks5://127.0.0.1:1"]));
   });
 
+  it("uses an explicitly injected fixture home without changing the production default", () => {
+    const home = process.env.HOME!;
+    expect(home).not.toBe(userInfo().homedir);
+    expect(chromeLaunchEnv({ HOME: "ignored", PATH: "/bin" }, "darwin", home)).toEqual({ HOME: home, PATH: "/bin" });
+    expect(chromeLaunchEnv({ USERPROFILE: "ignored" }, "win32", home).USERPROFILE).toBe(home);
+  });
+
   it("gives Chrome the account's real home, never the test runner's throwaway one", () => {
     expect(process.env.HOME).not.toBe(userInfo().homedir);
     expect(chromeLaunchEnv({ HOME: "/tmp/fake-home", PATH: "/bin" }, "darwin")).toEqual({ HOME: userInfo().homedir, PATH: "/bin" });

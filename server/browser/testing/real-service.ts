@@ -19,7 +19,7 @@ let calibrated: { fingerprint: string; identity: Promise<CalibratedIdentity> } |
 function identityOf(executablePath: string, sandbox: boolean): Promise<CalibratedIdentity> {
   const fingerprint = chromeFingerprint(executablePath);
   if (calibrated?.fingerprint !== fingerprint) {
-    const identity = calibrateIdentity({ executablePath, host: HOST, tmpRoot: testRoot(), sandbox, handshakeTimeoutMs: FIRST_LAUNCH_MS });
+    const identity = calibrateIdentity({ executablePath, host: HOST, home: process.env.HOME, tmpRoot: testRoot(), sandbox, handshakeTimeoutMs: FIRST_LAUNCH_MS });
     calibrated = { fingerprint, identity };
     identity.catch(() => { if (calibrated?.identity === identity) calibrated = null; });
   }
@@ -47,6 +47,7 @@ export async function startService({ screen, egressPort, ...options }: Partial<B
   const dataDir = mkdtempSync(join(testRoot(), "omb-browser-service-"));
   const backend = new LocalBackend({
     dataDir,
+    home: dataDir,
     host: HOST,
     binary: async () => ({ path: executablePath, identity: await identityOf(executablePath, sandbox) }),
     screen: async () => screen ?? { width: 1920, height: 1080, deviceScaleFactor: 1 },

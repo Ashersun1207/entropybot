@@ -58,6 +58,7 @@ export interface ResolvedBinary {
 
 export interface LocalBackendOptions {
   dataDir: string;
+  home?: string;
   host: HostKind;
   platform?: NodeJS.Platform;
   binary(): Promise<ResolvedBinary>;
@@ -122,6 +123,7 @@ export class LocalBackend implements Backend {
       userDataDir: dir,
       mode: request.mode,
       host: options.host,
+      home: options.home,
       platform,
       userAgent: headless ? binary.identity.userAgent : null,
       screen,

@@ -285,7 +285,7 @@ posixOnly("a bot's browser on My Cloud reaches Instagram from the Mac's own conn
   expect(visits.length).toBeGreaterThan(0);
   expect(visits.every((visit) => macSockets.has(visit.peer)), "every request the website served came over a socket the Mac opened").toBe(true);
   if (!chrome) return console.log("skipping the real-Chrome page through the Mac: no Chrome found (set OMB_TEST_CHROME)");
-  const browser = await launchPipeChrome(chrome, gateChromeFlags(gate));
+  const browser = await launchPipeChrome(chrome, gateChromeFlags(gate), process.env);
   try {
     const tab = await browser.page();
     const before = visits.length;

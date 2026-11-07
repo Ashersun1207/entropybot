@@ -80,7 +80,7 @@ suite("S4 identity, quietness, exit and speed on real Chrome", () => {
       record(`/id-headers?from=${url.searchParams.get("from")}`)(request);
       return { type: "application/json", body: JSON.stringify(request.headers) };
     });
-    calibrated = await calibrateIdentity({ executablePath: CHROME!, host: HOST, tmpRoot: testRoot(), sandbox, handshakeTimeoutMs: FIRST_LAUNCH_MS });
+    calibrated = await calibrateIdentity({ executablePath: CHROME!, host: HOST, home: process.env.HOME, tmpRoot: testRoot(), sandbox, handshakeTimeoutMs: FIRST_LAUNCH_MS });
   }, hostTimeout(180_000));
 
   afterAll(async () => {
@@ -98,8 +98,8 @@ suite("S4 identity, quietness, exit and speed on real Chrome", () => {
     expect(calibrated.userAgentMetadata.brands.map((brand) => brand.brand).join()).not.toContain("Headless");
     const data = mkdtempSync(join(testRoot(), "omb-cdp-data-"));
     try {
-      const first = await loadOrCalibrateIdentity(data, { executablePath: CHROME!, host: HOST, tmpRoot: testRoot(), sandbox });
-      const second = await loadOrCalibrateIdentity(data, { executablePath: CHROME!, host: HOST, tmpRoot: testRoot(), sandbox });
+      const first = await loadOrCalibrateIdentity(data, { executablePath: CHROME!, host: HOST, home: process.env.HOME, tmpRoot: testRoot(), sandbox });
+      const second = await loadOrCalibrateIdentity(data, { executablePath: CHROME!, host: HOST, home: process.env.HOME, tmpRoot: testRoot(), sandbox });
       expect(first.calibrated).toBe(true);
       expect(second.calibrated).toBe(false);
       expect(identityDifferences(first.identity, calibrated)).toEqual([]);
@@ -110,7 +110,7 @@ suite("S4 identity, quietness, exit and speed on real Chrome", () => {
 
   it.runIf(canShowWindow)("matches what the same binary reports in a window, byte for byte", async () => {
     const dir = mkdtempSync(join(testRoot(), "omb-cdp-headed-"));
-    const chrome = await launchChrome({ executablePath: CHROME!, userDataDir: join(dir, "profile"), mode: "window", host: HOST, sandbox, windowPosition: { x: -2400, y: -2400 }, handshakeTimeoutMs: FIRST_LAUNCH_MS });
+    const chrome = await launchChrome({ executablePath: CHROME!, userDataDir: join(dir, "profile"), home: dir, mode: "window", host: HOST, sandbox, windowPosition: { x: -2400, y: -2400 }, handshakeTimeoutMs: FIRST_LAUNCH_MS });
     try {
       const browser = await CdpBrowser.connect(chrome.transport, { identity: null, headless: false, permissions: false });
       const tab = await browser.waitForPage();

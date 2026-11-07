@@ -117,6 +117,7 @@ export async function startChrome(label: string, { launch = {}, browser: browser
     sandbox,
     handshakeTimeoutMs: FIRST_LAUNCH_MS,
     ...launch,
+    home: dir,
   });
   const trace: TracedCommand[] = [];
   const transport = tracingTransport(chrome.transport, (sent) => {
@@ -159,7 +160,7 @@ export async function bareChromeStart(url: string): Promise<number> {
   const dir = mkdtempSync(join(testRoot(), "omb-cdp-bare-"));
   const args = ["--remote-debugging-pipe", `--user-data-dir=${join(dir, "profile")}`, "--headless=new", "--no-first-run", "--no-default-browser-check", ...credentialStoreFlags(), ...(sandbox ? [] : ["--no-sandbox"]), "about:blank"];
   const started = performance.now();
-  const child = spawn(CHROME, args, { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"], env: chromeEnv(process.env, { host: HOST }), windowsHide: true });
+  const child = spawn(CHROME, args, { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"], env: chromeEnv(process.env, { host: HOST, home: dir }), windowsHide: true });
   const connection = new CdpConnection(pipeTransport(child.stdio[3] as Writable, child.stdio[4] as Readable), { defaultTimeoutMs: FIRST_LAUNCH_MS });
   try {
     let targetId: string | undefined;

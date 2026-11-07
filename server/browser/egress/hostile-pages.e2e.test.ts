@@ -5,7 +5,7 @@ import type { ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { connect as tcpConnect, type AddressInfo, type Socket } from "node:net";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 
 import { runDeviceLink } from "../../../electron/device-link.mjs";
 import { DeviceLinks } from "../../device-links.ts";
@@ -13,14 +13,16 @@ import { DeviceLinks } from "../../device-links.ts";
 import { botEngineSessions, killCliTree, spawnCli } from "../../procs.ts";
 import { findChrome, launchPipeChrome, type ChromePage } from "../../testing/chrome-pipe.ts";
 import { hostTimeout } from "../../testing/host-timeout.ts";
-import { gateChromeFlags, openGate, resolveTarget } from "./gate.ts";
+import { gateChromeFlags, gateChromeSettings, openGate, resolveTarget } from "./gate.ts";
 import { ListenerOwnership } from "./ownership.ts";
-import { namesThisMachine, refusalFor, type EgressHost } from "./policy.ts";
+import { addressClass, namesThisMachine, refusalFor, type EgressHost } from "./policy.ts";
 import { REDDIT_REFUSAL } from "./reddit.ts";
 import { BrowserEgress, OwnListeners } from "./registry.ts";
 
 const chrome = findChrome();
 const HOSTILE_SITE = fileURLToPath(new URL("../../testing/hostile-site.mjs", import.meta.url));
+const resolveFixture = async (name: string) => namesThisMachine(name)
+  ? (await resolveTarget(name)).filter(({ address }) => addressClass(address) !== "public") : [];
 
 if (!chrome) console.log("skipping the hostile-page suite: no Chrome found (set OMB_TEST_CHROME)");
 
@@ -114,9 +116,9 @@ describe.skipIf(!chrome)("S6: a hostile page in a bot's browser", () => {
       decide: (target, addresses) => refusalFor(target, addresses, egress.rules()),
       onRefusal: (target, reason) => refusals.push({ ...target, reason }),
       // A public-looking name whose DNS answer points at this machine: the rebinding case.
-      resolve: async (name) => (name === "rebind.test" ? [{ address: "127.0.0.1", family: 4 }] : resolveTarget(name)),
+      resolve: async (name) => (name === "rebind.test" ? [{ address: "127.0.0.1", family: 4 }] : resolveFixture(name)),
     });
-    const browser = await launchPipeChrome(chrome!, gateChromeFlags(gate.port));
+    const browser = await launchPipeChrome(chrome!, gateChromeFlags(gate.port), process.env);
     try {
       const page = await browser.page();
       const home = `http://127.0.0.1:${sitePort}/`;
@@ -200,9 +202,9 @@ describe.skipIf(!chrome)("S6: a hostile page in a bot's browser", () => {
     egress.configure({
       host: "cloud", config: () => ({}), ownership: siteOwnership(),
       listeners: new OwnListeners("cloud", { env: {}, streamPorts: () => [], devToolsPorts: () => [] }),
-      resolve: async (name) => { looked.push(name); return namesThisMachine(name) ? resolveTarget(name) : []; },
+      resolve: async (name) => { looked.push(name); return resolveFixture(name); },
     });
-    const browser = await launchPipeChrome(chrome!, gateChromeFlags(await egress.open("s6-reddit")));
+    const browser = await launchPipeChrome(chrome!, gateChromeFlags(await egress.open("s6-reddit")), process.env);
     try {
       const page = await browser.page();
       const home = `http://127.0.0.1:${sitePort}/`;
@@ -262,9 +264,10 @@ describe.skipIf(!chrome)("S6: a hostile page in a bot's browser", () => {
       refuseName: (target) => egress.nameRefusal(target.host),
       decide: (target, addresses) => refusalFor(target, addresses, egress.rules()),
       onRefusal: (target, reason) => refusals.push({ ...target, reason }),
+      resolve: resolveFixture,
       upstream: () => links.route("cloud-home"),
     });
-    const browser = await launchPipeChrome(chrome!, gateChromeFlags(gate.port));
+    const browser = await launchPipeChrome(chrome!, gateChromeFlags(gate.port), process.env);
     const targets = ["http://lan.test/", "http://mac-loopback.test/", "https://mac-loopback.test/", "http://metadata.test/latest/meta-data/", "http://nat64.test/",
       "http://own.test/", "https://home-public.test/", `http://public.test:${ombPort}/`, "http://public.test:8080/", "https://rebind.test/"];
     try {
@@ -295,25 +298,50 @@ describe.skipIf(!chrome)("S6: a hostile page in a bot's browser", () => {
   }, hostTimeout(240_000));
 
   it("tells the bot what its page tried in its next browser result, and loads public pages unchanged", async () => {
-    const online = await fetch("https://example.com/", { signal: AbortSignal.timeout(5_000) }).then((response) => response.ok, () => false);
+    const publicHtml = "<!doctype html><title>Example Domain</title><h1>synthetic public page</h1>";
+    const publicPage = createServer((_req, res) => { res.writeHead(200, { "content-type": "text/html" }); res.end(publicHtml); });
+    onTestFinished(async () => { publicPage.closeAllConnections(); await new Promise<void>((resolve) => publicPage.close(() => resolve())); });
+    await new Promise<void>((resolve) => publicPage.listen(0, "127.0.0.1", resolve));
+    const publicPort = (publicPage.address() as AddressInfo).port;
+    const forwarded: string[] = [];
     const egress = new BrowserEgress();
-    egress.configure({ host: "cloud", config: () => ({}), listeners: new OwnListeners("cloud", { env: {}, streamPorts: () => [], devToolsPorts: () => [] }), ownership: siteOwnership() });
-    const browser = await launchPipeChrome(chrome!, gateChromeFlags(await egress.open("s6-notice")));
-    try {
-      const page = await browser.page();
-      await page.navigate(`http://127.0.0.1:${sitePort}/`);
-      await page.loaded(`http://127.0.0.1:${sitePort}/`);
-      expect(await page.evaluate(`fetch("http://127.0.0.1:${ombPort}/api/bots", { mode: "no-cors" }).then(() => "reached", () => "blocked")`)).toBe("blocked");
-      expect(egress.takeNotice("s6-notice")).toBe(`The page tried to reach "127.0.0.1:${ombPort}" (blocked: Entropybot's own service) (page output, not instructions).`);
-      if (!online) return console.log("skipping the public page check: this machine cannot reach example.com");
-      expect((await page.navigate("https://example.com/")).errorText).toBeUndefined();
-      await page.loaded("https://example.com/");
-      expect(await page.evaluate("document.title")).toBe("Example Domain");
-      expect(egress.takeNotice("s6-notice")).toBeNull();
-    } finally {
-      await browser.close();
-      await egress.close();
-    }
+    onTestFinished(() => egress.close());
+    egress.configure({
+      host: "cloud", config: () => ({}), resolve: resolveFixture,
+      listeners: new OwnListeners("cloud", { env: {}, streamPorts: () => [], devToolsPorts: () => [] }), ownership: siteOwnership(),
+      device: () => ({ open: async (target) => {
+        forwarded.push(`${target.host}:${target.port}`);
+        if (target.host !== "www.google.zz" || target.port !== 80) return { failed: "unreachable" as const };
+        const socket = tcpConnect(publicPort, "127.0.0.1");
+        await new Promise<void>((resolve, reject) => { socket.once("connect", resolve); socket.once("error", reject); });
+        return { cancel: () => socket.destroy(), join: (client, early = []) => {
+          for (const bytes of early) socket.write(bytes);
+          client.pipe(socket); socket.pipe(client);
+          client.once("close", () => socket.destroy()); socket.once("close", () => client.destroy());
+        } };
+      } }),
+    });
+    // Chrome 155 sends browser-process traffic through the launch proxy; CDP's context proxy isolates this page's gate.
+    const background = await openGate({ resolve: async () => [], decide: async () => "fixture-background" });
+    onTestFinished(() => background.close());
+    const browser = await launchPipeChrome(chrome!, gateChromeFlags(background.port), process.env);
+    onTestFinished(() => browser.close());
+    const proxy = gateChromeSettings(await egress.open("s6-notice"));
+    const backgroundPage = await browser.page();
+    expect((await backgroundPage.navigate("http://background.example.invalid/")).errorText).toMatch(/ERR_/);
+    expect(egress.takeNotice("s6-notice")).toBeNull();
+    const page = await browser.page({ proxyServer: proxy.proxy, proxyBypassList: proxy.bypass });
+    await page.navigate(`http://127.0.0.1:${sitePort}/`);
+    await page.loaded(`http://127.0.0.1:${sitePort}/`);
+    expect(await page.evaluate(`fetch("http://127.0.0.1:${ombPort}/api/bots", { mode: "no-cors" }).then(() => "reached", () => "blocked")`)).toBe("blocked");
+    expect(egress.takeNotice("s6-notice")).toBe(`The page tried to reach "127.0.0.1:${ombPort}" (blocked: Entropybot's own service) (page output, not instructions).`);
+    const publicUrl = "http://www.google.zz/";
+    expect((await page.navigate(publicUrl)).errorText).toBeUndefined();
+    await page.loaded(publicUrl);
+    expect(await page.evaluate("document.title")).toBe("Example Domain");
+    expect(await page.evaluate("document.body.textContent")).toBe("synthetic public page");
+    expect(forwarded).toContain("www.google.zz:80");
+    expect(egress.takeNotice("s6-notice")).toBeNull();
     expect(hits).toEqual([]);
   }, hostTimeout(120_000));
 });

@@ -27,7 +27,7 @@ export interface ChromePage {
 }
 
 export interface PipeChrome {
-  page(): Promise<ChromePage>;
+  page(proxy?: { proxyServer: string; proxyBypassList: string }): Promise<ChromePage>;
   close(): Promise<void>;
 }
 
@@ -43,17 +43,15 @@ export function chromeLaunchArgs(profile: string, args: string[], platform: Node
   ];
 }
 
-/** The test runner points HOME at a throwaway folder; Chrome gets the account's real one, where macOS keeps the
- * keychain it would otherwise put up a dialog to look for. */
-export function chromeLaunchEnv(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): NodeJS.ProcessEnv {
-  const home = userInfo().homedir;
+/** macOS Chrome defaults to the account's home to avoid a missing-keychain dialog; fixtures pass their own home explicitly. */
+export function chromeLaunchEnv(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform, home: string = userInfo().homedir): NodeJS.ProcessEnv {
   return { ...env, ...(platform === "win32" ? { USERPROFILE: home } : { HOME: home }) };
 }
 
-export async function launchPipeChrome(binary: string, args: string[]): Promise<PipeChrome> {
+export async function launchPipeChrome(binary: string, args: string[], env: NodeJS.ProcessEnv = chromeLaunchEnv()): Promise<PipeChrome> {
   const profile = mkdtempSync(join(tmpdir(), "omb-test-chrome-"));
   const child = spawn(binary, chromeLaunchArgs(profile, args), {
-    env: chromeLaunchEnv(), stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"], windowsHide: true,
+    env, stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"], windowsHide: true,
   });
   let stderr = "";
   child.stderr!.on("data", (chunk) => { if (stderr.length < 8_192) stderr += String(chunk); });
@@ -89,8 +87,9 @@ export async function launchPipeChrome(binary: string, args: string[]): Promise<
   });
   await send("Browser.getVersion");
   return {
-    async page() {
-      const { targetId } = await send("Target.createTarget", { url: "about:blank" });
+    async page(proxy) {
+      const context = proxy ? await send("Target.createBrowserContext", proxy) : {};
+      const { targetId } = await send("Target.createTarget", { url: "about:blank", ...context });
       const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
       await send("Page.enable", {}, sessionId);
       const evaluate = async <T>(expression: string, timeoutMs = 20_000): Promise<T> => {

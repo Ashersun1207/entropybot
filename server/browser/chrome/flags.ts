@@ -122,6 +122,7 @@ export function chromeArgs(input: ChromeFlagsInput): string[] {
 
 export interface ChromeEnvInput {
   host: HostKind;
+  home?: string;
   /** The person's time zone; servers only, a desktop already has it. */
   timezone?: string | null;
   /** The setuid sandbox helper in containers. */
@@ -139,8 +140,8 @@ export function accountHome(): string | null {
   }
 }
 
-/** Chrome keeps per-user state under the home directory, so it always gets the account's real one, never a temporary HOME. */
-export function chromeEnv(base: NodeJS.ProcessEnv, input: ChromeEnvInput, home: string | null = accountHome()): NodeJS.ProcessEnv {
+/** Chrome keeps per-user state under HOME; an explicit home overrides the account default for an isolated launch. */
+export function chromeEnv(base: NodeJS.ProcessEnv, input: ChromeEnvInput, home: string | null = input.home ?? accountHome()): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base };
   if (home) {
     env.HOME = home;

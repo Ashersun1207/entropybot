@@ -86,6 +86,13 @@ describe("Chrome's command line", () => {
     expect(chromeEnv({ HOME: "/data" }, { host: "server" }, "/data").HOME).toBe("/data");
   });
 
+  it("uses an explicit fixture home at the launch boundary instead of the account home", () => {
+    const home = process.env.HOME!;
+    expect(home).not.toBe(userInfo().homedir);
+    expect(chromeEnv({ HOME: "ignored" }, { host: "desktop", home }).HOME).toBe(home);
+    expect(chromeEnv({ HOME: "ignored" }, { host: "server", home }).HOME).toBe(home);
+  });
+
   it("keeps macOS Chrome on the mock keychain, headless or in a window", () => {
     for (const mode of ["headless", "window"] as const) {
       expect(chromeArgs({ userDataDir: "/p", mode, host: "desktop", platform: "darwin" })).toContain("--use-mock-keychain");

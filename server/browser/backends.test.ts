@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { removeTempDir } from "../testing/cleanup.ts";
 import { LocalBackend } from "./backends.ts";
-import type { ChromeProcess } from "./chrome/launch.ts";
+import type { ChromeProcess, LaunchOptions } from "./chrome/launch.ts";
 import { ProcessRegistry } from "./chrome/processes.ts";
 import { browserRoot, profileDir } from "./chrome/profile.ts";
 import { FAKE_IDENTITY, FakeChrome } from "./testing/fake-chrome.ts";
@@ -18,14 +18,16 @@ function backend(platform: NodeJS.Platform) {
   const dataDir = mkdtempSync(join(tmpdir(), "omb-backends-test-"));
   folders.push(dataDir);
   const chromes: FakeChrome[] = [];
+  const launches: LaunchOptions[] = [];
   const local = new LocalBackend({
-    dataDir,
+    dataDir, home: dataDir,
     host: "desktop",
     platform,
     binary: async () => ({ path: "/fake/chrome", identity: { ...FAKE_IDENTITY } }),
     screen: async () => ({ width: 1920, height: 1080, deviceScaleFactor: 1 }),
     egressPort: async () => null,
-    launch: async () => {
+    launch: async (options) => {
+      launches.push(options);
       const chrome = new FakeChrome({ navigationErrors: ["net::ERR_ABORTED"] });
       chromes.push(chrome);
       const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => chrome.onClose(() => resolve({ code: 0, signal: null })));
@@ -37,7 +39,7 @@ function backend(platform: NodeJS.Platform) {
     },
   });
   const open = () => local.open({ key: "bot:warm", mode: "headless", fresh: false, viewport: { width: 1280, height: 800 }, downloadDir: join(dataDir, "downloads") });
-  return { open, chromes };
+  return { open, chromes, launches, dataDir };
 }
 
 describe("a fresh profile's first navigation on Windows", () => {
@@ -70,6 +72,14 @@ describe("a fresh profile's first navigation on Windows", () => {
 });
 
 describe("a local browser's profile folder", () => {
+  it("passes its explicit synthetic home and private profile to the launch boundary", async () => {
+    const { open, launches, dataDir } = backend("darwin");
+    const opened = await open();
+    try {
+      expect(launches[0]?.home).toBe(dataDir);
+      expect(launches[0]?.userDataDir).toBe(profileDir(dataDir, "bot:warm"));
+    } finally { await opened.close(); }
+  });
   it("is held from the sweep while Chrome starts, and let go when the start fails", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "omb-backends-test-"));
     folders.push(dataDir);

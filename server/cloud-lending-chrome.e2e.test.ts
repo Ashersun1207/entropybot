@@ -505,7 +505,7 @@ describe.skipIf(!full)("My Chrome on My Cloud, with the real agent-browser and a
       "--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check",
       "--disable-background-networking", "--disable-component-update", "--disable-sync", ...credentialStoreFlags(),
       ...(process.platform === "linux" ? ["--no-sandbox"] : []), "about:blank",
-    ], { env: chromeLaunchEnv(), stdio: ["ignore", "ignore", "ignore"] });
+    ], { env: chromeLaunchEnv(process.env, process.platform, home), stdio: ["ignore", "ignore", "ignore"] });
     await until(() => {
       if (chrome?.exitCode !== null) throw new Error("Chrome exited before it opened its DevTools port");
       return existsSync(join(profile, "DevToolsActivePort"));

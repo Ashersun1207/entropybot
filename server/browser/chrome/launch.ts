@@ -100,6 +100,7 @@ export async function launchChrome(options: LaunchOptions): Promise<ChromeProces
   const argv = chromeArgs(options);
   const env = chromeEnv(options.env ?? process.env, {
     host: options.host,
+    home: options.home,
     timezone: options.timezone ?? null,
     sandboxHelper: options.sandboxHelper ?? null,
     profileMarker: options.profileMarker ?? null,

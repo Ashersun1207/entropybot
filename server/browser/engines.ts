@@ -44,6 +44,7 @@ export interface ChromeEngineOptions {
   dataDir: string;
   host: HostKind;
   env?: NodeJS.ProcessEnv;
+  home?: string;
   platform?: NodeJS.Platform;
   egressPort(key: string): Promise<number>;
   idleMs(): number;
@@ -69,12 +70,13 @@ export class ChromeEngine {
     const env = options.env ?? process.env;
     const platform = options.platform ?? process.platform;
     const sandbox = !sandboxDisabled(env);
-    this.launcher = new ChromeLauncher({ dataDir: options.dataDir, env, platform, engine: () => ({ managed: true }), wrapper: false, sandbox, ...(options.log ? { log: options.log } : {}) });
+    this.launcher = new ChromeLauncher({ dataDir: options.dataDir, env, home: options.home, platform, engine: () => ({ managed: true }), wrapper: false, sandbox, ...(options.log ? { log: options.log } : {}) });
     this.#registry = new ProcessRegistry(browserRoot(options.dataDir));
     let screen: ReturnType<typeof displayScreen> | null = null;
     const locale = browserLanguage(env) ?? null;
     const backend = new LocalBackend({
       dataDir: options.dataDir,
+      home: options.home,
       host: options.host,
       platform,
       binary: async () => {

@@ -77,6 +77,20 @@ describe("the Chrome launcher", () => {
     expect(calibrate).toHaveBeenCalledOnce();
   });
 
+  it("carries an explicit fixture home through calibration, launcher script and executable check", async () => {
+    const machine = mac();
+    const calibrate = vi.fn(async () => identity("155"));
+    const checkLauncher = vi.fn(async () => {});
+    const chrome = launcher(machine, { home: machine.root, calibrate, checkLauncher });
+    await chrome.ready(headless(chrome.path));
+    expect(machine.root).not.toBe(userInfo().homedir);
+    expect(calibrate).toHaveBeenCalledExactlyOnceWith(machine.chrome, machine.env);
+    expect(checkLauncher).toHaveBeenCalledExactlyOnceWith(chrome.path, machine.env);
+    const script = readFileSync(chrome.path, "utf8");
+    expect(script).toContain(`HOME='${machine.root}'`);
+    expect(script).not.toContain(`HOME='${userInfo().homedir}'`);
+  });
+
   it("reads the identity again after Chrome updated itself in place", async () => {
     const machine = mac();
     const calibrate = vi.fn(async () => identity("155"));

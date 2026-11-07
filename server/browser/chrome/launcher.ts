@@ -53,6 +53,7 @@ export function runsLauncher(path: string, env: NodeJS.ProcessEnv, timeoutMs = 1
 export interface ChromeLauncherOptions {
   dataDir: string;
   env?: NodeJS.ProcessEnv;
+  home?: string;
   platform?: NodeJS.Platform;
   arch?: string;
   host?: ChromeHost;
@@ -194,10 +195,10 @@ export class ChromeLauncher implements BrowserLaunch {
     return `${product(plan.chrome)} (${SOURCES[plan.chrome.source]}; not started yet)`;
   }
 
-  /** On macOS every Chrome this starts gets the person's own home, whatever HOME the server runs with (a test fixture's is
-   * temporary): elsewhere a "keychain cannot be found" dialog would appear on their screen. */
+  /** macOS Chrome defaults to the account's home to avoid a "keychain cannot be found" dialog; fixtures inject their own. */
   private chromeEnv(): NodeJS.ProcessEnv {
-    return this.options.platform === "darwin" ? { ...this.options.env, HOME: userInfo().homedir } : this.options.env;
+    const home = this.options.home ?? (this.options.platform === "darwin" ? userInfo().homedir : undefined);
+    return home === undefined ? this.options.env : { ...this.options.env, HOME: home, ...(this.options.platform === "win32" ? { USERPROFILE: home } : {}) };
   }
 
   private uses(spec: LaunchSpec): boolean {
@@ -230,7 +231,7 @@ export class ChromeLauncher implements BrowserLaunch {
       launcher = {
         chrome: chrome.path, userAgent: identity.userAgent, screen: await this.screen,
         language: browserLanguage(env), timeZone: browserTimeZone(env, platform),
-        ...(platform === "darwin" ? { home: userInfo().homedir } : {}),
+        ...(this.options.home !== undefined || platform === "darwin" ? { home: this.options.home ?? userInfo().homedir } : {}),
         ...this.boxed(),
       };
       writeLauncher(this.path, launcher, platform);
@@ -259,7 +260,7 @@ export class ChromeLauncher implements BrowserLaunch {
       }
       : calibrateIdentity;
     const host = this.options.platform === "linux" && existsSync("/.dockerenv") ? "container" : "desktop";
-    const options = { executablePath: chrome.path, host, env, sandbox: this.options.sandbox ?? !needsNoSandbox(env) } as const;
+    const options = { executablePath: chrome.path, host, env, home: this.options.home, sandbox: this.options.sandbox ?? !needsNoSandbox(env) } as const;
     return (await loadOrCalibrateIdentity(this.options.dataDir, options, calibrate)).identity;
   }
 

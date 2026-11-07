@@ -12,6 +12,8 @@ import { ownAddresses, refusalFor, type EgressRules, type Refusal } from "./poli
 
 // A public IPv4 address this machine holds, which no private range covers.
 const OWN_PUBLIC_IPV4 = "198.51.100.7";
+const dns = vi.hoisted(() => ({ lookup: vi.fn(async (_host: string, _options: unknown): Promise<Array<{ address: string; family: number }>> => { throw new Error("fixture DNS miss"); }) }));
+vi.mock("node:dns/promises", async (original) => ({ ...await original<typeof import("node:dns/promises")>(), lookup: dns.lookup }));
 const interfaces = (): NodeJS.Dict<NetworkInterfaceInfo[]> => ({
   ...NodeOS.networkInterfaces(),
   "omb-test": [{ address: OWN_PUBLIC_IPV4, netmask: "255.255.255.0", family: "IPv4", mac: "00:00:00:00:00:00", internal: false, cidr: `${OWN_PUBLIC_IPV4}/24` }],
@@ -234,11 +236,20 @@ describe("egress gate", () => {
     expect(client.closed).toBe(true);
   });
 
-  it("resolves localhost names as Chrome does, and literals as themselves", async () => {
+  it("resolves localhost names and literals locally, and fails closed when DNS rejects", async () => {
+    dns.lookup.mockClear();
     expect(await resolveTarget("localhost")).toEqual([{ address: "127.0.0.1", family: 4 }, { address: "::1", family: 6 }]);
     expect(await resolveTarget("app.localhost.")).toEqual([{ address: "127.0.0.1", family: 4 }, { address: "::1", family: 6 }]);
     expect(await resolveTarget("::ffff:7f00:1")).toEqual([{ address: "::ffff:7f00:1", family: 6 }]);
+    expect(dns.lookup).not.toHaveBeenCalled();
     expect(await resolveTarget("bad host name")).toEqual([]);
+    expect(dns.lookup).toHaveBeenCalledExactlyOnceWith("bad host name", { all: true, verbatim: true });
+  });
+
+  it("returns the injected DNS addresses without consulting the machine's resolver", async () => {
+    const addresses = [{ address: OWN_PUBLIC_IPV4, family: 4 }, { address: "2001:db8::1", family: 6 }];
+    dns.lookup.mockResolvedValueOnce(addresses);
+    expect(await resolveTarget("public.fixture.test")).toEqual(addresses);
   });
 
   it("sends a whole Chrome through it, loopback and WebRTC included, and keeps it off the credential store", () => {

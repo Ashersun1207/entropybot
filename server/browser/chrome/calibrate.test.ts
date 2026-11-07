@@ -101,6 +101,18 @@ describe("reading a Chrome's own identity", () => {
     expect(diagnosis.map((run) => run.slice(1))).toEqual(process.platform === "linux" ? [["--version"]] : []);
   });
 
+  it.skipIf(process.platform === "win32")("passes an explicit synthetic home and private profile to the actual calibration child", async () => {
+    const dir = folder();
+    const chrome = join(dir, "chrome");
+    writeFileSync(chrome, `#!/bin/sh\n{ printf '%s\\n' "$HOME" "$@"; echo ::end::; } >> '${dir}/runs'\nexit 3\n`, { mode: 0o755 });
+    await expect(calibrateIdentity({ executablePath: chrome, host: "desktop", home: dir, env: { PATH: "/usr/bin:/bin", HOME: "ignored" }, tmpRoot: dir, handshakeTimeoutMs: 10_000 }))
+      .rejects.toThrow(/exited|closed its DevTools pipe/);
+    const runs = readFileSync(join(dir, "runs"), "utf8").split("::end::\n").filter(Boolean).map((run) => run.split("\n").filter(Boolean));
+    expect(runs.length).toBeGreaterThan(0);
+    for (const [home] of runs) { expect(home).toBe(dir); expect(home).not.toBe(userInfo().homedir); }
+    expect(runs[0]!.find((arg) => arg.startsWith("--user-data-dir="))?.startsWith(`--user-data-dir=${dir}/omb-calibrate-`)).toBe(true);
+  });
+
   it.skipIf(process.platform === "win32")("gives the binary's first start, which a calibration always is, two minutes to answer", async () => {
     const dir = folder();
     const chrome = join(dir, "chrome");

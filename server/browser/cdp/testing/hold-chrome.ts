@@ -7,6 +7,7 @@ if (!executablePath || !userDataDir) throw new Error("usage: hold-chrome.ts <chr
 const chrome = await launchChrome({
   executablePath,
   userDataDir,
+  home: process.env.HOME,
   mode: "headless",
   host: host === "container" || host === "server" ? host : "desktop",
   sandbox: sandbox !== "0",

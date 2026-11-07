@@ -69,8 +69,8 @@ function lostFirstNavigation(error: unknown): boolean {
 export interface CalibrateOptions {
   executablePath: string;
   host: HostKind;
-  /** The browser's environment; its HOME is always the account's real one. */
   env?: NodeJS.ProcessEnv;
+  home?: string;
   /** Where the throwaway profile goes. */
   tmpRoot?: string;
   sandbox?: boolean;
@@ -93,6 +93,7 @@ export async function calibrateIdentity(options: CalibrateOptions): Promise<Cali
     userDataDir,
     mode: "headless",
     host: options.host,
+    home: options.home,
     ...(options.env ? { env: options.env } : {}),
     ...(options.sandbox === undefined ? {} : { sandbox: options.sandbox }),
     handshakeTimeoutMs: options.handshakeTimeoutMs ?? FIRST_START_MS,
