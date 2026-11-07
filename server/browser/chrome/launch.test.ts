@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,9 +10,9 @@ import { ProcessRegistry } from "./processes.ts";
 
 vi.mock("node:child_process", async (original) => {
   const actual = await original<typeof import("node:child_process")>();
-  return { ...actual, spawn: vi.fn(actual.spawn) };
+  return { ...actual, spawn: vi.fn(actual.spawn), execFile: vi.fn(actual.execFile) };
 });
-afterEach(() => { vi.mocked(spawn).mockReset(); vi.useRealTimers(); });
+afterEach(() => { vi.mocked(spawn).mockReset(); vi.mocked(execFile).mockReset(); vi.useRealTimers(); });
 
 const FAKE_CHROME = `
 const fs = require("node:fs");
@@ -99,6 +99,7 @@ function mockFixture(refusesHandshake = false) {
   const child = Object.assign(new EventEmitter(), { pid: 32100, stdout: new PassThrough(), stderr: new PassThrough(), stdio: [null, null, null, input, output],
     exitCode: null as number | null, signalCode: null, kill: vi.fn(() => true) });
   vi.mocked(spawn).mockReturnValueOnce(child as unknown as ChildProcess);
+  vi.mocked(execFile).mockReturnValue(child as unknown as ChildProcess);
   input.on("data", (data) => {
     const frame = JSON.parse(data.toString().replace(/\0$/, ""));
     output.write(JSON.stringify({ id: frame.id, ...(refusesHandshake ? { error: { message: "synthetic handshake refusal" } }
