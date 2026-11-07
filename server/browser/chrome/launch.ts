@@ -37,7 +37,7 @@ export interface ChromeProcess {
   readonly exited: Promise<ChromeExit>;
   /** The last part of what Chrome printed. */
   output(): string;
-  /** Waits for Chrome to exit (after Browser.close), then terminates and finally kills it. */
+  /** Waits for Chrome to exit and its stdio to close, escalating within bounded waits; rejects if close is unconfirmed. */
   close(graceMs?: number): Promise<ChromeExit>;
   kill(): Promise<ChromeExit>;
 }
@@ -120,35 +120,52 @@ export async function launchChrome(options: LaunchOptions): Promise<ChromeProces
     });
   });
   const pid = child.pid;
-  if (pid !== undefined) void exited.then(() => options.registry?.remove(pid));
+  const closed = new Promise<ChromeExit>((resolve) => {
+    child.once("close", (code, signal) => {
+      if (pid !== undefined) options.registry?.remove(pid);
+      resolve({ code, signal });
+    });
+  });
+  const wait = async (outcome: Promise<ChromeExit>, ms: number): Promise<ChromeExit | null> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { return await Promise.race([outcome, new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), ms); })]); }
+    finally { clearTimeout(timer); }
+  };
   const transport = pipeTransport(child.stdio[3] as Writable, child.stdio[4] as Readable);
+  const terminate = (signal: NodeJS.Signals) => {
+    if (child.exitCode === null && child.signalCode === null) killTree(child, signal);
+  };
+  const requireClosed = async (reason?: string): Promise<ChromeExit> => {
+    const result = await wait(closed, 2_000);
+    if (!result) throw new ChromeLaunchError(`${reason ? `${reason}; ` : ""}Chrome exit/stdio close was not confirmed; retain its profile and process registry for inspection.`, output);
+    return result;
+  };
   let version: BrowserVersion;
   try {
     if (pid !== undefined) options.registry?.add({ pid, startTime: null, userDataDir: options.userDataDir, ownerPid: process.pid, launchedAt: new Date().toISOString() });
     version = await handshake(transport, exited, options.handshakeTimeoutMs ?? 60_000);
   } catch (error) {
-    killTree(child, "SIGKILL");
-    await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 2_000))]);
+    transport.close();
+    terminate("SIGKILL");
+    await requireClosed(error instanceof Error ? error.message : String(error));
     const diagnosis = await diagnoseLaunchFailure({ executable: options.executablePath, output, env }).catch(() => null);
     throw new ChromeLaunchError(diagnosis?.message ?? (error instanceof Error ? error.message : String(error)), output);
   }
-  const wait = (ms: number) => Promise.race([exited, new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))]);
   const stop = async (graceMs: number): Promise<ChromeExit> => {
-    const polite = await wait(graceMs);
-    if (polite) return polite;
-    // Chrome quits when its pipe closes.
+    await wait(exited, graceMs);
     transport.close();
-    const unpiped = await wait(2_000);
+    const unpiped = await wait(closed, 2_000);
     if (unpiped) return unpiped;
-    killTree(child, "SIGTERM");
-    const terminated = await wait(2_000);
+    terminate("SIGTERM");
+    const terminated = await wait(closed, 2_000);
     if (terminated) return terminated;
-    killTree(child, "SIGKILL");
-    return exited;
+    terminate("SIGKILL");
+    return requireClosed();
   };
   const kill = async (): Promise<ChromeExit> => {
-    killTree(child, "SIGKILL");
-    return exited;
+    transport.close();
+    terminate("SIGKILL");
+    return requireClosed();
   };
   return {
     pid: pid!,

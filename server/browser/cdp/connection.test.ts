@@ -166,6 +166,19 @@ describe("transports", () => {
     expect(Buffer.concat(written).toString()).toBe('{"id":4}\0');
   });
 
+  it("destroys both pipe endpoints, including the write endpoint's unused Duplex read half", () => {
+    const toChrome = new PassThrough();
+    const fromChrome = new PassThrough();
+    const transport = pipeTransport(toChrome, fromChrome);
+    const reasons: string[] = [];
+    transport.onClose((reason) => reasons.push(reason));
+    transport.close();
+    transport.close();
+    expect(toChrome.destroyed).toBe(true);
+    expect(fromChrome.destroyed).toBe(true);
+    expect(reasons).toEqual(["closed by the driver"]);
+  });
+
   it("reports the pipe closing once", () => {
     const fromChrome = new PassThrough();
     const transport = pipeTransport(new PassThrough(), fromChrome);

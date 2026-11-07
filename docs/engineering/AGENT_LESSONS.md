@@ -48,6 +48,10 @@
 
 - 独立复审退回 R1–R4：域名兼容要按实际部署主/次账号覆盖 normalize、stored access、pair 和拒绝发送负例；connector 安装器改名必须追到真实 e2e 的 env/容器/卷/身份断言，不能只测脚本文本；Linux 策略内容、builder 资源、hook 根路径和加载/卸载名称需一起核对。归档 workflow 契约通过只证明历史文件，不证明当前启用的发布 gate。源码补齐不等于 Linux/Docker 实测；缺执行环境或可信镜像时显式保留平台阻断，不能机械给旧镜像 digest 换仓库名。
 
+## Chrome 子进程关闭边界
+
+- Node 24 的额外 stdio pipe 是 Duplex；`exit` 只证明根进程已退出，`end()` 只结束写半边，均不等于 `ChildProcess.close`。CDP launch 的 close/kill 和握手失败收尾必须回收本端 fd3/4 并有界等待实际 close，registry 在 close 后才移除；超时抛错、保留 profile/registry 证据。回归 `server/browser/chrome/launch.test.ts` 使用真实 Node 假 Chrome 和短暂继承 fd3/4 的辅助进程制造 exit 先于 close，另用 mock 验证 close 永不到及握手失败清理未知；`server/browser/cdp/connection.test.ts` 验证两端完整销毁。根进程 close 不证明所有 Chrome helper 或外部资源已消失，需单独进程审计。原 S4-actions 功能 32 pass 但缺 close 的 `ok:false` 记录不得被补验覆盖。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

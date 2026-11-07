@@ -69,7 +69,8 @@ export function pipeTransport(writable: Writable, readable: Readable): CdpTransp
     },
     close() {
       listeners.close("closed by the driver");
-      writable.end();
+      // Node 24 exposes extra stdio pipes as Duplex: destroy also releases fd 3's unused read side.
+      writable.destroy();
       readable.destroy();
     },
   };
