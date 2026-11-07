@@ -13,8 +13,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  full-gate:
     if: github.repository == 'Ashersun1207/entropybot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Require authoritative full regression for final source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/entropybot-release-gate.mjs
+  build:
+    needs: full-gate
+    if: github.repository == 'Ashersun1207/entropybot' && needs.full-gate.result == 'success'
     runs-on: macos-15
     timeout-minutes: 60
     env:
@@ -23,6 +43,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - uses: pnpm/action-setup@v4
         with:
           version: 10.33.0
