@@ -6,6 +6,8 @@ isolated fixture; never verify mutations against the user's live app or data.
 
 ## Maintenance and lessons
 
+For module boundaries and replacement decisions, read [`ARCHITECTURE.md`](docs/engineering/ARCHITECTURE.md) and [`TECH_EVOLUTION.md`](docs/engineering/TECH_EVOLUTION.md).
+
 Before planning changes, read [`docs/engineering/AGENT_LESSONS.md`](docs/engineering/AGENT_LESSONS.md) and [`docs/engineering/MAINTENANCE.md`](docs/engineering/MAINTENANCE.md). Apply the relevant regression lessons and record newly discovered failure modes after fixing them.
 
 Every round ends with a maintenance and security review of the changed scope. Run a focused debt/supply-chain review at the first work of each week or after three completed rounds, whichever comes first; review every upstream/dependency/install-script change. Never pass a correctness or size guard by weakening it. Distinguish evidence of malicious behavior from unverified suspicions; do not execute suspicious external code to investigate it.
