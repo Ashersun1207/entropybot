@@ -62,7 +62,10 @@ const MEMORY = [
 const clock = () => new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
 
 export function Demo() {
-  const [view, setView] = useState<View>("chat");
+  const [view, setView] = useState<View>(() => {
+    const requested = new URLSearchParams(location.search).get("view");
+    return requested === "memory" || requested === "settings" ? requested : "chat";
+  });
   const [activeId, setActiveId] = useState("cocoa");
   const [theme, setTheme] = useState<"midnight" | "daylight">(() => {
     try { return localStorage.getItem("entropybot-demo-theme") === "daylight" ? "daylight" : "midnight"; } catch { return "midnight"; }

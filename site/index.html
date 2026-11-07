@@ -118,6 +118,48 @@
     footer { margin-top:44px; }
   }
   @media (prefers-reduced-motion:reduce) { *, *::before, *::after { transition:none !important; animation:none !important; scroll-behavior:auto !important; } }
+
+  .section-lede { max-width: 620px; margin: -8px 0 24px; color: var(--muted); font-size: 14px; }
+  .product-window { border: 1px solid var(--edge); border-radius: 14px; background: var(--panel); box-shadow: 0 28px 80px -48px rgba(0,0,0,.55); overflow: hidden; }
+  .window-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--edge); color: var(--muted); font-size: 11px; }
+  .window-dots { display: inline-flex; gap: 5px; }
+  .window-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--edge); display: block; }
+  .window-bar a { margin-left: auto; color: var(--accent); text-decoration: none; font-size: 11px; }
+  .window-bar a:hover { text-decoration: underline; }
+  .product-window .screenshot-link { border: 0; border-radius: 0; box-shadow: none; }
+  .product-window figcaption { padding: 0 12px 12px; }
+  .feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .feature-card { display: flex; flex-direction: column; gap: 7px; padding: 18px; border: 1px solid var(--edge); border-radius: 12px; background: var(--panel); text-decoration: none; min-height: 158px; transition: background .15s, border-color .15s; }
+  .feature-card:hover { background: var(--raised); border-color: color-mix(in srgb, var(--accent) 32%, var(--edge)); }
+  .feature-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  .feature-kicker { color: var(--muted); font-size: 10px; letter-spacing: .05em; }
+  .feature-card h3 { margin: 0; font-size: 16px; }
+  .feature-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+  .feature-link { margin-top: auto; color: var(--accent); font-size: 12px; }
+  .role-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .role-tabs button { border: 1px solid var(--edge); border-radius: 999px; background: var(--panel); color: var(--muted); padding: 7px 13px; font-size: 12px; cursor: pointer; }
+  .role-tabs button[aria-selected="true"] { background: var(--ink); color: var(--app); border-color: var(--ink); }
+  .role-tabs button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .role-panel { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; padding: 18px; border: 1px solid var(--edge); border-radius: 12px; background: var(--panel); }
+  .role-panel[hidden] { display: none; }
+  .role-panel h3 { margin: 0 0 6px; font-size: 17px; }
+  .role-panel p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+  .role-sample { border-left: 1px solid var(--edge); padding-left: 18px; }
+  .role-sample span { color: var(--muted); font-size: 10px; letter-spacing: .06em; }
+  .role-sample a { display: inline-block; margin-top: 9px; color: var(--accent); font-size: 12px; text-decoration: none; }
+  .role-sample a:hover { text-decoration: underline; }
+  .faq-section { max-width: 760px; }
+  .faq { border-top: 1px solid var(--edge); }
+  .faq details { border-bottom: 1px solid var(--edge); }
+  .faq summary { cursor: pointer; padding: 15px 2px; font-size: 14px; font-weight: 550; }
+  .faq summary::marker { color: var(--muted); }
+  .faq details p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+  @media (max-width: 760px) {
+    .feature-grid { grid-template-columns: 1fr; }
+    .role-panel { grid-template-columns: 1fr; gap: 12px; }
+    .role-sample { border-left: 0; border-top: 1px solid var(--edge); padding: 12px 0 0; }
+    .window-bar span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  }
 </style>
 </head>
 <body>
@@ -149,7 +191,8 @@
     </div>
     <p class="fine">macOS Apple silicon · 本地使用无需账号；Cloud 功能可另行使用 Google 登录</p>
   </section>
-  <figure class="stage">
+  <figure class="stage product-window">
+    <div class="window-bar"><span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Entropybot · 桌面界面</span><a href="./demo/">打开交互演示</a></div>
     <a class="screenshot-link shot-light" href="./assets/app-light.webp" aria-label="查看浅色应用界面大图" data-screenshot>
       <img class="screenshot" src="./assets/app-light.webp" width="2560" height="1600" alt="Entropybot 桌面应用的浅色主题真实界面" fetchpriority="high" />
     </a>
@@ -159,16 +202,54 @@
     <figcaption>应用真实界面 · 对话内容为演示示例 · 切换主题，或点击查看大图</figcaption>
   </figure>
   <section class="section" aria-labelledby="start-title">
-    <h2 id="start-title">从你的桌面开始</h2>
-    <div class="notes">
-      <article><h3>下载即可开始</h3><p>下载 macOS 桌面版，本地使用无需创建账号；Cloud 功能可另行登录。</p></article>
-      <article><h3>按选择连接模型</h3><p>使用远程模型时，相关请求会发送至你选择的模型服务，由该服务处理。</p></article>
-      <article><h3>开放的源码</h3><p>在仓库中查看项目源码、版本记录与许可说明，了解应用的更新。</p></article>
+    <p class="eyebrow">一个桌面，按需要展开</p>
+    <h2 id="start-title">从一次对话开始</h2>
+    <p class="section-lede">先保留普通聊天和记忆；浏览器、数据与自动化按任务需要出现。下面的入口都可以直接点开演示。</p>
+    <div class="feature-grid">
+      <a class="feature-card" href="./demo/?view=chat"><span class="feature-kicker">01 · 对话</span><h3>像同事一样说话</h3><p>给机器人目标、资料和边界；它先做，再回来汇报。</p><span class="feature-link">打开演示 →</span></a>
+      <a class="feature-card" href="./demo/?view=memory"><span class="feature-kicker">02 · 记忆</span><h3>记住事实，也记住来源</h3><p>纠正和删除有据可查；记忆不是一段无法解释的聊天记录。</p><span class="feature-link">查看记忆页 →</span></a>
+      <a class="feature-card" href="./demo/?view=settings"><span class="feature-kicker">03 · 设置</span><h3>明暗外观，本地优先</h3><p>沿用应用的颜色、字体和间距；演示里可以切换主题和查看数据边界。</p><span class="feature-link">打开设置页 →</span></a>
+      <a class="feature-card" href="https://github.com/Ashersun1207/entropybot/releases/latest"><span class="feature-kicker">04 · 安装</span><h3>先看说明，再替换应用</h3><p>当前公开版本以 Releases 为准；0.2.6 本地候选尚未公开发布。</p><span class="feature-link">查看版本记录 →</span></a>
+    </div>
+  </section>
+
+  <section class="section roles" aria-labelledby="roles-title">
+    <p class="eyebrow">每个 bot 一个职责</p>
+    <h2 id="roles-title">让合适的机器人做合适的事</h2>
+    <div class="role-tabs" role="tablist" aria-label="机器人职责">
+      <button role="tab" id="tab-chief" aria-selected="true" aria-controls="panel-chief" data-role="chief">Chief</button>
+      <button role="tab" id="tab-builder" aria-selected="false" aria-controls="panel-builder" data-role="builder">Builder</button>
+      <button role="tab" id="tab-researcher" aria-selected="false" aria-controls="panel-researcher" data-role="researcher">Researcher</button>
+    </div>
+    <div class="role-panels">
+      <div class="role-panel" id="panel-chief" role="tabpanel" aria-labelledby="tab-chief">
+        <div><h3>把目标拆成任务</h3><p>把目标拆成可验证的步骤，分给合适的队友，最后汇总证据和下一步。</p></div>
+        <div class="role-sample"><span>示例</span><p>“先检查发布前还差什么，分成三条，不要动正在使用的应用。”</p><a href="./demo/?view=chat">在演示里看对话 →</a></div>
+      </div>
+      <div class="role-panel" id="panel-builder" role="tabpanel" aria-labelledby="tab-builder" hidden>
+        <div><h3>写代码，跑回归</h3><p>在独立 worktree 中修改，保留调用关系、失败证据和回退路径；不把“编译通过”当验收。</p></div>
+        <div class="role-sample"><span>示例</span><p>“全仓没有断言失败；安装 B 还有两个缺口，先别安装。”</p><a href="./demo/?view=settings">在演示里看边界 →</a></div>
+      </div>
+      <div class="role-panel" id="panel-researcher" role="tabpanel" aria-labelledby="tab-researcher" hidden>
+        <div><h3>固定来源，留下证据</h3><p>比较方案时固定版本和日期，区分源码事实、实际运行和推断；不把别人的项目当成自己的。</p></div>
+        <div class="role-sample"><span>示例</span><p>“xAI 页面可以借布局和交互节奏，但不复制品牌、定价和追踪脚本。”</p><a href="./demo/?view=memory">在演示里看来源 →</a></div>
+      </div>
     </div>
   </section>
   <section class="download" aria-labelledby="download-title">
     <div><h2 id="download-title">让协作从这里开始</h2><p>前往 Releases 查看当前公开的 macOS 安装包与发布说明；0.2.6 本地候选尚未公开发布。</p></div>
     <a class="btn primary" href="https://github.com/Ashersun1207/entropybot/releases/latest">下载 macOS 版</a>
+  </section>
+
+  <section class="section faq-section" aria-labelledby="faq-title">
+    <p class="eyebrow">在下载之前</p>
+    <h2 id="faq-title">常见问题</h2>
+    <div class="faq">
+      <details><summary>这是完整应用吗？</summary><p>不是。演示用合成数据展示聊天、记忆和设置；不会调用模型、执行工具或读取你的真实数据。完整应用需要下载并安装。</p></details>
+      <details><summary>演示会上传我的数据吗？</summary><p>演示本身没有后端请求，不读取账号、聊天、记忆或凭证。真实应用使用远程模型时，相关请求会发送到你选择的模型服务。</p></details>
+      <details><summary>为什么演示和下载版本不同？</summary><p>演示展示最新界面的交互方式；下载页只列当前公开版本。0.2.6 本地候选尚未公开发布，不能把演示当成已发布版本。</p></details>
+      <details><summary>现在支持哪些平台和签名？</summary><p>当前公开下载以 Releases 为准，优先 macOS Apple silicon。现有本地 macOS 候选是 ad-hoc 签名、未公证；正式签名和公证仍缺开发者证书。</p></details>
+    </div>
   </section>
 </main>
 <footer>
@@ -230,6 +311,14 @@
       document.getElementById('close-preview').addEventListener('click', () => preview.close());
       preview.addEventListener('close', () => { if (opener) opener.focus(); });
     }
+
+    const roleButtons = [...document.querySelectorAll('[data-role]')];
+    const rolePanels = [...document.querySelectorAll('.role-panel')];
+    roleButtons.forEach(button => button.addEventListener('click', () => {
+      const role = button.dataset.role;
+      roleButtons.forEach(candidate => candidate.setAttribute('aria-selected', String(candidate === button)));
+      rolePanels.forEach(panel => { panel.hidden = panel.id !== `panel-${role}`; });
+    }));
   })();
 </script>
 </body>

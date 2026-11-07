@@ -68,7 +68,7 @@ docker compose --env-file /opt/entropybot/.env up -d --no-deps --force-recreate 
 
 - 源码：应用仓库 `demo-site/`，构建配置 `vite.demo.config.ts`。
 - 构建：在应用仓库根目录运行 `node node_modules/vite/bin/vite.js build --config vite.demo.config.ts`；输出到 `site/demo/`。
-- 范围：聊天、侧栏、记忆、设置四个可点击界面；发送消息会生成本地假回复。
+- 范围：聊天、侧栏、记忆、设置四个可点击界面；发送消息会生成本地假回复。支持 `?view=chat`、`?view=memory`、`?view=settings` 直接打开对应页面。
 - 体积：JS 约 208 kB（gzip 66.6 kB），CSS 约 102 kB（gzip 20.3 kB），字体按需加载；首页不加载这些资源。
 - 边界：不是完整应用，不执行真实工具，不读取真实记忆/凭证；不能替代安装验收。
 
