@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const BUDGET_MS = 30_000;
 const CODE = /\.[cm]?[jt]sx?$/;
+// Build output is linted as its sources, not as a bundle; oxlint has nothing to say about a file it ignores.
+const GENERATED = /^site\/demo\/assets\//;
 // The tree the size ratchet counts, without tests, and the sources the vocabulary test reads.
 const RATCHETED = /^(?:server|shared|src|scripts|evals|electron|companion)\/.+\.(?:ts|tsx|mjs|cjs)$/;
 const WORDED = /^(?:src|server)\/.+\.(?:ts|tsx|json)$/;
@@ -24,7 +26,7 @@ export function pushedCommits(stdin) {
 /** The commands these files call for; none for a push that changes nothing they read. */
 export function checksFor(files) {
   const checks = [];
-  const code = files.filter((file) => CODE.test(file));
+  const code = files.filter((file) => CODE.test(file) && !GENERATED.test(file));
   if (code.length > 0) checks.push({ name: "lint", command: "node_modules/.bin/oxlint", args: ["--deny-warnings", ...code] });
   if (files.some((file) => file.startsWith("src/locales/"))) checks.push({ name: "locale catalogs", command: "node", args: ["scripts/generate-locale.mjs", "--check"] });
   const guards = [

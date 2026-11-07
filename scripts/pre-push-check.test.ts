@@ -21,6 +21,11 @@ describe("what a push's changed files call for", () => {
     expect(names(["README.md", "docs/ci.md"])).toEqual([]);
   });
 
+  it("does not lint a generated demo bundle", () => {
+    expect(names(["site/demo/assets/index-abc.js", "site/demo/assets/index-abc.css"])).toEqual([]);
+    expect(names(["site/demo/assets/index-abc.js", "demo-site/main.tsx"])).toEqual(["lint"]);
+  });
+
   it("checks the catalogs only when one changed", () => {
     expect(names(["src/locales/de.json"])).toContain("locale catalogs");
     expect(names(["server/a.ts"])).not.toContain("locale catalogs");
