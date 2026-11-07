@@ -25,7 +25,7 @@ cd site
 python3 -m http.server 5187 --bind 127.0.0.1
 ```
 
-访问 http://127.0.0.1:5187/ 。上传时需同时包含 `index.html` 和整个 `assets/` 目录，图片采用相对路径。
+访问 http://127.0.0.1:5187/ 。上传时需同时包含 `index.html`、`assets/` 和 `demo/` 目录，图片与演示资源都采用相对路径。
 
 ## 更新应用截图
 
@@ -49,7 +49,7 @@ node --experimental-strip-types scripts/capture-site-app.ts
 
 官网静态根目录为 `/opt/entropybot/site`，Caddy 容器只读挂载到 `/srv/site`。发布前先备份旧目录；上传新图片后再原子替换 `index.html`，避免页面引用尚未上传的资源。此更新无需重启容器。
 
-仅发布 `index.html` 与 `assets/`。不要上传此目录之外的文件；`/opt/entropybot/private` 为授权后的页面，`/opt/entropybot/deploy` 保存现有 Caddy 和 Google 授权代理配置。
+仅发布 `index.html`、`assets/` 与 `demo/`。不要上传此目录之外的文件；`/opt/entropybot/private` 为授权后的页面，`/opt/entropybot/deploy` 保存现有 Caddy 和 Google 授权代理配置。
 
 授权代理通过 `network_mode: service:caddy` 共享 Caddy 的网络环境。若 Caddy 重启后登录入口返回 502，应检查代理是否仍连接当前网络环境。需要重建代理时，必须显式加载保存在 Compose 目录外的环境文件，避免以空凭证启动：
 
@@ -60,7 +60,7 @@ docker compose --env-file /opt/entropybot/.env up -d --no-deps --force-recreate 
 
 不要将服务器环境文件或凭证提交到仓库。
 
-发布后核对主页及三张图片的 HTTP 状态、内容哈希、明暗主题切换和图片预览，并检查 Google 授权入口仍重定向到 Google。完整登录需要用户本人完成授权。
+发布后核对主页、三张图片及 `/demo/` 的 HTTP 状态、内容哈希、明暗主题切换、图片预览和交互入口，并检查 Google 授权入口仍重定向到 Google。完整登录需要用户本人完成授权。
 
 ## 交互演示 `/demo/`
 
