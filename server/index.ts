@@ -7863,6 +7863,9 @@ async function beginTurn(
       if (selection.dropped > 0) {
         console.log(`[replay] thread=${threadId} bytes=${replayBytes} messages=${selection.transcript.length} dropped=${selection.dropped} shortened=${selection.shortened.length}`);
       }
+      const recoverySelection = selectReplay(context, {
+        budgetBytes: replayBytes, excludedIds: skipTranscript, compaction: record, tools: replayToolCalls(activeMessages, cfg.context),
+      });
       const transcript = selection.transcript.map(({ role, text }) => ({ role, text }));
       const contextReset = selection.compacted > 0 && record?.id !== task.appliedCompactionId;
       if (contextReset) store.patchTask(bot.id, threadId, { resumeCursors: {} });
@@ -7919,10 +7922,10 @@ async function beginTurn(
         // Snapshot the cursor now: an external result can clear it during async setup.
         const resumeCursor = resume ? task.resumeCursors[instanceId] : undefined;
         // The driver may fall back to one fresh session when the provider no longer honours the cursor; this is what it sends there.
-        const recoveryIsReplay = resumeCursor !== undefined && externalUpdate && transcript.length > 0;
+        const recoveryIsReplay = resumeCursor !== undefined && externalUpdate && recoverySelection.transcript.length > 0;
         const recoveryText = resumeCursor === undefined ? undefined : recoveryIsReplay
-          ? buildTurnContext({ text: userTurnText, transcript: selection.inline, rewound: false, fresh: false, externallyUpdated: true, replaysNatively: false }).turnText
-          : buildRecoveryText({ text: userTurnText, transcript: selection.inline });
+          ? buildTurnContext({ text: userTurnText, transcript: recoverySelection.inline, rewound: false, fresh: false, externallyUpdated: true, replaysNatively: false }).turnText
+          : buildRecoveryText({ text: userTurnText, transcript: recoverySelection.inline });
         const carried = [...skipTranscript];
         const windowIds = selection.representedIds;
         return {
@@ -7933,7 +7936,7 @@ async function beginTurn(
             botId: bot.id, instanceId, config, resumeCursor: typeof resumeCursor === "string" ? resumeCursor : undefined,
             ...(instance.driverKind === "codex" ? { effort: effort ?? null } : {}),
             started: sessionStart(contextOrder, contextTurnText !== userTurnText ? windowIds : [], carried),
-            recovery: sessionStart(contextOrder, recoveryText !== undefined ? windowIds : [], carried),
+            recovery: sessionStart(contextOrder, recoveryText !== undefined ? recoverySelection.representedIds : [], carried),
             resumed: sessionStart(contextOrder, [], [...placed, ...carried]),
             placed, carried, own: [userMessage.id, ...(opts?.excludeMessageIds ?? [])],
           } : undefined,
