@@ -8,7 +8,7 @@ const render = (text: string) => renderToStaticMarkup(createElement(ChatMarkdown
 
 describe("parseGithubUrl", () => {
   it("reads pull requests, issues and commits", () => {
-    expect(parseGithubUrl("https://github.com/Ashersun1207/entropybot/pull/2547")).toMatchObject({ kind: "pull", owner: "milind-soni", repo: "Entropybot", number: 2547 });
+    expect(parseGithubUrl("https://github.com/Ashersun1207/entropybot/pull/2547")).toMatchObject({ kind: "pull", owner: "Ashersun1207", repo: "entropybot", number: 2547 });
     expect(parseGithubUrl("https://github.com/Ashersun1207/entropybot/issues/12#issuecomment-1")).toMatchObject({ kind: "issue", number: 12 });
     expect(parseGithubUrl("https://github.com/Ashersun1207/entropybot/pull/2547/files")).toMatchObject({ kind: "pull", number: 2547 });
     expect(parseGithubUrl("https://github.com/octo-org/sample-app/commit/68189CF0a1")).toMatchObject({ kind: "commit", sha: "68189cf0a1" });
@@ -31,7 +31,7 @@ describe("owner/repo#N in text", () => {
   it("finds a reference in running text", () => {
     const spans = splitShortRefs("fixed in milind-soni/Entropybot#2547, see there.");
     expect(spans.map((span) => span.text)).toEqual(["fixed in ", "milind-soni/Entropybot#2547", ", see there."]);
-    expect(spans[1]!.ref).toMatchObject({ kind: "ref", url: "https://github.com/Ashersun1207/entropybot/issues/2547" });
+    expect(spans[1]!.ref).toMatchObject({ kind: "ref", url: "https://github.com/milind-soni/Entropybot/issues/2547" });
   });
 
   it("ignores paths, URLs and plain #N", () => {

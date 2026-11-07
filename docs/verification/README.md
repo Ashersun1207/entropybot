@@ -105,6 +105,17 @@ Use only mapped, tested commands:
 - [Spend cap and sell prices](spend-cap.md)
 - [Enterprise layer loading and license expiry](enterprise-license.md)
 
+### Release, migration and signing evidence
+
+- [Secure memory settings and credentials](memory-embedding-settings.md)
+- [Credential namespace migration](credential-namespace-migration.md)
+- [Keychain diagnosis boundaries](keychain-isolated-diagnosis.md)
+- [Migration rollback acceptance](release-0.2.5-rollback.md)
+- [Patch gate lifecycle](patch-gate-lifecycle.md)
+- [Formal signing preparation](release-signing.md)
+- [0.2.6 delta recovery handoff](release-completion-delta.md)
+- [0.2.6 browser compatibility handoff](release-completion-compat.md)
+
 `control-omb ui` ([Chat UI, driven headlessly](chat-ui.md)) drives the real
 renderer in a headless Chrome by accessible name, so composer sends, transcript
 rows, tool chips and server feature flags are provable from the command line.

@@ -39,7 +39,7 @@ pnpm typecheck
 pnpm lint
 ```
 
-`credential-namespace-migration.test.mjs` 覆盖成功、回读不一致、加密失败、await 期间并发写入、备份不覆盖、标记写入失败、危险/超大/畸形输出和失败信息不含凭证值。child suite 覆盖确认默认拒绝且在读取前生效，rollback suite 覆盖失败后保持不可写和恢复旧备份后二次迁移。旧 Python e2e 入口已转发到 `electron/credential-namespace-migration-acceptance-fixture.py`：实际 Electron 使用 `--use-mock-keychain` 与合成 JSON，并在 fixture 内替换 dialog 返回值；只证实导出授权控制流、重启和 0.2.4 原 reader 格式兼容，不证实真实用户确认 UI 或真实 ACL。
+`electron/credential-namespace-migration.test.mjs` 覆盖成功、回读不一致、加密失败、await 期间并发写入、备份不覆盖、标记写入失败、危险/超大/畸形输出和失败信息不含凭证值。child suite 覆盖确认默认拒绝且在读取前生效，rollback suite 覆盖失败后保持不可写和恢复旧备份后二次迁移。旧 Python e2e 入口已转发到 `electron/credential-namespace-migration-acceptance-fixture.py`：实际 Electron 使用 `--use-mock-keychain` 与合成 JSON，并在 fixture 内替换 dialog 返回值；只证实导出授权控制流、重启和 0.2.4 原 reader 格式兼容，不证实真实用户确认 UI 或真实 ACL。
 
 平台 fixture 的每条命令使用自有 POSIX 进程组；退出未确认时保留 scratch 并报告未知状态，确认后才删除。`credential-namespace-migration-fixture.node-test.mjs` 调用五个合成清理测试（初次/最终查询异常、chmod 失败、退出未知保留、带后代的组超时确认）。该 fixture 只覆盖自有进程组，脱组后代与系统强制终止不在保证范围内。私有 Keychain 的锁定负例要求两条目均为 `-25293` 且未取出值。正常路径与异常清理的证据分别记录，详见[隔离回滚报告](release-0.2.5-rollback.md)。
 

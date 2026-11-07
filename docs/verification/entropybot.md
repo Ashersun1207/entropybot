@@ -69,14 +69,14 @@ finish the first-run welcome and its tour, then:
 3. Its sidebar menu offers **Hide from sidebar**, not Archive or Delete; the
    switch in Settings → General brings it back.
 
-Evidence: [popup, light](evidence/entropybot/welcome-light.png),
-[popup, dark](evidence/entropybot/welcome-dark.png),
-[customise panel](evidence/entropybot/welcome-customize-light.png),
-[uploaded picture](evidence/entropybot/welcome-upload-light.png),
-[the fly-in](evidence/entropybot/fly-in.gif), [slowed](evidence/entropybot/fly-in-slow.gif),
-[compact, icon rail and reduced motion](evidence/entropybot/fly-in-compact-rail-reduced.png),
-[intro and setup](evidence/entropybot/added-light.png),
-[menu](evidence/entropybot/menu-light.png),
-[Settings, switched off](evidence/entropybot/settings-off.png),
-[chrome picture, light](evidence/entropybot/chrome-picture-daylight.png),
-[chrome picture, dark](evidence/entropybot/chrome-picture-midnight.png).
+Evidence: [popup, light](evidence/mausbot/welcome-light.png),
+[popup, dark](evidence/mausbot/welcome-dark.png),
+[customise panel](evidence/mausbot/welcome-customize-light.png),
+[uploaded picture](evidence/mausbot/welcome-upload-light.png),
+[the fly-in](evidence/mausbot/fly-in.gif), [slowed](evidence/mausbot/fly-in-slow.gif),
+[compact, icon rail and reduced motion](evidence/mausbot/fly-in-compact-rail-reduced.png),
+[intro and setup](evidence/mausbot/added-light.png),
+[menu](evidence/mausbot/menu-light.png),
+[Settings, switched off](evidence/mausbot/settings-off.png),
+[chrome picture, light](evidence/mausbot/chrome-picture-daylight.png),
+[chrome picture, dark](evidence/mausbot/chrome-picture-midnight.png).

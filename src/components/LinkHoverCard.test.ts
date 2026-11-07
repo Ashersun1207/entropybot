@@ -58,7 +58,7 @@ describe("LinkHoverCard", () => {
     act(() => { vi.advanceTimersByTime(50); });
     expect(card()?.getAttribute("role")).toBe("tooltip");
     expect(card()?.textContent).toContain("Pull request #2547");
-    expect(card()?.textContent).toContain("milind-soni/Entropybot");
+    expect(card()?.textContent).toContain("Ashersun1207/entropybot");
     expect(card()?.textContent).toContain("github.com");
     expect(link().getAttribute("aria-describedby")).toBe(card()?.id);
   });

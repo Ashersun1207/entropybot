@@ -11,8 +11,8 @@ Node `v24.22.2`；`node_modules` 仅链接主 checkout 已有依赖，没有安�
 | 问题 | 根因与影响 | 本轮处置 | 回归入口 |
 |---|---|---|---|
 | 内部 CLI 可无授权导出解密结果 | child 只检查 flag，文件路径来自调用者环境；base64 可逆，stdout 是明文传输，原有 Keychain 授权也不等于本次导出授权。通过源码确认，未探测真实库 | 在任何凭证文件读取、Safe Storage 调用之前要求原生确认框明确授权；默认/关闭均取消，确认框失败也拒绝。没有环境变量绕过 | `electron/credential-namespace-migration-child.test.mjs`；acceptance fixture 的 child-denied / child-authorized |
-| await 期间源库变化会被覆盖 | 只在 encrypt/decrypt 之前检查源 hash；成功路径会覆盖较新写入，catch 还会恢复陈旧 original。正常启动的单实例锁不能约束外部写入；旧名 child 分支主动绕过正常实例锁 | await 完成后、rename 前同步重读源字节；变化即失败；catch 只删除本事务临时文件，绝不把 original 写回目标。原子 rename 前目标未被本事务修改 | `credential-namespace-migration.test.mjs` 的 encrypt/decrypt 并发写入与 encryption rejection 三项 |
-| 子进程 error 被误当退出 | spawn 成功后 kill/control 仍可能触发 error，原来无条件 finish 并删除 profile | 有 PID 的 error 进入 TERM→KILL→等待 close；信号同步抛错也继续回收策略；无法确认退出时保留 profile，返回路径并记录日志 | `credential-namespace-migration-runner.test.mjs` 的 kill errors、post-spawn error、retained evidence；rollback suite 的真实 Node 子进程 |
+| await 期间源库变化会被覆盖 | 只在 encrypt/decrypt 之前检查源 hash；成功路径会覆盖较新写入，catch 还会恢复陈旧 original。正常启动的单实例锁不能约束外部写入；旧名 child 分支主动绕过正常实例锁 | await 完成后、rename 前同步重读源字节；变化即失败；catch 只删除本事务临时文件，绝不把 original 写回目标。原子 rename 前目标未被本事务修改 | `electron/credential-namespace-migration.test.mjs` 的 encrypt/decrypt 并发写入与 encryption rejection 三项 |
+| 子进程 error 被误当退出 | spawn 成功后 kill/control 仍可能触发 error，原来无条件 finish 并删除 profile | 有 PID 的 error 进入 TERM→KILL→等待 close；信号同步抛错也继续回收策略；无法确认退出时保留 profile，返回路径并记录日志 | `electron/credential-namespace-migration-runner.test.mjs` 的 kill errors、post-spawn error、retained evidence；rollback suite 的真实 Node 子进程 |
 
 原生确认是用户授权边界，不是调用进程身份鉴权。明确授权之后仍通过父子 pipe 传递可逆 base64；本轮没有把它宣称为加密传输或抵御同一 OS 用户的恶意进程。原生确认框的实际点击交互未人工演练，fixture 替换了 dialog 返回值；产品源码没有测试绕过开关。取消会记录 failed marker，同一源字节下次启动不再反复请求迁移；再次尝试需明确恢复流程，不能假装自动重试成功。
 

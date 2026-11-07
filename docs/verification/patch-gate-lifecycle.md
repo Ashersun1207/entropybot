@@ -52,9 +52,9 @@ node node_modules/vitest/vitest.mjs run --root "$PWD" --config "$PWD/vite.config
 
 ## 本轮回归经验（由主控汇总到 AGENT_LESSONS）
 
-- 外组 gone 不包含 fixture 的独立 spawnCli 组。真实 forced 探针证明外组退出后内部/MCP 心跳仍能推进；删除必须同时检查资源回执与认证 lease。回归：`verification-boundary.e2e.test.ts` 的生产三场景。
+- 外组 gone 不包含 fixture 的独立 spawnCli 组。真实 forced 探针证明外组退出后内部/MCP 心跳仍能推进；删除必须同时检查资源回执与认证 lease。回归：`scripts/testing/verification-boundary.e2e.test.ts` 的生产三场景。
 - Vitest 4.1 过滤管理进程普通 execArgv，且单 worker 的 forks 仍可能为不同文件创建不同 PID。显式传 worker bootstrap，并以 vmForks 验证同 PID 两隔离文件、forks 验证两个 worker；文件完成记录防止缺能力时空计数通过。回归：同文件 worker-isolation 与缺文件确认负例。
 - INIT 不能抢在 preload 监听之前发送；先由实际 ChildProcess 发 awaiting-init，再交付绑定身份。Node 24 的 INIT 前 IPC disconnect 曾出现 exit/stderr close 而无 ChildProcess close，生产不得将其替换成已确认关闭。回归：managed entry 负例与 lifecycle INIT timeout。
-- 不存在的可选 CLI 会明确 spawn 拒绝且无 PID，这与 INIT 后失败不同；仅前者可按未执行的空资源确认。登记异常须接管已产生的实际句柄，unknown 不可重新完成；旧代停止和 close 的交接也必须禁止并发新 spawn。回归：`verification-lifecycle.test.ts` 的实际登记失败、spawn 拒绝、旧代和 close 竞态。
+- 不存在的可选 CLI 会明确 spawn 拒绝且无 PID，这与 INIT 后失败不同；仅前者可按未执行的空资源确认。登记异常须接管已产生的实际句柄，unknown 不可重新完成；旧代停止和 close 的交接也必须禁止并发新 spawn。回归：`scripts/testing/verification-lifecycle.test.ts` 的实际登记失败、spawn 拒绝、旧代和 close 竞态。
 
 这些经验由隔离 macOS/Node 24 实测支持；尚不构成 Windows、任意第三方逃逸资源或同 UID 恶意代码的验证。
