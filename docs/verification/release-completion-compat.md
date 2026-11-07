@@ -21,7 +21,9 @@ All three baseline text-contract failures were visible product-name mismatches. 
 
 Only visible product references on `apps/docs/content/docs/providers/model-providers.mdx` were corrected to Entropybot. The upstream source link is retained. No provider, UI, config parser or model capability was changed, and no expected capability was rewritten to match a fixture.
 
-## S6 notice and deterministic networking
+## S6 fixture notice and deterministic networking
+
+**Unclosed production properties:** the production default still uses a whole-browser launch proxy, whose SOCKS requests do not identify a page versus browser-process background traffic. The fixture context split below proves only that test page's notice, not production background attribution. The synthetic public upstream is HTTP over the existing home-site route; it does not validate ordinary public-internet TLS. Neither property is claimed fixed by this slice.
 
 The notice case now uses a real Chrome with separate CDP browser-context proxy settings. Browser-process background traffic goes to a closed fixture proxy; the page context alone uses its BrowserEgress gate. A synthetic unrelated navigation confirms it cannot populate that page's notice. The original exact loopback notice assertion and zero-owner-service-hits assertion remain.
 
@@ -40,6 +42,26 @@ Production defaults and the “use my Chrome” path are retained. No environmen
 - S6/use-my-mac fixtures pass their synthetic environment; the optional real cloud-lending fixture passes its own temporary home. CDP/service/hold-browser fixtures pass their private home/profile explicitly.
 
 Existing assertions of default account-home behavior were retained. Added assertions cover explicit synthetic homes, launcher/calibration/check boundaries, the actual benign calibration child process's HOME/profile arguments, and backend launch parameters. Defaults are tested with known fake binaries or pure functions; they do not open a user's Chrome profile. Real Chrome runs in this slice use temporary profiles, synthetic HOME and the existing mock-keychain flags.
+
+## F1 follow-up on integrated baseline `6580f60d4`
+
+The first HOME change missed a caller that deliberately restored `userInfo().homedir`: `scripts/verify-browser-identity.ts` and both identity/passkey e2e entrypoints. A lower-layer injection API does not isolate a fixture while its callers still choose the real account. The role branch was aligned to the integrated baseline before this follow-up; no delta/47b implementation was rewritten.
+
+`withBotBrowser` now takes explicit `home` and `env` options, defaults an omitted home to its own scratch directory, and carries the selected home through ChromeLauncher, calibration/wrapper/check, managed agent-browser config, prepare, RPC and cleanup environments. Both e2e entrypoints create their home under their temporary output before discovery, pass it to the readonly launcher plan and pass the same environment to browser discovery/setup and the actual helper call. Their original enable conditions are retained; neither reads the real account HOME at module initialization. `scripts/omb-browser.ts` also supplies its owned work directory to launch/calibration.
+
+`browser-fixture-home.test.ts` drives the real helper/integration/launcher with known synthetic executables. Calibration identity and RPC dispatch are substituted; the generated POSIX wrapper, its executable check, synthetic agent child and the synthetic Chrome child actually execute, recording their HOME/USERPROFILE/argv. Assertions check wrapper HOME, calibration env, managed config location, actual child env, private profile and mock-keychain argument. The named `legacy-shell` mode is actually exercised with `OMB_BROWSER_LEGACY_SHELL=1` in the injected environment: the readonly plan reports legacy, no calibration/wrapper is created, and the direct executable fallback still receives the private HOME/profile and gate arguments. It is not hidden by a branch skip. The omitted-home case additionally rejects inheritance of a parent-home canary.
+
+Follow-up results: **6 files / 42 passed / 3 existing real identity/passkey tests skipped**, with no failures; those three require a resolved agent-browser or the install opt-in and were not enabled on this host. The newly added three synthetic wiring tests ran on Darwin. Original launcher/flags/calibrate default-home assertions were not removed. Frontend/backend typecheck, changed-file lint and source-size guard passed. Logs are `f1/targeted.log`, `f1/typecheck.log`, `f1/lint.log` under the evidence root stated in Executed checks below; the first helper-only probe is `f1-home-wiring.log` (overlapping, not an additional independent count).
+
+```sh
+node node_modules/vitest/vitest.mjs run --root . --configLoader native \
+  scripts/testing/browser-fixture-home.test.ts scripts/verify-browser-identity.test.ts \
+  scripts/testing/browser-identity.e2e.test.ts scripts/testing/browser-passkey.e2e.test.ts \
+  server/browser/chrome/launcher.test.ts server/browser/chrome/flags.test.ts \
+  server/browser/chrome/calibrate.test.ts scripts/testing/file-size-ratchet.test.ts
+```
+
+**Platform and product limits:** these subprocesses are known stand-ins, not real agent-browser/Chrome calibration or a real Keychain test. Windows' existing `launcherScript(..., "win32")` ignores `settings.home`; the injected environment must still carry HOME/USERPROFILE, and no Windows wrapper isolation claim is made. The POSIX executable wiring test is explicitly platform-limited on Windows. The S6 production whole-browser/background attribution and ordinary public TLS properties remain unclosed as stated above. Production launcher defaults and use-my-Chrome behavior are unchanged; this follow-up does not claim full-repository isolation or release readiness.
 
 ## Executed checks
 

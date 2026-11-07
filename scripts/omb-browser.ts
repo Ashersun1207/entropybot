@@ -118,6 +118,7 @@ async function start(chrome: string, host: HostKind, screen: ScreenSpec, identit
   const launched = await launchChrome({
     executablePath: chrome,
     userDataDir: join(workDir, "profile"),
+    home: workDir,
     mode: "headless",
     host,
     userAgent: identity?.userAgent ?? null,
@@ -147,7 +148,7 @@ async function botTests(chrome: string, options: { host: HostKind; screen: Scree
   mkdirSync(options.out, { recursive: true });
   const workDir = mkdtempSync(join(tmpdir(), "omb-browser-"));
   try {
-    const identity = await calibrateIdentity({ executablePath: chrome, host: options.host, tmpRoot: workDir, sandbox: !sandboxDisabled(process.env) });
+    const identity = await calibrateIdentity({ executablePath: chrome, host: options.host, home: workDir, tmpRoot: workDir, sandbox: !sandboxDisabled(process.env) });
     console.log(`identity: ${identity.userAgent}\n  ${identity.userAgentMetadata.fullVersionList.map((brand) => `${brand.brand} ${brand.version}`).join(", ")}; ${identity.userAgentMetadata.platform} ${identity.userAgentMetadata.platformVersion} ${identity.userAgentMetadata.architecture}`);
     const session = await start(chrome, options.host, options.screen, identity, workDir);
     const verdicts: Verdict[] = [];
@@ -234,7 +235,7 @@ async function main(argv: string[]): Promise<number> {
   if (command === "calibrate") {
     const workDir = mkdtempSync(join(tmpdir(), "omb-browser-"));
     try {
-      console.log(JSON.stringify(await calibrateIdentity({ executablePath: chrome, host, tmpRoot: workDir, sandbox: !sandboxDisabled(process.env) }), null, 2));
+      console.log(JSON.stringify(await calibrateIdentity({ executablePath: chrome, host, home: workDir, tmpRoot: workDir, sandbox: !sandboxDisabled(process.env) }), null, 2));
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }

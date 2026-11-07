@@ -4,7 +4,7 @@
 // Usage: node --experimental-strip-types scripts/verify-browser-identity.ts [--chrome PATH] [--engine PATH] [--public] [--out DIR]
 import { randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir, userInfo } from "node:os";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
@@ -150,6 +150,8 @@ export interface BotBrowserOptions {
   engine: string;
   chrome: string;
   out: string;
+  home?: string;
+  env?: NodeJS.ProcessEnv;
   sessionPrefix?: string;
   log?: (line: string) => void;
   /** The identity connections, in place of the server's own: a test can slow one down. */
@@ -170,11 +172,11 @@ export async function withBotBrowser<T>(options: BotBrowserOptions, work: (call:
   mkdirSync(profiles);
   // agent-browser's socket path must stay under 104 bytes; temporary folders on macOS are long.
   const sockets = mkdtempSync(join(process.platform === "win32" ? tmpdir() : "/tmp", "omb-id-"));
-  // Chrome on macOS with any other HOME asks for a keychain it cannot find, in a dialog on the person's screen; a test
-  // runner's HOME is a temporary folder, so the real one comes from the user database.
-  const home = userInfo().homedir;
+  const home = options.home ?? join(scratch, "home");
+  mkdirSync(home, { recursive: true });
+  const env: NodeJS.ProcessEnv = { ...(options.env ?? process.env), HOME: home, USERPROFILE: home };
   const session = `${options.sessionPrefix ?? "omb-identity"}-${randomBytes(3).toString("hex")}`;
-  const launcher = new ChromeLauncher({ dataDir: join(scratch, "data"), env: { ...process.env, HOME: home, USERPROFILE: home, OMB_CHROME_PATH: options.chrome }, log, ...(options.sidecars ? { sidecars: options.sidecars } : {}) });
+  const launcher = new ChromeLauncher({ dataDir: join(scratch, "data"), home, env: { ...env, OMB_CHROME_PATH: options.chrome }, log, ...(options.sidecars ? { sidecars: options.sidecars } : {}) });
   // Where the launcher adds nothing (OMB_BROWSER_LEGACY_SHELL=1, a headless shell), agent-browser would otherwise look for a
   // browser of its own, such as an installed Google Chrome, instead of the one named here.
   const launcherEnv = launcher.env();
@@ -186,7 +188,7 @@ export async function withBotBrowser<T>(options: BotBrowserOptions, work: (call:
   } });
   const integration = agentBrowserIntegration({
     binaryPath: options.engine, session, encryptionKey: randomBytes(32).toString("hex"), persistent: false, launcher: launcherEnv, egressPort: gate.port,
-    env: { PATH: process.env.PATH ?? "", HOME: home, USERPROFILE: home, ...(Object.keys(launcherEnv).length ? {} : { AGENT_BROWSER_EXECUTABLE_PATH: options.chrome }) },
+    env: { PATH: env.PATH ?? "", HOME: home, USERPROFILE: home, ...(Object.keys(launcherEnv).length ? {} : { AGENT_BROWSER_EXECUTABLE_PATH: options.chrome }) },
   });
   const spec: BrowserSpawnSpec = { ...integration, env: { ...integration.env, HOME: home, USERPROFILE: home, TMPDIR: profiles, TEMP: profiles, TMP: profiles, AGENT_BROWSER_SOCKET_DIR: sockets } };
   const runtime = new BrowserRuntime({

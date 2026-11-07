@@ -1,8 +1,8 @@
 // A passkey step in a bot's browser on today's engine (agent-browser), started as the server starts it: through the
 // generated launcher and the identity connection, headless. The step's request must end at once, as a dismissed passkey
 // sheet does, so the page's own "Try another way" works. Runs where browser-identity.e2e.test.ts runs.
-import { mkdtempSync } from "node:fs";
-import { tmpdir, userInfo } from "node:os";
+import { mkdirSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -14,11 +14,12 @@ import { removeTempDir } from "../../server/testing/cleanup.ts";
 import { openOwnPageAsBot, withBotBrowser, type BotCall } from "../verify-browser-identity.ts";
 import { ensureUiBrowser, UI_TOOLS_DIR } from "./control-omb-ui.ts";
 
-const enabled = process.env.OMB_UI_E2E === "1" || Boolean(resolveAgentBrowserBinary({ dataDir: UI_TOOLS_DIR, env: process.env }));
-if (!enabled) console.log("skipping browser passkey e2e: no agent-browser binary resolves; set OMB_UI_E2E=1 to install the pinned release");
 const out = mkdtempSync(join(tmpdir(), "omb-passkey-e2e-"));
-const home = userInfo().homedir;
+const home = join(out, "home");
+mkdirSync(home);
 const machineEnv = { ...process.env, HOME: home, USERPROFILE: home };
+const enabled = process.env.OMB_UI_E2E === "1" || Boolean(resolveAgentBrowserBinary({ dataDir: UI_TOOLS_DIR, env: machineEnv }));
+if (!enabled) console.log("skipping browser passkey e2e: no agent-browser binary resolves; set OMB_UI_E2E=1 to install the pinned release");
 
 /** The step's request, and what the page shows once it ends. WebAuthn needs a registrable RP ID: localhost, not 127.0.0.1. */
 const PASSKEY_STEP = `<!doctype html><meta charset="utf-8"><title>Sign in - Google Accounts</title><h1>Verifying it’s you</h1>
@@ -57,14 +58,14 @@ describe.skipIf(!enabled)("a passkey step in a bot's headless browser on agent-b
 
   it("ends the passkey request at once, so Try another way opens the other ways", async () => {
     const picked = process.env.OMB_CHROME_PATH?.trim() || (() => {
-      const plan = new ChromeLauncher({ dataDir: out, env: machineEnv, engine: () => ({ managed: true }), log: () => {} }).plan();
+      const plan = new ChromeLauncher({ dataDir: out, home, env: machineEnv, engine: () => ({ managed: true }), log: () => {} }).plan();
       return plan.kind === "chrome" ? plan.chrome.path : null;
     })();
-    const engine = picked ? resolveAgentBrowserBinary({ dataDir: UI_TOOLS_DIR, env: process.env }) : null;
-    const browser = engine ? { binary: engine, chrome: picked } : await ensureUiBrowser(process.env, () => {}, UI_TOOLS_DIR);
+    const engine = picked ? resolveAgentBrowserBinary({ dataDir: UI_TOOLS_DIR, env: machineEnv }) : null;
+    const browser = engine ? { binary: engine, chrome: picked } : await ensureUiBrowser(machineEnv, () => {}, UI_TOOLS_DIR);
     const chrome = picked || browser.chrome || installedGoogleChrome(chromeHost({ dataDir: out, env: machineEnv }));
     if (!chrome || isHeadlessShell(chrome)) throw new Error(`a full Chrome is needed, not ${chrome ?? "nothing"}: set OMB_CHROME_PATH`);
-    await withBotBrowser({ engine: browser.binary, chrome, out, sessionPrefix: "omb-pk-e2e" }, async (call) => {
+    await withBotBrowser({ engine: browser.binary, chrome, out, home, env: machineEnv, sessionPrefix: "omb-pk-e2e" }, async (call) => {
       expect(await openOwnPageAsBot(call, fx.crossSiteUrl("/v3/signin/challenge/pk/presend"), (line) => console.log(line))).toBeNull();
       expect(await pageSays(call, "document.getElementById('state').textContent", (state) => !state.includes("Waiting"))).toContain("Something went wrong: NotAllowedError");
       await call("agent_browser_click", { selector: "#other" });
