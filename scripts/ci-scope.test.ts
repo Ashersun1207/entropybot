@@ -179,6 +179,8 @@ describe("CI outputs", () => {
     expect(VITEST_SUBSETS["locale-tests"].files).toEqual([
       "src/",
       "electron/menu.test.mjs",
+      "electron/entropybot-updater.test.mjs",
+      "electron/memory-credentials.test.mjs",
       "electron/updater.test.mjs",
       "scripts/generate-locale.test.mjs",
       "scripts/testing/bot-tools-ui.e2e.test.ts",
@@ -186,6 +188,7 @@ describe("CI outputs", () => {
       "scripts/testing/one-workspace-ui.e2e.test.ts",
       "scripts/testing/secret-card-descriptions.test.ts",
       "scripts/testing/team-own-chat.e2e.test.ts",
+      "scripts/testing/verification-boundary.e2e.test.ts",
       "server/body-thread-guards.e2e.test.ts",
       "server/client-notifications.e2e.test.ts",
       "server/cloud-connections.e2e.test.ts",
@@ -520,8 +523,8 @@ describe("the repository's import graph", () => {
   });
 
   it("runs every test that reads the docs with the docs tests or in static", () => {
-    const ci = parse(readFileSync(join(ROOT, ".github/workflows/ci.yml"), "utf8"));
-    const inStatic = (ci.jobs.static.steps as { run?: string }[]).flatMap((step) => step.run?.startsWith("pnpm exec vitest run ") ? step.run.split(" ").slice(4) : []);
+    const ci = parse(readFileSync(join(ROOT, ".github/workflows/entropybot-ci.yml"), "utf8"));
+    const inStatic = (ci.jobs.check.steps as { run?: string }[]).flatMap((step) => step.run?.startsWith("pnpm exec vitest run ") ? step.run.split(" ").slice(4) : []);
     expect(inStatic).toContain("scripts/testing/verification-docs.test.ts");
     // A docs path a test reads from the repository root: join(ROOT, "docs", ...), new URL("docs/...", ROOT) or read("docs/...").
     const DOCS_READ = /(?:(?:join|resolve)\(\s*ROOT\s*,\s*|new URL\(\s*|\bread\w*\(\s*)["'`]((?:apps\/docs|docs)\b[^"'`]*|[A-Z][A-Z_]+\.md)["'`]/g;

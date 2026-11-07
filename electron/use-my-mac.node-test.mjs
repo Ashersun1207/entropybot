@@ -293,7 +293,9 @@ test("lends Chrome only in a grant that says so, and tells only a Cloud that tak
   await until(() => sockets.open().length === 1 && sharing.cloudState(env).chromeLink === "on", "the device link to open");
   assert.equal(home.connects[0].chrome, true);
   assert.equal(sharing.cloudState(env).chrome, true);
-  await sharing.saveCloud(env, { folders: [{ id: randomUUID(), path: tmpdir(), write: false }], screen: false });
+  const shareable = await mkdtemp(path.join(tmpdir(), "omb-use-my-mac-share-"));
+  t.after(() => rm(shareable, { recursive: true, force: true }));
+  await sharing.saveCloud(env, { folders: [{ id: randomUUID(), path: shareable, write: false }], screen: false });
   await until(() => home.connects.length === 2, "the second connect");
   assert.equal(home.connects[1].chrome, false);
   assert.equal(sharing.cloudState(env).chrome, false);

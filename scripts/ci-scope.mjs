@@ -49,6 +49,8 @@ export const VITEST_SUBSETS = {
     files: [
       "src/",
       "electron/menu.test.mjs",
+      "electron/entropybot-updater.test.mjs",
+      "electron/memory-credentials.test.mjs",
       "electron/updater.test.mjs",
       "scripts/generate-locale.test.mjs",
       "scripts/testing/bot-tools-ui.e2e.test.ts",
@@ -56,6 +58,7 @@ export const VITEST_SUBSETS = {
       "scripts/testing/one-workspace-ui.e2e.test.ts",
       "scripts/testing/secret-card-descriptions.test.ts",
       "scripts/testing/team-own-chat.e2e.test.ts",
+      "scripts/testing/verification-boundary.e2e.test.ts",
       "server/body-thread-guards.e2e.test.ts",
       "server/client-notifications.e2e.test.ts",
       "server/cloud-connections.e2e.test.ts",

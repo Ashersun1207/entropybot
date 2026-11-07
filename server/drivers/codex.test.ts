@@ -1206,7 +1206,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     });
     await recorder.until((event) => event.type === "turn.completed");
     const argv = JSON.parse(readFileSync(dump, "utf8")).argv.join(" ");
-    expect(argv).toContain("mcp_servers.fibery_bot.cloudentropy.aimand");
+    expect(argv).toContain("mcp_servers.fibery_entropybot.command");
     expect(argv).not.toContain("mcp_servers.fibery.command");
     expect(argv).toContain("mcp_servers.notes.command");
   });
