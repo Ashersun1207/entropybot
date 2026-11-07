@@ -11,7 +11,7 @@ import { cloudHomeChildEnvironments } from "../server/cloud-home-start.ts";
 // Cloud home. A pull downloads every layer whose digest changed, and a layer's
 // digest changes when anything beneath it does.
 const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
-const workflow = parse(readFileSync(new URL("../.github/workflows/docker.yml", import.meta.url), "utf8"));
+const workflow = parse(readFileSync(new URL("../.github/upstream-workflows/docker.yml", import.meta.url), "utf8"));
 
 interface Step { op: string; args: string }
 interface Stage { name: string; from: string; platform?: string; steps: Step[] }
@@ -154,7 +154,7 @@ describe("container images", () => {
     expect(last(home, "EXPOSE")).toBe("8080");
     expect(last(home, "CMD")).toBe('["node", "/app/dist-server/cloud-home-start.js"]');
     expect(last(home, "HEALTHCHECK")).toContain("http://127.0.0.1:8080/api/health");
-    expect(last(chain("runtime"), "ENV")).toMatch(/^AGENT_BROWSER_EXECUTABLE_PATH=\/opt\/entropybot-browser\/chrome .*NODE_ENV=production$/);
+    expect(last(chain("runtime"), "ENV")).toMatch(/^AGENT_BROWSER_EXECUTABLE_PATH=\/opt\/openmausbot-browser\/chrome .*NODE_ENV=production$/);
   });
 
   it("hands the Cloud home's server every setting the image's ENV gives it", () => {
@@ -235,7 +235,7 @@ describe("container images", () => {
     // Chrome for Testing has no Linux ARM64 build: an arm64 image takes Debian's Chromium at the same path.
     const runtime = chain("runtime");
     expect(runtime.slice(0, runtime.indexOf(browserRun()))).toContainEqual({ op: "ARG", args: "TARGETARCH" });
-    expect(browserRun().args).toMatch(/if \[ "\$TARGETARCH" = arm64 \]; then .*apt-get install -y --no-install-recommends chromium .*ln -s \/usr\/lib\/chromium\/chromium \/opt\/entropybot-browser\/chrome; +else .*agent-browser install .*; +fi/);
+    expect(browserRun().args).toMatch(/if \[ "\$TARGETARCH" = arm64 \]; then .*apt-get install -y --no-install-recommends chromium .*ln -s \/usr\/lib\/chromium\/chromium \/opt\/openmausbot-browser\/chrome; +else .*agent-browser install .*; +fi/);
     // Published for both CPUs; the Cloud home (Fly, amd64) stays as it is.
     const steps = workflow.jobs.publish.steps as { id?: string; uses?: string; with?: Record<string, string> }[];
     const server = steps.findIndex(step => step.uses?.startsWith("docker/build-push-action@") && step.id !== "home");
