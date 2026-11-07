@@ -64,6 +64,8 @@ export class ChromeEngine {
   #timer: ReturnType<typeof setInterval> | null = null;
   #inUse = false;
   #cleared = false;
+  #maintenance: Promise<void> | null = null;
+  readonly #maintenanceProblems = new Set<string>();
 
   constructor(options: ChromeEngineOptions) {
     this.#options = options;
@@ -133,18 +135,49 @@ export class ChromeEngine {
   }
 
   #tick(): void {
-    void this.service.closeIdle().catch(() => undefined);
-    void sweep({ root: browserRoot(this.#options.dataDir), registry: this.#registry }).catch(() => undefined);
+    if (this.#maintenance) return;
+    const jobs = [
+      { name: "idle close", run: () => this.service.closeIdle() },
+      { name: "registry sweep", run: () => sweep({ root: browserRoot(this.#options.dataDir), registry: this.#registry }) },
+    ];
+    this.#maintenance = (async () => {
+      const results = await Promise.allSettled(jobs.map(async job => { await job.run(); }));
+      for (const [index, result] of results.entries()) {
+        const name = jobs[index]!.name;
+        if (result.status === "rejected") this.#maintenanceFailed(name, result.reason);
+        else {
+          this.#maintenanceRecovered(name);
+          if (name === "registry sweep") this.#maintenanceRecovered("registry read");
+        }
+      }
+    })().finally(() => { this.#maintenance = null; });
+  }
+
+  #maintenanceFailed(name: string, error: unknown): void {
+    if (this.#maintenanceProblems.has(name)) return;
+    this.#maintenanceProblems.add(name);
+    (this.#options.log ?? console.warn)(`browser cleanup: ${name} failed; ownership retained: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  #maintenanceRecovered(name: string): void {
+    if (this.#maintenanceProblems.delete(name)) (this.#options.log ?? console.warn)(`browser cleanup: ${name} recovered; maintenance resumed`);
   }
 
   #running(): boolean {
-    return this.service.profiles().some((profile) => profile.run || profile.starting) || this.#registry.list().length > 0;
+    try {
+      const registered = this.#registry.list();
+      this.#maintenanceRecovered("registry read");
+      return registered.length > 0 || this.service.profiles().some(profile => profile.run || profile.starting) || this.#maintenanceProblems.size > 0;
+    } catch (error) {
+      this.#maintenanceFailed("registry read", error);
+      return true;
+    }
   }
 
   /** Whether this engine ever made a profile in this data folder. */
   #everUsed(): boolean {
     const root = browserRoot(this.#options.dataDir);
-    return existsSync(join(root, "profiles")) || existsSync(join(root, "temp"));
+    return existsSync(this.#registry.file) || existsSync(join(root, "profiles")) || existsSync(join(root, "temp"));
   }
 
   async close(): Promise<void> {
@@ -152,18 +185,20 @@ export class ChromeEngine {
     this.#timer = null;
     this.live.closeAll();
     this.stream.closeAll();
+    await this.#maintenance;
     await this.service.closeAll();
   }
 
   /** A deleted bot's or profile's browser: stopped, and its folder, downloads and screenshots gone. */
   async erase(request: { kind: "bot" | "profile"; id: string; partitionId: string }): Promise<boolean> {
     const key = request.kind === "bot" ? `bot:${request.id}` : `shared:${request.partitionId}`;
-    if (!this.#everUsed()) return true;
     try {
+      this.#registry.list();
+      if (!this.#everUsed()) return true;
       await this.service.erase(key);
       return true;
     } catch (error) {
-      this.#options.log?.(`browser cleanup: could not erase ${key}: ${error instanceof Error ? error.message : String(error)}`);
+      (this.#options.log ?? console.warn)(`browser cleanup: could not erase ${key}: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     }
   }

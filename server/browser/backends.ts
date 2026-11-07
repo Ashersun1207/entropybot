@@ -95,14 +95,20 @@ export class LocalBackend implements Backend {
   async open(request: OpenRequest): Promise<OpenedBrowser> {
     const options = this.#options;
     const platform = options.platform ?? process.platform;
-    const release = options.registry?.reserve(profileDir(options.dataDir, request.key));
+    const dir = profileDir(options.dataDir, request.key);
+    const release = options.registry?.reserve(dir);
+    const stage = { invoked: false };
     try {
-      const opened = await this.#open(request, platform);
+      const opened = await this.#open(request, platform, (input) => {
+        stage.invoked = true;
+        return (options.launch ?? launchChrome)(input);
+      });
       release?.();
       return opened;
     } catch (error) {
-      const cleanup = chromeCleanupState(error, profileDir(options.dataDir, request.key));
+      const cleanup = stage.invoked ? chromeCleanupState(error, dir) : { status: "closed" as const, userDataDir: dir };
       if (cleanup.status === "closed") release?.();
+      if (!stage.invoked) throw new ChromeCleanupError(error instanceof Error ? error.message : String(error), cleanup, { cause: error });
       if (error instanceof ChromeCleanupError && error.retryCleanup) {
         const retry = error.retryCleanup;
         throw new ChromeCleanupError(error.message, cleanup, { cause: error }, async () => { await retry(); release?.(); });
@@ -111,7 +117,7 @@ export class LocalBackend implements Backend {
     }
   }
 
-  async #open(request: OpenRequest, platform: NodeJS.Platform): Promise<OpenedBrowser> {
+  async #open(request: OpenRequest, platform: NodeJS.Platform, launch: (options: LaunchOptions) => Promise<ChromeProcess>): Promise<OpenedBrowser> {
     const options = this.#options;
     const binary = await options.binary();
     const { dir, record, created } = ensureProfile(options.dataDir, request.key, { acceptLanguages: options.acceptLanguages?.() ?? "en-US,en" });
@@ -127,7 +133,7 @@ export class LocalBackend implements Backend {
     const screen = headless ? await options.screen() : null;
     const limit = screen ? pageLimit(screen, platform) : null;
     const viewport = fitPage(request.viewport, limit);
-    const chrome: ChromeProcess = await (options.launch ?? launchChrome)({
+    const chrome = await launch({
       executablePath: binary.path,
       userDataDir: dir,
       mode: request.mode,

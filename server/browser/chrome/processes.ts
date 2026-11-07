@@ -26,7 +26,12 @@ export class ProcessRegistry {
   list(): RegisteredProcess[] {
     try {
       const parsed = JSON.parse(readFileSync(this.file, "utf8")) as unknown;
-      return Array.isArray(parsed) ? parsed.filter((entry): entry is RegisteredProcess => typeof entry?.pid === "number" && typeof entry?.userDataDir === "string") : [];
+      if (!Array.isArray(parsed) || parsed.some(entry => !Number.isSafeInteger(entry?.pid) || entry.pid < 1
+        || !Number.isSafeInteger(entry?.ownerPid) || entry.ownerPid < 1 || typeof entry?.userDataDir !== "string" || !entry.userDataDir
+        || (entry.startTime !== null && typeof entry.startTime !== "string") || typeof entry.launchedAt !== "string")) {
+        throw new Error("Chrome process registry is malformed; ownership retained.");
+      }
+      return parsed as RegisteredProcess[];
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw error;
