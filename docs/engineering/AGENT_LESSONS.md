@@ -59,6 +59,12 @@
 
 - 维护防重入改动需同时运行既有 `engines.test.ts` minute 调用方与新增维护测试；只跑新增 108 项遗漏了该文件。fake time 推进两分钟不代表真实 OS sweep 已完成，分钟夹具应执行原 sweep 算法并注入受控 list/alive/kill，明确等待本轮完成。受控 pending promise 又证明整批共享 fence 会让 idle close 与 OS sweep 互相阻塞：按任务保留防重入，未完成的同类任务仍只有一个，独立任务继续每分钟执行，close 等待全部在途任务。回归 `engines.test.ts` 的两个原 expected3/inactive 断言及双向 pending 用例，不靠降次数或把 sweep 改 noop 过关。
 
+## 活跃 CI 契约与有效配置
+
+- 归档上游 workflow 的契约通过，不能证明实际启用的 Entropybot CI 有 lint 或离线行为门。新增回归 `scripts/entropybot-ci-workflow.test.ts` 读取 active workflow；先保留原CI的失败记录，再接线，删除必需step的变异必须失败。
+- 只比较 `run` 字符串会漏掉 `shell: true {0}`、继承 defaults 或工作目录导致的空执行；只看顶层permissions会漏job覆盖；秘密引用还可能在env/action输入、括号访问或函数包装里。复审两轮补齐同一验证器的负例，禁止通过忽略失败/改基线凑绿。本回归用于约束已知配置退化，不是任意恶意workflow的形式证明。
+- `OMB_EVAL_LIVE=0` 与假引擎表示不主动调用真实模型，不等于OS网络沙箱。现有eval runner会吞close异常；评估通过不能单独证明子进程、后代与临时目录均已回收。保留这一限制，不拿CI job截止代替资源回执。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

@@ -16,6 +16,8 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
         with:
           version: 10.33.0
@@ -24,9 +26,44 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/entropybot-release.mjs check
-      - run: node scripts/check-patches.mjs --verify
-      - run: pnpm typecheck
+      - id: ci-contract
+        run: pnpm exec vitest run scripts/entropybot-ci-workflow.test.ts
+      - id: lint
+        run: pnpm lint
+      - id: identity
+        run: node scripts/entropybot-release.mjs check
+      - id: patches
+        run: node scripts/check-patches.mjs --verify
+      - id: types
+        run: pnpm typecheck
         env:
           NODE_OPTIONS: --max-old-space-size=6144
-      - run: pnpm exec vitest run scripts/testing/file-size-ratchet.test.ts scripts/testing/verification-docs.test.ts src/locales/vocabulary.test.ts electron/updater.test.mjs server/local-computer.test.ts
+      - id: guards
+        run: pnpm exec vitest run scripts/testing/file-size-ratchet.test.ts scripts/testing/verification-docs.test.ts src/locales/vocabulary.test.ts electron/updater.test.mjs server/local-computer.test.ts
+  behavior-evals:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+      OMB_EVAL_LIVE: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: eval-types
+        run: pnpm exec tsc -p evals/tsconfig.json
+      - id: eval-tests
+        run: pnpm exec vitest run --config evals/vitest.config.ts
+      - id: scenarios
+        run: pnpm eval
+      - id: golden
+        run: pnpm eval --golden
