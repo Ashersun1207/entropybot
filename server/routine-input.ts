@@ -1,4 +1,5 @@
 // A routine as a person, a bot or an import asked for it, checked and cleaned before RoutineManager keeps it.
+import { assertCollectionScope, cleanCollectionPlan } from "./routine-collection-plan.ts";
 import { runsOnce } from "../shared/limit-reset.ts";
 import { cleanAttachments, cleanTimeoutMinutes } from "./routine-attachments.ts";
 import { loadChecks } from "./routine-load.ts";
@@ -7,6 +8,8 @@ import type { Routine, RoutineInput } from "./routines.ts";
 import { userErrorThrown } from "./user-errors.ts";
 
 export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine, "id" | "createdAt" | "updatedAt" | "nextRunAt"> {
+  const collection = cleanCollectionPlan(input.collection);
+  assertCollectionScope({ ...input, collection });
   const name = String(input.name ?? "").trim().slice(0, 80);
   const prompt = String(input.prompt ?? "").trim().slice(0, 20_000);
   const botId = String(input.botId ?? "").trim();
@@ -46,6 +49,7 @@ export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine,
   return {
     name,
     prompt,
+    ...(collection ? { collection } : {}),
     target,
     botId,
     groupId: target === "room-goal" && groupId ? groupId : undefined,

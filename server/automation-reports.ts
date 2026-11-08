@@ -4,6 +4,7 @@
 // the copy answers the run. Nothing is written into a chat while a turn runs or settles in it: a line waits for the
 // next flush, which the server runs whenever it releases what was queued behind a turn, ahead of that queue. A routine
 // that delivers to the brief posts no line: its answer goes to the brief, which reads it as a small JSON result.
+import { setTimeout as delay } from "node:timers/promises";
 import { liveCardKind } from "../shared/live-approval.ts";
 import type { AutomationLine } from "../shared/routine-run.ts";
 import { signInWaits } from "../shared/sign-in-request.ts";
@@ -153,6 +154,11 @@ export function createAutomationReports(deps: AutomationReportDeps) {
   /** False while the chat it goes to is busy. */
   const write = (line: Waiting): boolean => {
     const { run } = line;
+    if (run.collection && line.kind === "reply" && deps.routines()?.listRuns().some(current =>
+      current.id === run.id && ["cancelled", "failed"].includes(current.status))) {
+      deps.routines()?.noteReport(run.id, undefined);
+      return true;
+    }
     const target = destination(run);
     if (!target) {
       if (line.kind !== "card") deps.routines()?.noteReport(run.id, undefined);
@@ -183,7 +189,7 @@ export function createAutomationReports(deps: AutomationReportDeps) {
       role: "bot", kind: "text", text: reply.text,
       ...(source?.attachments?.length && !recovered ? { attachments: source.attachments } : {}),
       automation: lineOf(run, line.kind === "failure" ? { failed: true, ...(run.partial ? { partial: true as const } : {}) } : recovered ? { recovered: true } : reply.question ? { needsYou: true } : {}),
-    });
+    }, run.collection ? { kind: "web-collection.report.v1", key: run.id } : undefined);
     deps.routines()?.noteReport(run.id, { state: "posted", threadId: target.threadId, messageId: posted.id });
     deps.wrote(target.bot, target.threadId);
     store.patchTask(target.bot.id, target.threadId, { unread: true });
@@ -240,6 +246,30 @@ export function createAutomationReports(deps: AutomationReportDeps) {
 
   return {
     flush,
+    async publishCollection(run: RoutineRun, text: string, signal: AbortSignal): Promise<void> {
+      signal.throwIfAborted();
+      const target = destination(run);
+      if (!run.collection || !run.threadId || !target) throw new Error("Collection report destination unavailable");
+      const source = store.appendMessage(run.threadId, { role: "bot", kind: "text", text, turnTerminal: true },
+        { kind: "web-collection.summary.v1", key: run.id });
+      if (source.text !== text) throw new Error("Collection report summary conflicts with durable message");
+      const confirmed = () => {
+        const posted = store.messagesFor(target.threadId).find(message => message.automation?.runId === run.id && !message.automation.copyOf);
+        if (posted && posted.text !== text) throw new Error("Collection report publication conflicts with durable message");
+        return Boolean(posted);
+      };
+      try {
+        try { hold(run.id, { kind: "reply", run, messageId: source.id }); }
+        catch (error) { if (!confirmed()) throw error; }
+        for (;;) {
+          signal.throwIfAborted();
+          if (confirmed()) return;
+          try { flush(); } catch (error) { if (!confirmed()) throw error; }
+          if (confirmed()) return;
+          await delay(50, undefined, { signal });
+        }
+      } finally { waiting.delete(run.id); }
+    },
     /** A run's turn ended: once the run is complete, its reply becomes one line in the chat it reports to, or nothing. */
     runSettled(run: RoutineRun, turnId?: string): void {
       if (run.target !== "bot" || run.status !== "completed" || !run.threadId) return;

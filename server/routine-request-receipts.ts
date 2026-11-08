@@ -132,6 +132,13 @@ export class RoutineRequestReceipts {
     this.entries.unshift({ ...request, resultId, appliedAt });
   }
 
+  manualForRun(runId: string, routineId: string): RoutineManualReceipt | null {
+    const matches = this.entries.filter((receipt): receipt is RoutineManualReceipt =>
+      isManualReceipt(receipt) && receipt.resultId === runId);
+    if (matches.length !== 1 || matches[0].routineId !== routineId) return null;
+    return { ...matches[0] };
+  }
+
   protectsRun(runId: string): boolean {
     return this.entries.some((receipt) => isManualReceipt(receipt) && receipt.resultId === runId);
   }

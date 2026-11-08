@@ -23,10 +23,11 @@ export function resolveRoutineResultsThread(
 }
 
 export function routineRunDefinition(routine: Routine): Pick<RoutineRun,
-  "routineName" | "prompt" | "durationMinutes" | "timeoutMinutes" | "attachments" | "target" | "groupId" | "botId" | "runOn" | "access" | "deliver"> {
+  "routineName" | "collection" | "prompt" | "durationMinutes" | "timeoutMinutes" | "attachments" | "target" | "groupId" | "botId" | "runOn" | "access" | "deliver"> {
   return {
     routineName: routine.name,
     prompt: routine.prompt,
+    ...(routine.collection ? { collection: structuredClone(routine.collection) } : {}),
     durationMinutes: routine.durationMinutes,
     ...(routine.timeoutMinutes === undefined ? {} : { timeoutMinutes: routine.timeoutMinutes }),
     attachments: cloneAttachments(routine.attachments),

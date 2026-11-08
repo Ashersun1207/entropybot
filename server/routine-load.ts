@@ -1,6 +1,7 @@
 // Routines and runs as routines.json holds them, read back into the shapes RoutineManager works with: anything a hand
 // edit or an older version left out of range is dropped, never trusted.
 import { z } from "zod";
+import { assertCollectionScope, cleanCollectionPlan } from "./routine-collection-plan.ts";
 
 import type { RoutineRequestOperation } from "../shared/routine-request.ts";
 import { ROUTINE_CHECKS, type RoutineCheck } from "../shared/routines.ts";
@@ -78,11 +79,15 @@ function withoutUndefined<T extends object>(record: T, keys: ReadonlyArray<keyof
 
 /** Null when its schedule cannot load: the caller keeps it on disk, unscheduled. */
 export function loadRoutine(routine: Routine, now: number): Routine | null {
+  let collection;
+  try { collection = cleanCollectionPlan(routine.collection); assertCollectionScope({ ...routine, collection }); }
+  catch { return null; }
   const schedule = loadSchedule(routine.schedule, now);
   if (!schedule) return null;
   const target = loadTarget(routine.target);
   const loaded: Routine = {
     ...routine,
+    collection,
     schedule,
     target,
     groupId: loadGroupId(routine.groupId, target),
@@ -107,9 +112,15 @@ export function loadRoutine(routine: Routine, now: number): Routine | null {
 }
 
 export function loadRun(run: RoutineRun): RoutineRun {
+  let collection;
+  try {
+    collection = cleanCollectionPlan(run.collection);
+    if (collection && (!run.manual || run.triggerSource !== "manual" || run.target !== "bot" || run.runOn !== "maus")) throw new Error();
+  } catch { throw new RoutineReceiptCorruptionError(); }
   const target = loadTarget(run.target);
   const loaded: RoutineRun = {
     ...run,
+    collection,
     target,
     goalStatus: loadGoalStatus(run.goalStatus, target),
     groupId: loadGroupId(run.groupId, target),

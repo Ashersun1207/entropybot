@@ -1,5 +1,6 @@
 /** Routine wire shapes: the routine and run records as they ride the REST
  * snapshot and the `routine` / `routine.run` live frames. */
+import type { RoutineCollectionPlan } from "./collection-plan.ts";
 import type { LimitResetSchedule, LimitResetScheduleInput } from "./limit-reset.ts";
 import type { RoutineCronSchedule } from "./routine-schedule.ts";
 import type { ServerTextParams } from "./server-text.ts";
@@ -120,6 +121,7 @@ export interface Routine {
   id: string;
   name: string;
   prompt: string;
+  collection?: RoutineCollectionPlan;
   target: RoutineTarget;
   botId: string;
   /** The room a "room-goal" runs in; none runs the goal in the bot's own one-on-one chat, a room of one. */
@@ -169,6 +171,7 @@ export interface RoutineRun {
   routineId: string;
   routineName: string;
   prompt?: string;
+  collection?: RoutineCollectionPlan;
   durationMinutes?: number;
   timeoutMinutes?: number;
   attachments?: RoutineContextAttachment[];
@@ -223,6 +226,7 @@ export interface RoutineRun {
 export interface RoutineInput {
   name: string;
   prompt: string;
+  collection?: RoutineCollectionPlan;
   target?: RoutineTarget;
   botId: string;
   groupId?: string | null;

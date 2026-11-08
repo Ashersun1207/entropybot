@@ -343,6 +343,7 @@ desktop routing, cancellation, and computer authority cleanup.
 - [A1a manual web collection module](web-collection.md)
 - [A1c collection host adapter](web-collection-host.md)
 - [A1d guarded HTTP collection reader](web-collection-http.md)
+- [Protected manual production collection dispatch](web-collection-production.md)
 - [M1a memory source and forgetting scope](memory-source-scope.md)
 - [M1b expired multiline retrieval](memory-expiry-retrieval.md)
 - [C1a paired chat preparation attribution](chat-preparation-attribution.md)

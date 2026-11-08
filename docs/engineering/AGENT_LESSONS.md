@@ -100,6 +100,14 @@
 - 触发：confirmed setItem 成功而紧随的 getItem 抛错。旧 provider 的 uncertain map 保留原 key，但 reload/更换 provider 丢失该 map；原有同 provider 重试通过并不能证明 reload 安全。基线 `a92388449` 的新增红例实际发出两个不同 key，真实 Chrome 夹具在故障、原服务器同 dataDir 重启及 Page.reload 后缺少 Retry。修复身份见本条所属提交：新 owner 对任何既有 marker 先以原 key/context 对账，confirmed phase 不单独授权旋转或驱逐；本 owner 的成功回执有界保存，显式 Retry 即使在同 provider 重开详情后也强制复用原操作，提前替换仍须原确认。回归入口 `src/state/routine-run-intent.test.ts`、`src/state/routine-run-intent.integration.test.ts`、`scripts/testing/routine-run-reload-ui.e2e.test.ts`；含实际 browser reload、同目录 server restart、真实合成认证 context 变更前置拒绝、unmount 后迟到响应和替换身份 fence、32 条容量保留/可确认驱逐。边界：reload 后即使先前成功也保守要求再对账；32 条未对账会阻止新 routine；无多 tab 仲裁、真实账号/模型/Keychain 或安装包验收。证据与测试入口见 [验证说明](../verification/routine-run-reload-recovery.md)。
 - 本轮测试入口失败分别保留：默认 server setup 在 happy-dom 引入 node:sqlite、Vitest it.each 脱离 receiver、外部配置 .ts 被按 CJS 载入、EventDetails 实为 aside 而不是 dialog。另一个 browser 探针在 Page.reload 返回后读到旧文档控件；修正为先观察新文档标记消失与 readyState，再断言 Retry。fixture-only 类型配置首版还漏带既有 app/Vite 声明与 DOM.AsyncIterable，补齐外部检查配置后通过，没有改产品类型或 strict。只有修正后的真实断言红例才算产品复现，setup 失败、provider remount 与旧文档 DOM 都不能替代 browser reload 证据。
 
+## A1：生产采集派发与报告确认
+
+- `report.state: pending` 只表示报告排队，不能让采集 host 的发布回调成功。生产接线必须保留每个 run 的版本化计划和原 HTTP request receipt；重启只恢复同一手动身份，未知读取 reservation 不重发，不能读取后来修改的 routine 计划。报告使用现有 Store/commands SQLite 的稳定消息命令，在目标聊天实际消息存在后才确认；繁忙时保持未确认，取消后不得靠后续 flush 发布旧摘要。
+- 本轮新适配器的真实红例：目标报告已 append 落库，确认路径抛错，run 却变成 failed（`publication-red`：3 通过/1 失败）。根因是把回调异常直接等同未发布；修复先验证同一 run/目标/文本的持久消息，已提交即确认，不重发消息、不重读页面。回归 `server/routine-collection-publication.test.ts`；真实进程窗口由 `server/routine-collection-dispatch.e2e.test.ts` 在 append 返回后 SIGKILL，再核对重启后的原 message ID、单产物和读取次数。原通用 host 无本地幂等 reconciliation 的调用仍保持 unknown/no-resend，不能把此修复外推为外部服务 exactly-once。
+- 新采集检查还曾额外调用一次 listRoutines，既有 context 回归实际得到 6 次而期望 3 次（`correction1-behavior`：370 通过/1 失败）。修复复用一次只读存在查询，保持原鉴权/context/mutation 顺序；`server/routine-manual-context.test.ts` 与原 manual HTTP e2e 共同回归。首轮另有测试查询消息使用错误路由的夹具失败，改用现有 threads/messages 路径；不将其称为产品红例。
+- 本轮还出现文档验证竞态：组合套件运行期间写新验证文档及其 README 链接，文档测试先缓存了旧 README，最后实际报新文档不可达（`correction2-behavior`：378 通过/1 失败）。根因是只冻结 TypeScript、证据脚本未 hash Markdown；以后文档/索引先一次完成，再冻结运行文档门，回执同时纳入 Markdown。最终 runner 已补 Markdown、Node binary hash 和依赖根记录，旧回执保留且不追认文档冻结。
+- 证据与精确命令见 `docs/verification/web-collection-production.md` 和本轮交接 SHA。仅有合成 DNS/loopback、进程重启与既有 SQLite 持久语义；真实站点/TLS、断电一致性、桌面 UI/安装未验证。报告等待每次派发独立限制为 60 秒，不能宣称无限繁忙恢复；持久采集读取预算和截止不因恢复清零。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

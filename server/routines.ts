@@ -1,3 +1,5 @@
+import type { RoutineCollectionPlan } from "../shared/collection-plan.ts";
+import type { CollectionDispatch } from "./routine-collection-dispatch.ts";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -53,6 +55,7 @@ export interface Routine extends RoutineTroubleCode {
   id: string;
   name: string;
   prompt: string;
+  collection?: RoutineCollectionPlan;
   target: RoutineTarget;
   botId: string;
   groupId?: string;
@@ -96,6 +99,7 @@ export interface RoutineRun extends RoutineLineCodes {
   routineId: string;
   routineName: string;
   prompt?: string;
+  collection?: RoutineCollectionPlan;
   durationMinutes?: number;
   timeoutMinutes?: number;
   attachments?: RoutineContextAttachment[];
@@ -148,6 +152,7 @@ type RoutineRequestCommitFor<Action extends RoutineRequestOperation["action"]> =
 export interface RoutineInput {
   name: string;
   prompt: string;
+  collection?: RoutineCollectionPlan;
   target?: RoutineTarget;
   botId: string;
   groupId?: string | null;
@@ -194,6 +199,7 @@ export interface RoutineChecks {
 }
 
 export interface RoutineManagerOptions {
+  collection?: CollectionDispatch;
   file?: string;
   now?: () => number;
   /** Every payload must be `{ kind, … }`: the server numbers and replays frames by it. */
@@ -259,6 +265,7 @@ function cloneRoutine(routine: Routine): Routine {
   return {
     ...routine,
     schedule: cloneSchedule(routine.schedule),
+    ...(routine.collection ? { collection: structuredClone(routine.collection) } : {}),
     attachments: cloneAttachments(routine.attachments),
   };
 }
@@ -267,6 +274,7 @@ function cloneRun(run: RoutineRun): RoutineRun {
   return {
     ...run,
     attachments: cloneAttachments(run.attachments),
+    ...(run.collection ? { collection: structuredClone(run.collection) } : {}),
     denials: run.denials ? [...run.denials] : undefined,
   };
 }
@@ -340,7 +348,8 @@ export class RoutineManager {
         this.wait(run, "Waiting for work it handed on to finish");
         continue;
       }
-      if (!requeueOnce(run, "restarted", ROUTINE_RESTARTED, this.now())) {
+      if (run.collection) Object.assign(run, { status: "queued", retryAt: this.now(), retried: "restarted" });
+      else if (!requeueOnce(run, "restarted", ROUTINE_RESTARTED, this.now())) {
         Object.assign(run, { status: "failed", error: ROUTINE_RESTARTED, attention: undefined, finishedAt: this.now() } satisfies Partial<RoutineRun>);
         if (run.target === "room-goal") run.goalStatus = "failed";
       }
@@ -542,6 +551,7 @@ export class RoutineManager {
     const clean = sanitizeInput({
       name: patch.name ?? routine.name,
       prompt: patch.prompt ?? routine.prompt,
+      collection: patch.collection === undefined ? routine.collection : patch.collection,
       target: patch.target ?? routine.target,
       botId: patch.botId ?? routine.botId,
       groupId: Object.hasOwn(patch, "groupId") ? patch.groupId : routine.groupId,
@@ -685,6 +695,7 @@ export class RoutineManager {
 
   runNow(id: string, request?: RoutineRequestCommitFor<"run_now">, manual?: RoutineManualRequest): RoutineRun | null {
     if (this.closing) return null;
+    if (this.routines.find(r => r.id === id)?.collection && !manual) throw Object.assign(new Error("Collection requires a protected manual request"), { status: 400 });
     if (request) {
       const receipt = this.routineRequestReceipts.matching(request);
       if (receipt) {
@@ -815,6 +826,7 @@ export class RoutineManager {
     const run = this.runs.find((r) => r.id === id);
     if (!run || !["queued", "running", "waiting"].includes(run.status)) return null;
     run.status = "cancelled";
+    if (run.collection) this.options.collection?.cancel(run.id);
     if (run.target === "room-goal") run.goalStatus = "stopped";
     run.attention = undefined;
     run.finishedAt = this.now();
@@ -939,6 +951,7 @@ export class RoutineManager {
   /** At shutdown: a run whose turn the shutdown cuts stays running on disk, for the next start to pick up once. */
   close() {
     this.closing = true;
+    for (const run of this.runs) if (run.collection) this.options.collection?.cancel(run.id);
     this.stop();
   }
 
@@ -1138,7 +1151,19 @@ export class RoutineManager {
             continue;
           }
           const triggerSource = run.triggerSource ?? (run.manual ? "manual" : "schedule");
-          if (run.target === "room-goal") {
+          if (run.collection) {
+            const request = this.routineRequestReceipts.manualForRun(run.id, run.routineId);
+            if (!request || !this.options.collection) throw Object.assign(new Error("Collection dispatch identity unavailable"), { status: 503 });
+            this.options.collection.start(cloneRun(run), request.requestId, (output, error) => {
+              const current = this.runs.find(candidate => candidate.id === run.id);
+              if (this.closing || current?.status !== "running") return;
+              if (error) this.failThread(task.threadId, error, { cause: "refused" });
+              else {
+                this.commitMutation(() => Object.assign(current, { status: "completed", output, finishedAt: this.now() }));
+                this.emitRun(current);
+              }
+            });
+          } else if (run.target === "room-goal") {
             if (!this.options.startGoal) {
               this.failThread(task.threadId, "Room goal routines are unavailable");
               continue;
@@ -1343,6 +1368,7 @@ export class RoutineManager {
 
   private async stopRun(run: RoutineRun, detail: string, status: "stopped" | "limit-reached") {
     if (run.target === "room-goal") run.goalStatus = status;
+    if (run.collection) this.options.collection?.cancel(run.id);
     this.failRun(run, detail);
     if (!run.threadId) return;
     if (run.target === "room-goal") await this.options.interruptGoal?.(run.groupId, run.threadId, { status, detail }).catch(() => {});

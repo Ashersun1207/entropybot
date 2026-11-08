@@ -18,7 +18,7 @@ function canonical(value: unknown): unknown {
 export function manualRoutineFingerprint(routine: Routine, authority: string): string {
   const keys = ["id", "createdAt", "name", "prompt", "target", "botId", "groupId", "runOn", "enabled", "schedule",
     "durationMinutes", "timeoutMinutes", "attachments", "continuity", "overlap", "runOnStartup", "checks", "access", "deliver",
-    "sourceThreadId", "resultsThreadId"] as const;
+    "sourceThreadId", "resultsThreadId", "collection"] as const;
   return hash({ version: 1, authority, definition: Object.fromEntries(keys.map((key) => [key, routine[key]])) });
 }
 
@@ -63,8 +63,9 @@ export function runManualRoutine(req: IncomingMessage, auth: RequestAuth, manage
   if (key !== undefined && auth.kind === "loopback" && auth.trust === "service") {
     throw Object.assign(new Error("This caller cannot start a manual routine"), { status: 403 });
   }
+  const routine = manager.listRoutines().find(candidate => candidate.id === id);
+  if (routine?.collection && !protectedRequest) throw Object.assign(new Error("Collection requires the protected manual endpoint"), { status: 400 });
   if (key === undefined) return manager.runNow(id);
-  const routine = manager.listRoutines().find((candidate) => candidate.id === id);
   if (!routine) return null;
   if (expected !== undefined && (!environmentId || manualRoutineContext(auth, environmentId, ownerStarted)?.contextId !== expected)) {
     throw Object.assign(new Error("Manual request context changed; reconcile the original intent before trying again"), { status: 409, code: "manual_context_mismatch" });

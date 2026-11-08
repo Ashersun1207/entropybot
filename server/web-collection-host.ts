@@ -14,6 +14,8 @@ export interface CollectionHostOptions extends Omit<CollectionOptions, "run" | "
   run: RoutineRun;
   /** Resolve only after publication is confirmed. A failure leaves an unknown outcome and cannot be automatically resent. */
   publish: (publication: CollectionPublication) => Promise<void>;
+  /** Local publishers may reconcile a reservation using a durable, idempotent message command. Never resend an external effect. */
+  reconcile?: (publication: CollectionPublication) => Promise<void>;
 }
 
 export async function hostWebCollection(options: CollectionHostOptions): Promise<CollectionReport> {
@@ -35,8 +37,8 @@ export async function hostWebCollection(options: CollectionHostOptions): Promise
     return { binding };
   }, options.now);
   if (reservation.binding !== binding) throw new Error("Collection publication binding mismatch");
-  if (!admitted) throw new Error("Collection publication outcome unknown; reconciliation required, no resend");
-  await options.publish({ key, text, signal: options.signal });
+  if (!admitted && !options.reconcile) throw new Error("Collection publication outcome unknown; reconciliation required, no resend");
+  await (admitted ? options.publish : options.reconcile!)({ key, text, signal: options.signal });
   runCommand({ kind, key: `${key}:completed` }, () => ({ binding }), options.now);
   return report;
 }
