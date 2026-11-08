@@ -127,6 +127,18 @@ it("cancellation while reporting is busy prevents queued publication after flush
   expect(f.request).toHaveBeenCalledTimes(2);
 });
 
+it("cancels collection publication when its bot's unfinished runs are removed", async () => {
+  const f = fixture();
+  f.setBusy(true);
+  const run = f.start();
+  await expect.poll(() => f.current(run.id).report?.state).toBe("pending");
+  f.manager().removeForBot(f.bot.id);
+  expect(f.manager().listRuns()).toHaveLength(0);
+  f.setBusy(false); f.flush();
+  expect(f.lines()).toHaveLength(0);
+  expect(f.request).toHaveBeenCalledTimes(2);
+});
+
 it("ordinary routines still dispatch through the original provider path", async () => {
   const f = fixture();
   const ordinary = f.manager().create({ name: "Ordinary", prompt: "Regular instructions", botId: f.bot.id,

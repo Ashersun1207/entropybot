@@ -154,10 +154,12 @@ export function createAutomationReports(deps: AutomationReportDeps) {
   /** False while the chat it goes to is busy. */
   const write = (line: Waiting): boolean => {
     const { run } = line;
-    if (run.collection && line.kind === "reply" && deps.routines()?.listRuns().some(current =>
-      current.id === run.id && ["cancelled", "failed"].includes(current.status))) {
-      deps.routines()?.noteReport(run.id, undefined);
-      return true;
+    if (run.collection && line.kind === "reply") {
+      const current = deps.routines()?.listRuns().find(candidate => candidate.id === run.id);
+      if (!current || ["cancelled", "failed"].includes(current.status)) {
+        deps.routines()?.noteReport(run.id, undefined);
+        return true;
+      }
     }
     const target = destination(run);
     if (!target) {

@@ -649,6 +649,7 @@ export class RoutineManager {
     for (const routine of this.routines.filter((candidate) => candidate.botId === botId)) this.remove(routine.id);
     for (const run of this.runs) {
       if (run.botId !== botId || !["queued", "running", "waiting"].includes(run.status)) continue;
+      if (run.collection) this.options.collection?.cancel(run.id);
       run.status = "cancelled";
       if (run.target === "room-goal") run.goalStatus = "stopped";
       run.attention = undefined;
