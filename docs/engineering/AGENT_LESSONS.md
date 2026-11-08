@@ -93,6 +93,7 @@
 - 触发：Composio bridge 的 initialize 或 tools/list 返回 RPC error。实际根因是 `mountChatTools` 按 built-in/custom 分组，把可选 `composio`/`own_apps` 与必需 agents 一起直接抛错；准备成功不代表挂载成功，聊天因此在模型请求前失败。修复只让这两个可选 bridge 的挂载拒绝走现有 skipped notice，关闭失败 client、整组省略其工具，通知使用固定文本，不带上游错误、URL 或凭证；取消、必需服务失败、schema 校验与 toolScope 错误继续拒绝。修复身份以本条所属提交为准。
 - 准备路径已核实：`appsIntegrations` → `mcpIntegration` 的 connectorTools 清单读取经过 `connectedServiceSlugs`，库存网络失败已有降级，原 allowlist 保留；不应为猜测的准备失败新增宽泛 catch，策略/序列化等异常仍上抛。回归入口：`server/drivers/openai-chat-tools.test.ts` 的 optional connected-app outages（真实 stdio MCP + loopback 假 Chat Completions，四个失败阶段先红后绿、健康工具实际执行、通知脱敏、取消与必需 agents/policy 拒绝）；`chat-mcp-tools.test.ts` 检查失败进程关闭、健康内置工具与选择/审批边界；`composio.test.ts`、`host/team-connections-host.test.ts` 检查准备流程。测试首轮因合成 broker token 不符合既有 64 位 hex 契约失败，修正 fixture 后重跑，不修改产品校验。
 - 边界：只覆盖已有 Chat Completions runtime；没有调用真实 Magpie、Composio 或用户数据，不能宣称云端服务恢复、安装包或 UI 实测通过。已有启动等待预算保持原样；执行中失败仍走原不确定结果/关闭语义，不自动重试外部动作。
+- 文档漏检：`398e32e2d` 新增验证文档但未接入 README，原 359 项行为/体积回归未包含文档守卫。主控 04:27 运行 `scripts/testing/verification-docs.test.ts` 时 6 通过/1 失败，`are all reachable from README.md` 在第 102 行实际得到 `["optional-connectors-isolation.md"]`，期望 `[]`；本 worktree 原提交重现同一失败，证据 `optional-connectors-evidence/docs-index-red.{json,log}`。根因是新增文档时未把索引与文档守卫纳入变更范围检查。修复补 README 链接；以后新增/移动验证文档均运行该守卫，行为/类型检查不能替代文档可达性验证。此次文档修复不改生产代码，不重跑未变的 359 项；修复身份及文档守卫绿例见后续单独提交与交接。
 
 ## 不应合并的改动
 
