@@ -48,11 +48,12 @@ async function server() {
     finally { closeSync(log); }
     await expect.poll(async () => { try { return (await fetch(url + "/api/health")).ok; } catch { return false; } }, { timeout: 20_000 }).toBe(true);
   };
-  return { url, dataDir, api, bot, make, runs, start, complete, restart };
+  const protectedStart: typeof start = (id, key, token, body, context) => api("POST", `/api/routines/${id}/run-protected`, body, key, token, context);
+  return { url, dataDir, api, bot, make, runs, start, protectedStart, complete, restart };
 }
 
 it("advertises manual context and preserves matching concurrent/restarted requests", async () => {
-  const s = await server(), routine = await s.make();
+  const fixture = await server(), s = { ...fixture, start: fixture.protectedStart }, routine = await s.make();
   const descriptor = (await s.api("GET", "/.well-known/entropybot/environment")).body;
   expect(descriptor.capabilities.manualRoutineRequests).toBe(1);
   const before = (await s.api("GET", "/api/auth/session")).body;
@@ -68,7 +69,7 @@ it("advertises manual context and preserves matching concurrent/restarted reques
 }, 60_000);
 
 it("rejects old manual context after authenticated principal switches without admitting a receipt", async () => {
-  const s = await server(), routine = await s.make();
+  const fixture = await server(), s = { ...fixture, start: fixture.protectedStart }, routine = await s.make();
   const preflight = (await s.api("GET", "/api/auth/session")).body.manualRoutineRequests;
   expect(preflight?.contextId).toMatch(/^mr1_[a-f0-9]{64}$/);
   const opened = await s.api("POST", "/api/auth/pairing", { label: "Synthetic switched caller", scopes: ["client"] });
@@ -93,10 +94,39 @@ it("rejects old manual context after authenticated principal switches without ad
   await s.restart();
   expect((await s.api("GET", "/api/auth/session", undefined, undefined, paired.token)).body.manualRoutineRequests).toEqual(session.manualRoutineRequests);
   expect((await s.start(routine.id, "switch", paired.token, undefined, session.manualRoutineRequests.contextId)).body.run.id).toBe(accepted.body.run.id);
-  expect((await s.start("missing-target", "missing", paired.token, undefined, session.manualRoutineRequests.contextId)).status).toBe(404);
+  expect((await s.start("missing-target", "missing", paired.token, undefined, preflight.contextId)).status).toBe(404);
   expect((await s.start(routine.id, "switch", "omb_sess_invalid_synthetic", undefined, session.manualRoutineRequests.contextId)).status).toBe(401);
-  expect((await s.start(routine.id, "switch", paired.token)).body.run.id).toBe(accepted.body.run.id);
+  expect((await fixture.start(routine.id, "switch", paired.token)).body.run.id).toBe(accepted.body.run.id);
   expect(await s.runs()).toHaveLength(1);
+}, 60_000);
+
+it("requires protected headers, preserves missing-target precedence, and refuses frozen requests", async () => {
+  const s = await server(), routine = await s.make();
+  const sessionResponse = await fetch(s.url + "/api/auth/session");
+  expect(sessionResponse.headers.get("cache-control")).toBe("no-store");
+  const sessionBody = await sessionResponse.json() as { manualRoutineRequests: { contextId: string } };
+  const context = sessionBody.manualRoutineRequests.contextId;
+  const file = join(s.dataDir, "routines.json"), bytes = readFileSync(file);
+  for (const [key, expected] of [[undefined, undefined], ["key", undefined], [undefined, context], ["key", "bad-context"], ["bad key", context]] as const) {
+    expect((await s.protectedStart(routine.id, key, undefined, undefined, expected)).status).toBe(400);
+  }
+  for (const header of ["Idempotency-Key", "X-Entropybot-Manual-Context"]) {
+    const duplicate = await new Promise<number>((resolve, reject) => {
+      const headers = ["Origin", s.url, "Idempotency-Key", "key", "X-Entropybot-Manual-Context", context, header, header === "Idempotency-Key" ? "key" : context];
+      const req = request(s.url + `/api/routines/${routine.id}/run-protected`, { method: "POST", headers }, response => { response.resume(); response.on("end", () => resolve(response.statusCode!)); });
+      req.on("error", reject); req.end();
+    });
+    expect(duplicate).toBe(400);
+  }
+  const stale = "mr1_" + "0".repeat(64);
+  for (const start of [s.start, s.protectedStart]) {
+    expect((await start("missing-target", "missing", undefined, undefined, stale)).status).toBe(404);
+    expect((await start(routine.id, "stale", undefined, undefined, stale)).status).toBe(409);
+  }
+  expect(readFileSync(file)).toEqual(bytes); expect(await s.runs()).toHaveLength(0);
+  expect((await s.api("POST", "/api/move/freeze", {})).status).toBe(200);
+  expect((await s.protectedStart(routine.id, "frozen", undefined, undefined, context)).status).toBe(409);
+  expect(await s.runs()).toHaveLength(0);
 }, 60_000);
 
 it("replays concurrent manual HTTP requests and completed runs across server restart, preserving metadata", async () => {
@@ -212,16 +242,16 @@ it("refuses currently hidden or denied team targets before replaying a receipt",
   const created = await team.as(admin, "POST", "/api/routines", { name: "Visible manual", prompt: "Synthetic only", botId,
     schedule: { type: "cron", expression: "0 0 1 1 *", timeZone: "UTC" } });
   expect(created.status).toBe(201);
-  const path = `/api/routines/${created.body.routine.id}/run`;
+  const path = `/api/routines/${created.body.routine.id}/run-protected`;
   const memberContext = (await team.as(member, "GET", "/api/auth/session")).body.manualRoutineRequests.contextId;
-  const start = async (token: string) => {
-    const response = await fetch(team.base + path, { method: "POST", headers: { ...cloud!.edge, authorization: `Bearer ${token}`, "Idempotency-Key": "team-retry", "X-Entropybot-Manual-Context": memberContext } });
+  const start = async (token: string, expected = memberContext) => {
+    const response = await fetch(team.base + path, { method: "POST", headers: { ...cloud!.edge, authorization: `Bearer ${token}`, "Idempotency-Key": "team-retry", "X-Entropybot-Manual-Context": expected } });
     return { status: response.status, body: await response.json() as any };
   };
   expect((await start(member)).status).toBe(201);
   expect((await team.as(admin, "PUT", `/api/bots/${botId}/access`, { everyone: "view", people: {} })).status).toBe(200);
-  expect((await start(member)).status).toBe(403);
+  expect((await start(member, "mr1_" + "0".repeat(64))).status).toBe(403);
   expect((await team.as(admin, "PUT", `/api/bots/${botId}/access`, { everyone: "none", people: {} })).status).toBe(200);
-  expect((await start(member)).status).toBe(404);
+  expect((await start(member, "mr1_" + "0".repeat(64))).status).toBe(404);
   expect((await team.as(admin, "GET", "/api/routines")).body.runs).toHaveLength(1);
 }, 90_000);

@@ -89,6 +89,8 @@ describe("what a request needs", () => {
     expect(levelNeeded("PUT", "/api/bots/b1/access")).toBe("edit");
     expect(levelNeeded("PATCH", "/api/bots/b1")).toBeNull();
     expect(levelNeeded("DELETE", "/api/routines/r1")).toBeNull();
+    expect(levelNeeded("POST", "/api/routines/r1/run")).toBe("chat");
+    expect(levelNeeded("POST", "/api/routines/r1/run-protected")).toBe("chat");
   });
 
   it("lets each level change only its own fields of a bot", () => {
@@ -124,12 +126,14 @@ describe("what a request needs", () => {
     };
     const gate = createBotAccessGate({
       botName: () => "Payroll", roomBots: () => undefined, threadOwner: () => ({ bot: "pay" }),
-      routine: () => undefined, run: () => undefined, routineWriter: () => undefined,
+      routine: () => ({ botId: "pay" }), run: () => undefined, routineWriter: () => undefined,
     });
     const stream = new PassThrough();
     const req = stream as unknown as IncomingMessage;
     const refusal = { error: "You can view Payroll, not chat with it.", errorKey: "serverError.bot.viewOnly", errorParams: { bot: "Payroll" } };
     expect(gate(req, auth, "POST", "/api/bots/pay/messages", visible)).toEqual(refusal);
+    expect(gate(req, auth, "POST", "/api/routines/r1/run", visible)).toEqual(refusal);
+    expect(gate(req, auth, "POST", "/api/routines/r1/run-protected", visible)).toEqual(refusal);
     expect(gate(req, auth, "POST", "/api/groups", visible)).toBeNull();
     const body = readBody(req);
     stream.end(JSON.stringify({ memberIds: ["pay"] }));

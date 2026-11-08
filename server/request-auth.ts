@@ -380,7 +380,7 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["GET"], path: /^\/api\/routines$/ },
   { methods: ["POST"], path: /^\/api\/routines$/ },
   { methods: ["PATCH", "DELETE"], path: /^\/api\/routines\/[\w-]+$/ },
-  { methods: ["POST"], path: /^\/api\/routines\/[\w-]+\/run$/ },
+  { methods: ["POST"], path: /^\/api\/routines\/[\w-]+\/run(?:-protected)?$/ },
   { methods: ["POST"], path: /^\/api\/routine-runs\/[\w-]+\/(?:cancel|seen)$/ },
   { methods: ["POST"], path: /^\/api\/routine-runs\/seen-all$/ },
   // webhook list is secret-free; creating or rotating one is not

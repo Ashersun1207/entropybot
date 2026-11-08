@@ -54,18 +54,21 @@ function expectedContext(req: IncomingMessage, key: string | undefined): string 
   return context;
 }
 
-export function runManualRoutine(req: IncomingMessage, auth: RequestAuth, manager: RoutineManager, id: string, ownerStarted: boolean, environmentId?: string): RoutineRun | null {
+export function runManualRoutine(req: IncomingMessage, auth: RequestAuth, manager: RoutineManager, id: string, ownerStarted: boolean, environmentId?: string, protectedRequest = false): RoutineRun | null {
   const key = idempotencyKey(req);
   const expected = expectedContext(req, key);
+  if (protectedRequest && (key === undefined || expected === undefined)) {
+    throw Object.assign(new Error("Protected manual requests require Idempotency-Key and manual context"), { status: 400, code: "manual_context_invalid" });
+  }
   if (key !== undefined && auth.kind === "loopback" && auth.trust === "service") {
     throw Object.assign(new Error("This caller cannot start a manual routine"), { status: 403 });
-  }
-  if (expected !== undefined && (!environmentId || manualRoutineContext(auth, environmentId, ownerStarted)?.contextId !== expected)) {
-    throw Object.assign(new Error("Manual request context changed; reconcile the original intent before trying again"), { status: 409, code: "manual_context_mismatch" });
   }
   if (key === undefined) return manager.runNow(id);
   const routine = manager.listRoutines().find((candidate) => candidate.id === id);
   if (!routine) return null;
+  if (expected !== undefined && (!environmentId || manualRoutineContext(auth, environmentId, ownerStarted)?.contextId !== expected)) {
+    throw Object.assign(new Error("Manual request context changed; reconcile the original intent before trying again"), { status: 409, code: "manual_context_mismatch" });
+  }
   const { caller, authority } = manualAuthority(auth, ownerStarted);
   return manager.runNow(id, undefined, {
     origin: "http", requestId: `http:${hash([caller, id, key])}`, routineId: id,

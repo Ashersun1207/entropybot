@@ -135,7 +135,7 @@ describe("scopes", () => {
       ["POST", "/api/threads/t/undo"], ["POST", "/api/bots/x/compact"], ["POST", "/api/bots/x/tasks/t/title"],
       ["PATCH", "/api/bots/x/cards/m"], ["POST", "/api/groups/g/messages"], ["PATCH", "/api/groups/g"],
       ["PATCH", "/api/bots/x"], ["PATCH", "/api/bots/x/profile"], ["POST", "/api/attachments"], ["PUT", "/api/bots/order"],
-      ["GET", "/api/attachments/a.png"], ["POST", "/api/routines"], ["POST", "/api/routines/r/run"],
+      ["GET", "/api/attachments/a.png"], ["POST", "/api/routines"], ["POST", "/api/routines/r/run"], ["POST", "/api/routines/r/run-protected"],
       ["POST", "/api/routine-runs/seen-all"],
       ["GET", "/api/bots"], ["GET", "/api/threads/t/messages"], ["GET", "/api/search"], ["GET", "/api/events"],
       ["GET", "/api/config"], ["GET", "/api/webhooks"], ["POST", "/api/tts/speak"],
@@ -624,7 +624,7 @@ describe("loopback trust: owner on one person's machine, service on a shared wor
     ["POST", "/api/keys/test"], ["GET", "/api/usage"], ["GET", "/api/decisions"], ["GET", "/api/decisions.csv"],
     ["POST", "/api/fleet/workspaces"], ["POST", "/api/settings/custom-domain"], ["POST", "/api/workspace-backup/export"],
     ["POST", "/api/bots/bot-1/messages"], ["POST", "/api/bots/bot-1/respond"], ["POST", "/api/bots/bot-1/always-allow"],
-    ["POST", "/api/threads/thread-1/undo"], ["POST", "/api/groups/room-1/messages"], ["POST", "/api/routines"], ["GET", "/api/events"],
+    ["POST", "/api/threads/thread-1/undo"], ["POST", "/api/groups/room-1/messages"], ["POST", "/api/routines"], ["POST", "/api/routines/r/run-protected"], ["GET", "/api/events"],
   ];
 
   it("keeps the owner exactly as before when no trust is given or trust is owner", () => {

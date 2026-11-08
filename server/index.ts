@@ -12793,6 +12793,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     if (await dispatchRoutes(ROUTES, { req, res, url, path, method, auth, json, readBody })) return;
 
     if (method === "GET" && path === "/api/auth/session") {
+      res.setHeader("cache-control", "no-store");
       const manualRoutineRequests = manualRoutineContext(auth, ENVIRONMENT_ID, CLOUD_HOME ? cloudOwnerSession(auth) : ownerOrAdmin(auth));
       return json(
         res,
@@ -14781,9 +14782,9 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     if (path === "/api/routines/wake" && method === "GET") {
       return json(res, 200, moveFreeze.frozen() ? { hold: false } : routines!.wakeHold());
     }
-    let routineMatch = path.match(/^\/api\/routines\/([\w-]+)\/run$/);
+    let routineMatch = path.match(/^\/api\/routines\/([\w-]+)\/(run|run-protected)$/);
     if (routineMatch && method === "POST") {
-      const run = runManualRoutine(req, auth, routines!, routineMatch[1], CLOUD_HOME ? cloudOwnerSession(auth) : ownerOrAdmin(auth), ENVIRONMENT_ID);
+      const run = runManualRoutine(req, auth, routines!, routineMatch[1], CLOUD_HOME ? cloudOwnerSession(auth) : ownerOrAdmin(auth), ENVIRONMENT_ID, routineMatch[2] === "run-protected");
       if (run && (CLOUD_HOME ? cloudOwnerSession(auth) : ownerOrAdmin(auth))) ownerStartedRoutineRuns.add(run.id);
       return run ? json(res, 201, { run }) : json(res, 404, { error: "no such routine" });
     }

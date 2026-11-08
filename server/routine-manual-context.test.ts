@@ -38,13 +38,19 @@ describe("manual routine context", () => {
     for (const secret of ["synthetic-credential-hash", "person@fixture.test", createHash("sha256").update("synthetic-credential-hash").digest("hex")]) expect(encoded).not.toContain(secret);
   });
 
-  it("rejects changed workspace, companion or authority before consulting or mutating the manager", () => {
-    const manager = { runNow: vi.fn(), listRoutines: vi.fn() };
+  it("rejects changed workspace, companion or authority after read-only existence lookup and before mutation", () => {
+    const manager = { runNow: vi.fn(), listRoutines: vi.fn(() => [{ id: "routine" }]) };
     const expected = context(owner)!.contextId;
     for (const [auth, env, started] of [[owner, "workspace-two", false], [{ ...owner, companionDevice: "device" }, "workspace-one", false], [owner, "workspace-one", true]] as const) {
       expect(() => runManualRoutine(request({ "idempotency-key": "intent", "x-entropybot-manual-context": expected }), auth, manager as unknown as RoutineManager, "routine", started, env)).toThrow(expect.objectContaining({ status: 409, code: "manual_context_mismatch" }));
     }
-    expect(manager.runNow).not.toHaveBeenCalled(); expect(manager.listRoutines).not.toHaveBeenCalled();
+    expect(manager.runNow).not.toHaveBeenCalled(); expect(manager.listRoutines).toHaveBeenCalledTimes(3);
+  });
+
+  it("returns missing target before comparing a well-formed stale context", () => {
+    const manager = { runNow: vi.fn(), listRoutines: vi.fn(() => []) };
+    expect(runManualRoutine(request({ "idempotency-key": "intent", "x-entropybot-manual-context": context(owner, "old-workspace")!.contextId }), owner, manager as unknown as RoutineManager, "missing", false, "workspace-one")).toBeNull();
+    expect(manager.runNow).not.toHaveBeenCalled();
   });
 
   it.each(["", "mr1_" + "A".repeat(64), "mr1_" + "a".repeat(63), "mr1_" + "a".repeat(65), "other_" + "a".repeat(64)])("rejects malformed context %j", value => {
