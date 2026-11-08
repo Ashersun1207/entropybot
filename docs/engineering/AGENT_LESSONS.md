@@ -119,6 +119,7 @@
 - 真实采集 UI 已在详情隐藏路径，但原聊天与侧栏仍展示 durable summary 的 `Path:`；只验详情/报告不能证明公共显示面已覆盖。最小红例在真实 ChatView 挂载与 sidebar preview 各失败一项；同批原词汇门仍有两项失败，不能用新功能通过掩盖。修复以 manual automation 元数据及完整已知摘要结构、正整数计数和 hash 共同识别，只在前端显示固定标题与计数；原持久消息和 host 发布文本参与 exact-content reconciliation，禁止为脱敏改写 durable bytes。普通用户仿写与非法结构保持原样。
 - 回归入口为 `collection-summary-display.test.ts`、`ChatView.automation.test.ts`、`sidebar-preview.test.ts` 和真实 `collection-ui.e2e.test.ts`；同时检查聊天正文、侧栏、回复引用及原消息/产物不变。ChatView 已有体积上限，应复用现有 `botLineText` 显示入口，不增加并行渲染职责或抬高预算。最终 SHA/精确计数见 [验证说明](../verification/web-collection-ui.md) 与 source-bound 回执。此投影不是授权或任意文本脱敏器；原导出/搜索/存储及独立报告读取器的大小边界不在本切片验收内。
 - 文案变更后，reload 浏览器回归的旧英文整句断言仍停留在 account/workspace，首轮实际三项失败；更新为新产品整句后仍须保留所有原身份、Retry 和未额外发 POST 的断言。扩大语言检查还暴露未改动的 `i18n.test.ts` 两项 Node 24 默认 navigator `en-US` 与期望 `en` 的失败，精确基线模块探针同样 34 通过/2 失败；这是新增发现的范围外门槛限制，不能吞掉或修改词汇断言来称整体通过。
+- 后续独立审查明确测试夹具契约：`intlLocale(system = navigator?.language)` 的显式 undefined 也触发默认参数，不能代表 navigator 缺席。受控 en-US 环境先复现 34 通过/2 失败，再仅在 intlLocale 测试组为缺席场景 stub navigator=undefined、每例结束恢复全局，并新增 en-US/en-GB 的无参/undefined 及 pt-BR app 控制，原 en 期望与非法 tag 检查不变；同受控环境修复后 38 通过。生产代码与 locale 行为未改，不全局禁用 navigator；最终与已批准 bounded-fetch 依赖组合重跑。pt-BR glossary 的模型检查不能替代合并前巴西葡语使用者的真人签署。
 
 ## Collection report access
 

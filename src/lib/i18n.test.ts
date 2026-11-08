@@ -305,6 +305,7 @@ describe("page language", () => {
 describe("intlLocale", () => {
   afterEach(() => {
     setLocale("en");
+    vi.unstubAllGlobals();
   });
 
   it("formats in the app language, not the system's", () => {
@@ -318,6 +319,7 @@ describe("intlLocale", () => {
     expect(intlLocale("ja-JP")).toBe("de");
     setLocale("en");
     expect(intlLocale("pt-BR")).toBe("en");
+    vi.stubGlobal("navigator", undefined);
     expect(intlLocale(undefined)).toBe("en");
   });
 
@@ -328,7 +330,19 @@ describe("intlLocale", () => {
     expect(intlLocale("de-AT")).toBe("de-AT");
   });
 
+  it.each(["en-US", "en-GB"])("uses navigator %s for omitted and explicit undefined arguments", (system) => {
+    vi.stubGlobal("navigator", { language: system });
+    setLocale("en");
+    expect(intlLocale()).toBe(system);
+    expect(intlLocale(undefined)).toBe(system);
+    setLocale("pt-br");
+    expect(intlLocale()).toBe("pt-BR");
+    expect(intlLocale(undefined)).toBe("pt-BR");
+  });
+
   it("falls back to the app language for a missing, empty or malformed system tag", () => {
+    vi.stubGlobal("navigator", undefined);
+    expect(intlLocale()).toBe("en");
     for (const system of [undefined, "", "en-!", "en--US", "!!"]) {
       expect(intlLocale(system), String(system)).toBe("en");
       expect(() => new Intl.DateTimeFormat(intlLocale(system))).not.toThrow();
