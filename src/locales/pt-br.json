@@ -1,4 +1,9 @@
 {
+  "routines.manual.blocked": "A execução manual está bloqueada. Verifique o armazenamento do navegador e faça login em um app que suporte execuções protegidas. As solicitações pendentes foram mantidas.",
+  "routines.manual.unknown": "A solicitação anterior pode já ter sido executada. Tente novamente para verificar a mesma solicitação ou consulte as execuções antes de iniciar outra.",
+  "routines.manual.changed": "A conta ou a instalação mudou. A solicitação anterior foi mantida. Volte para a conta e a instalação dela para tentar novamente ou consulte as execuções antes de iniciar outra.",
+  "routines.manual.startAnother": "Iniciar outra execução…",
+  "routines.manual.acknowledge": "A solicitação anterior pode já ter sido executada e não será cancelada. Iniciar outra execução mesmo assim?",
   "connectedWorkspaces.localTitle": "Ambientes neste computador",
   "connectedWorkspaces.missing": "ausente",
   "connectedWorkspaces.current": "Atual",
