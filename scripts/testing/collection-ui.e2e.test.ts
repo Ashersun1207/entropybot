@@ -17,7 +17,7 @@ it.runIf(process.env.OMB_UI_E2E === "1")("creates and runs a manual collection f
   let chrome: ChildProcess | undefined, server: ChildProcess | undefined, connection: CdpConnection | undefined;
   const reads: string[] = [], posts: Array<{ key: string; context: string; runId: string }> = [];
   let legacyPosts = 0, passed = false;
-  let reportMode: "normal" | "denied" | "missing" = "normal";
+  let reportMode: "normal" | "denied" | "missing" | "oversized" = "normal";
   const reportRequests: Array<{ requested: string; forwarded: string; status: number; mode: string }> = [];
   const closed = { browser: false, server: false, pages: false, fixture: false, directoryRemoved: false };
   const pages = createServer((req, res) => { reads.push(req.url!); res.setHeader("content-type", "text/html"); res.end('<p>Literal adversarial &lt;img src="https://adversary.invalid/pixel"&gt; [open](file:///secret) &lt;script&gt;alert(1)&lt;/script&gt;</p>'); });
@@ -42,7 +42,9 @@ it.runIf(process.env.OMB_UI_E2E === "1")("creates and runs a manual collection f
         const requested = req.url!, forwarded = reportMode === "missing" ? requested.replace(/\/runs\/[^/]+\//, "/runs/missing-fixture-run/") : requested;
         const response = await fetch(url + forwarded, { headers: { origin: reportMode === "denied" ? "https://unpaired.invalid" : url }, signal: AbortSignal.timeout(15_000) });
         reportRequests.push({requested,forwarded,status:response.status,mode:reportMode});
-        res.statusCode=response.status; res.setHeader("content-type","application/json"); res.end(await response.text());
+        res.statusCode=response.status; res.setHeader("content-type","application/json");
+        if(reportMode==='oversized') res.setHeader('content-length','62000001');
+        res.end(await response.text());
       } }, { path: /^\/api\/routines\/[^/]+\/run-protected$/, method: "POST", handler: async (req, res) => {
         const key = String(req.headers["idempotency-key"]), context = String(req.headers["x-entropybot-manual-context"]);
         const response = await fetch(url + req.url, { method: "POST", headers: { origin: url, "Idempotency-Key": key, "X-Entropybot-Manual-Context": context }, signal: AbortSignal.timeout(15_000) });
@@ -117,8 +119,13 @@ it.runIf(process.env.OMB_UI_E2E === "1")("creates and runs a manual collection f
     await click('View report', reportScope); await expect.poll(() => text(reportScope)).toContain('This report could not be verified. Its contents are hidden.');
     expect(await evaluate(`document.querySelector(${JSON.stringify(reportScope)})?.querySelector('pre')===null`)).toBe(true);
     writeFileSync(artifactPath,artifact);
-    await click('View report', reportScope); await expect.poll(() => text(reportScope)).toContain('Source 1');
-    expect(reportRequests.map(request=>request.status)).toEqual([403,404,409,200]);
+    reportMode='oversized'; await click('View report', reportScope);
+    await expect.poll(() => reportRequests.length).toBe(4);
+    await expect.poll(() => text(reportScope)).toContain('This report could not be verified. Its contents are hidden.');
+    expect(await evaluate(`document.querySelector(${JSON.stringify(reportScope)})?.querySelector('pre')===null`)).toBe(true);
+    reportMode='normal'; await click('View report', reportScope); await expect.poll(() => text(reportScope)).toContain('Source 1');
+    expect(reportRequests.map(request=>request.status)).toEqual([403,404,409,200,200]);
+    expect(reportRequests.map(request=>request.mode)).toEqual(['denied','missing','normal','oversized','normal']);
     expect(reportRequests.every(request=>request.requested===`/api/routines/${saved.id}/runs/${first.id}/collection-report`)).toBe(true);
     expect(await evaluate(`document.querySelector(${JSON.stringify(reportScope)})?.querySelectorAll('a,img,script,iframe').length`)).toBe(0);
     expect(await evaluate(`document.querySelector(${JSON.stringify(reportScope)})?.querySelector('details').open`)).toBe(false);

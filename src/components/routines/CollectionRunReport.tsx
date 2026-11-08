@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
 import type { RoutineRun } from "@/lib/routines";
-import { api, ApiError } from "@/state/api";
+import { ApiError } from "@/state/api";
+import { BoundedJsonError } from "@/lib/bounded-json";
+import { fetchCollectionReport } from "./collection-report-fetch";
 import { collectionReportView, collectionSummary } from "./collection-report-view";
 
 export function CollectionRunReport({ run }: { run: RoutineRun }) {
@@ -21,7 +23,7 @@ function Report({ run }: { run: RoutineRun }) {
     active.current = controller;
     setLoading(true); setError(null);
     try {
-      const value: unknown = await api(`/api/routines/${encodeURIComponent(run.routineId)}/runs/${encodeURIComponent(run.id)}/collection-report`, { signal: controller.signal, timeoutMs: 15_000 });
+      const value = await fetchCollectionReport(run.routineId, run.id, controller.signal);
       if (controller.signal.aborted) return;
       const parsed = collectionReportView(value);
       if (!parsed || (summary && (parsed.pages !== summary.pages || parsed.unique !== summary.unique || parsed.hash !== summary.hash))) setError("collection.reportInvalid");
@@ -31,7 +33,7 @@ function Report({ run }: { run: RoutineRun }) {
         ? cause.status === 401 || cause.status === 403 ? "collection.reportDenied"
           : cause.status === 404 || (cause.status === 409 && cause.body?.code === "collection_report_unavailable") ? "collection.reportMissing"
             : cause.status === 409 || cause.status === 422 ? "collection.reportInvalid" : "collection.reportFailed"
-        : "collection.reportFailed");
+        : cause instanceof BoundedJsonError ? "collection.reportInvalid" : "collection.reportFailed");
     } finally {
       if (!controller.signal.aborted) { active.current = null; setLoading(false); }
     }

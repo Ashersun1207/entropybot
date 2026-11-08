@@ -134,6 +134,12 @@
 - 真实 App 同时有 sidebar 和 Routine details 两个 aside。浏览器测试必须按 `aria-label="Routine details"` 精确选择；泛选第一个 aside 得到侧栏预览，不能当运行详情或报告正文。新浏览器夹具还修正了旧导航位置和把 SVG 加号当文本的选择器错误，这些不算产品红例。
 - 后端 durable summary 的 `Path:` 行是私有元数据。采集详情只显示验证过的计数/hash 对应状态，报告正文只在显式动作后从受权路由读取并以有界、折叠 pre 显示。详情脱敏不能证明原聊天/侧栏预览也脱敏；本轮真实浏览器已看到该共享显示缺口，完整接受须由主控分配共享投影修复；报告接口获批后，本 owner 已导入共享类型，并用真实 route 的403/404/完整性409/200验证前端，不以合成 report fetch 单测冒充端到端。集成证据与限制见 [验证说明](../verification/web-collection-ui.md)。
 
+## A1 UI P2 R1：先限制响应字节，再解析报告
+
+- 独立审查发现 `4085f0478` 的报告先走通用 api/res.json，再做结构和显示截断；后两项不限制解析前的分配。完整 CollectionUI 红例为23通过/1失败，声明超限的响应仍实际调用一次 JSON parser。修复身份以本条提交为准：原 API 传输新增显式可选字节上限，报告固定62,000,000字节（服务端61 MB产物上限加封装余量），原认证/desktop headers/credentials、拒绝处理、15秒超时与 exact-run fence 均保留。
+- 流式字节累计不能相信 Content-Length；无/低报长度仍限制实际字节，超限立即取消并释放 reader，不先 text/json。缓冲区按需增长且封顶，完整有界输入才进行 fatal UTF-8 decode/JSON.parse；分块不能切坏多字节字符，来源不能默默截断。超时和卸载信号也必须覆盖 pending body read；取消 producer promise 不结束时不无限等待它。回归 `src/lib/bounded-json.test.ts`、`src/state/api-bounded.test.ts`、`src/state/api-background.test.ts`、`src/components/routines/CollectionUI.test.ts`；覆盖真实62 MB流超限、JSON.parse未调用、Content-Length误导、UTF-8、取消/timeout、释放锁及普通API兼容。新测试的首次类型检查只因HeadersInit推断失败，修正测试注解，未改strict。
+- 浏览器夹具另注入“真实200报告＋超限长度头”，要求固定错误且正文隐藏，再正常重试；与原真实403/404/篡改409及reload回归一起在最终修复提交重跑。此长度头是明确合成故障，不当成服务器真实超限响应或旧证据延伸。源码/回执/限制见 [采集UI验证](../verification/web-collection-ui.md)。本轮不改语言文件及其他owner的私有路径/copy polish，不改服务端产物上限或安全策略。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

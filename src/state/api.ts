@@ -5,6 +5,7 @@ import { lacksAdminScope } from "../lib/admin-scope";
 import { isBotLimitRefusal, showBotLimit } from "../lib/bot-limit";
 import { noteRefusedRequest } from "../lib/session-ended";
 import { serverErrorText } from "../lib/server-error";
+import { readBoundedJson } from "../lib/bounded-json";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -17,7 +18,7 @@ export class ApiError extends Error {
   }
 }
 
-type ApiInit = RequestInit & { timeoutMs?: number; background?: boolean };
+type ApiInit = RequestInit & { timeoutMs?: number; background?: boolean; responseByteLimit?: number };
 /** Background reads waiting for a hidden page to show again, one per path: a poll that ticks while hidden asks once. */
 const heldReads = new Map<string, Promise<unknown>>();
 
@@ -26,7 +27,7 @@ const heldReads = new Map<string, Promise<unknown>>();
  * page is hidden (a background tab, a minimized window) a background request waits until it shows again, so a page out of
  * sight never reaches a Cloud home on its own: a Cloud home asleep is woken by any request that reaches it. */
 export async function api<T = any>(path: string, init?: ApiInit): Promise<T> {
-  const { timeoutMs, signal, background, headers, ...rest } = init ?? {};
+  const { timeoutMs, signal, background, headers, responseByteLimit, ...rest } = init ?? {};
   if (background && pageHidden()) return heldUntilShown<T>(path, init!);
   if (cloudAsleep()) {
     if (background) throw new ApiError("My Cloud is asleep", 503, { error: "asleep" });
@@ -34,17 +35,15 @@ export async function api<T = any>(path: string, init?: ApiInit): Promise<T> {
   }
   const sent = new Headers(headers ?? { "content-type": "application/json" });
   if (background) sent.set(BACKGROUND_HEADER, "1");
-  const res = await fetch(path, {
-    ...rest,
-    headers: sent,
-    signal: timeoutMs === undefined
-      ? signal
-      : signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
-        : AbortSignal.timeout(timeoutMs),
-  });
+  const requestSignal = timeoutMs === undefined ? signal : signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
+  const res = await fetch(path, { ...rest, headers: sent, signal: requestSignal });
   if (asleepAnswer(res)) markCloudAsleep();
-  const body = await res.json().catch(() => ({}));
+  const body = responseByteLimit === undefined ? await res.json().catch(() => ({}))
+    : await readBoundedJson(res, responseByteLimit, requestSignal).catch(error => {
+      if (res.ok || requestSignal?.aborted) throw error;
+      return {};
+    }) as any;
   if (!res.ok) {
     const error = body?.error;
     const message = typeof error === "string" ? error : typeof error?.message === "string" ? error.message : `${res.status} ${res.statusText}`;
@@ -57,9 +56,9 @@ export async function api<T = any>(path: string, init?: ApiInit): Promise<T> {
 }
 
 /** A background request from a hidden page, sent once it shows again (src/lib/cloud-power.ts `pageShown`), by then refused if
- * the Cloud home fell asleep meanwhile. Reads of one path without a signal of their own share one request. */
+ * the Cloud home fell asleep meanwhile. Reads without a caller signal or byte limit share one request per path. */
 function heldUntilShown<T>(path: string, init: ApiInit): Promise<T> {
-  const shared = (init.method ?? "GET").toUpperCase() === "GET" && !init.signal;
+  const shared = (init.method ?? "GET").toUpperCase() === "GET" && !init.signal && init.responseByteLimit === undefined;
   const waiting = shared ? heldReads.get(path) : undefined;
   if (waiting) return waiting as Promise<T>;
   const sent = pageShown(init.signal ?? undefined).then(() => api<T>(path, init));

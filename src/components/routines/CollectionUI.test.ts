@@ -83,6 +83,34 @@ describe("collection report renderer (synthetic transport only)", () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(value))));
     await render(createElement(CollectionRunReport, { run })); await click('View report'); expect(host.textContent).toContain('could not be verified'); expect(host.querySelector('pre')).toBeNull();
   });
+  it("refuses an oversized response before invoking a JSON parser", async () => {
+    const response = new Response(JSON.stringify(content), {headers:{'content-length':'62000001'}});
+    const parse = vi.spyOn(response, 'json');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+    await render(createElement(CollectionRunReport, {run})); await click('View report');
+    expect(parse).not.toHaveBeenCalled();
+    expect(host.querySelector('[role=alert]')?.textContent).toContain('could not be verified');
+    expect(host.querySelector('pre')).toBeNull();
+  });
+  it.each([undefined, '1'])("rejects an actual over-limit stream with %s declared length before parsing", async declared => {
+    const cancel=vi.fn(); const chunk=new Uint8Array(31_000_001); let sent=0;
+    const body=new ReadableStream<Uint8Array>({pull(controller){if(sent++<2) controller.enqueue(chunk);},cancel});
+    const response=new Response(body,{headers:declared?{'content-length':declared}:undefined});
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(response));
+    const parse=vi.spyOn(JSON,'parse');
+    await render(createElement(CollectionRunReport,{run})); await click('View report');
+    expect(parse).not.toHaveBeenCalled(); expect(cancel).toHaveBeenCalledOnce(); expect(body.locked).toBe(false);
+    expect(host.querySelector('[role=alert]')?.textContent).toContain('could not be verified'); expect(host.querySelector('pre')).toBeNull();
+  });
+  it("cancels an in-flight report body when the exact run changes", async () => {
+    const cancel=vi.fn(); const body=new ReadableStream<Uint8Array>({pull(){return new Promise<void>(()=>{});},cancel});
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(body)));
+    await render(createElement(CollectionRunReport,{run})); await click('View report');
+    expect(host.textContent).toContain('Loading report');
+    await render(createElement(CollectionRunReport,{run:{...run,id:'other',output:undefined,status:'running'}}));
+    expect(cancel).toHaveBeenCalledOnce(); expect(body.locked).toBe(false);
+    expect(host.querySelector('[role=alert]')).toBeNull(); expect(host.textContent).toContain('No completed report');
+  });
   it("discards late responses after switching exact run", async () => {
     let resolve!: (value: Response) => void; vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise(done => {resolve=done;})));
     await render(createElement(CollectionRunReport, { run })); await click('View report'); await render(createElement(CollectionRunReport, { run:{...run,id:'other',output:undefined,status:'running'} }));
