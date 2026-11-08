@@ -45,6 +45,16 @@ export interface RoutineManualReceipt extends RoutineManualRequest {
 export type StoredRoutineRequestReceipt = RoutineRequestReceipt | RoutineManualReceipt;
 const MAX_MANUAL_RECEIPTS = 1000;
 
+export class RoutineReceiptCorruptionError extends Error {
+  readonly status = 503;
+  readonly code = "routine_receipts_corrupt";
+
+  constructor() {
+    super("Saved HTTP routine receipts are inconsistent; repair routines.json before starting routines.");
+    this.name = "RoutineReceiptCorruptionError";
+  }
+}
+
 export class RoutineRequestReceipts {
   private entries: StoredRoutineRequestReceipt[];
 
@@ -104,8 +114,8 @@ export class RoutineRequestReceipts {
   matchingManual(request: RoutineManualRequest): RoutineManualReceipt | null {
     const receipt = this.entries.find((candidate): candidate is RoutineManualReceipt =>
       isManualReceipt(candidate) && candidate.requestId === request.requestId);
-    if (receipt && (receipt.routineId !== request.routineId || receipt.fingerprintVersion !== request.fingerprintVersion ||
-      receipt.fingerprint !== request.fingerprint)) {
+    if (receipt && (receipt.routineId !== request.routineId || receipt.authority !== request.authority ||
+      receipt.fingerprintVersion !== request.fingerprintVersion || receipt.fingerprint !== request.fingerprint)) {
       throw Object.assign(new Error("Idempotency key conflicts with the current routine definition"), { status: 409 });
     }
     return receipt ?? null;

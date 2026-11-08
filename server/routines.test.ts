@@ -4092,6 +4092,89 @@ describe("HTTP-origin durable manual receipts", () => {
   const input = { name: "Manual provenance", prompt: "Synthetic only", botId: "maus-1",
     schedule: { type: "daily" as const, time: "09:00", weekdays: [1] } };
 
+  it.each(["messageId", "botId", "threadId", "action", "missing-authority", "missing-origin", "invalid-fingerprint"])(
+    "refuses persisted HTTP receipt corruption %s without losing the admitted identity", async (field) => {
+      const h = harness(), routine = h.manager.create(input);
+      h.manager.runNow(routine.id, undefined, manual(routine));
+      h.manager.close();
+      const stored = JSON.parse(readFileSync(h.options.file!, "utf8"));
+      const receipt = stored.routineRequestReceipts[0];
+      if (field === "missing-authority") delete receipt.authority;
+      else if (field === "missing-origin") delete receipt.origin;
+      else if (field === "invalid-fingerprint") receipt.fingerprint = "invalid";
+      else receipt[field] = field === "action" ? "run_now" : "forbidden-card-context";
+      const corrupted = JSON.stringify(stored);
+      writeFileSync(h.options.file!, corrupted);
+      let error: unknown, reopened: RoutineManager | undefined;
+      try { reopened = new RoutineManager(h.options); } catch (caught) { error = caught; }
+      reopened?.close();
+      expect.soft(error).toMatchObject({ status: 503, code: "routine_receipts_corrupt",
+        message: "Saved HTTP routine receipts are inconsistent; repair routines.json before starting routines." });
+      await Promise.resolve();
+      expect(h.started).toEqual([]);
+      expect(readFileSync(h.options.file!, "utf8")).toBe(corrupted);
+      expect(JSON.parse(corrupted).routineRequestReceipts[0].requestId).toBe(manual(routine).requestId);
+    });
+
+  it.each(["authority", "other-routine", "not-manual", "wrong-trigger", "missing-run"])(
+    "refuses persisted HTTP replay contradiction %s without replacement or writes", async (change) => {
+      const h = harness(), routine = h.manager.create(input);
+      const admitted = h.manager.runNow(routine.id, undefined, manual(routine))!;
+      const other = h.manager.create({ ...input, name: "Other target" });
+      const otherRun = h.manager.runNow(other.id)!;
+      h.manager.close();
+      const stored = JSON.parse(readFileSync(h.options.file!, "utf8"));
+      const receipt = stored.routineRequestReceipts[0];
+      const run = stored.runs.find((candidate: RoutineRun) => candidate.id === admitted.id);
+      if (change === "authority") receipt.authority = "e".repeat(64);
+      if (change === "other-routine") receipt.resultId = otherRun.id;
+      if (change === "not-manual") run.manual = false;
+      if (change === "wrong-trigger") run.triggerSource = "schedule";
+      if (change === "missing-run") stored.runs = stored.runs.filter((candidate: RoutineRun) => candidate.id !== admitted.id);
+      const corrupted = JSON.stringify(stored);
+      writeFileSync(h.options.file!, corrupted);
+      const reopened = new RoutineManager(h.options), before = reopened.listRuns();
+      let error: unknown, replay: RoutineRun | null | undefined;
+      try { replay = reopened.runNow(routine.id, undefined, manual(reopened.listRoutines().find(r => r.id === routine.id)!)); }
+      catch (caught) { error = caught; }
+      expect.soft(error).toMatchObject({ status: 409 });
+      expect.soft(replay).toBeUndefined();
+      await Promise.resolve();
+      expect(h.started).toEqual([]);
+      expect(reopened.listRuns()).toEqual(before);
+      expect(readFileSync(h.options.file!, "utf8")).toBe(corrupted);
+      expect(JSON.parse(corrupted).routineRequestReceipts[0].requestId).toBe(manual(routine).requestId);
+      reopened.close();
+    });
+
+  it.each(["retime", "expiry"])("refuses exact-key replay after automatic definition %s, retaining identity", async (change) => {
+    const h = harness();
+    h.setBot("busy");
+    let reset = Date.now() + 86_400_000;
+    h.options.limitResetAt = () => reset;
+    const routine = h.manager.create({ ...input, schedule: change === "retime"
+      ? { type: "limit_reset", engine: "claude" } : { type: "once", at: new Date(2026, 7, 17, 8, 5).getTime() } });
+    h.manager.runNow(routine.id, undefined, manual(routine));
+    if (change === "retime") {
+      reset += 86_400_000;
+      expect(h.manager.retimeLimitResets()).toBe(1);
+    } else {
+      h.setNow(routine.nextRunAt!);
+      await h.manager.tick();
+      expect(h.manager.listRoutines()[0].enabled).toBe(false);
+    }
+    h.manager.close();
+    const saved = readFileSync(h.options.file!, "utf8");
+    const reopened = new RoutineManager(h.options), current = reopened.listRoutines()[0]!;
+    const before = reopened.listRuns();
+    expect(() => reopened.runNow(current.id, undefined, manual(current))).toThrow(/conflicts/);
+    expect(reopened.listRuns()).toEqual(before);
+    expect(readFileSync(h.options.file!, "utf8")).toBe(saved);
+    expect(JSON.parse(saved).routineRequestReceipts).toHaveLength(1);
+    expect(h.started).toEqual([]);
+    reopened.close();
+  });
+
   it("keeps HTTP provenance and results allocation separate from card reachability through reopen", () => {
     const h = harness();
     const card = { requestId: "source-card", messageId: "source-message", botId: "maus-1", threadId: "trusted-source",
@@ -4141,8 +4224,10 @@ describe("HTTP-origin durable manual receipts", () => {
       fingerprintVersion: 1, fingerprint: "c".repeat(64), resultId: "run", appliedAt: 1 };
     const http = { origin: "http", authority, requestId: `http:${"b".repeat(64)}`, routineId: "routine",
       fingerprintVersion: 1, fingerprint: "d".repeat(64), resultId: "run", appliedAt: 1 };
-    expect(loadRequestReceipts([card, http, { ...http, authority: undefined }, { ...card, origin: "unknown" },
-      { ...http, fingerprintVersion: 2 }, { ...http, requestId: "raw-client-key" }])).toEqual([card, http]);
+    expect(loadRequestReceipts([card, http, { ...card, origin: "unknown" }])).toEqual([card, http]);
+    for (const invalid of [{ ...http, authority: undefined }, { ...http, fingerprintVersion: 2 }, { ...http, requestId: "raw-client-key" }]) {
+      expect(() => loadRequestReceipts([card, http, invalid])).toThrow(/Saved HTTP routine receipts are inconsistent/);
+    }
   });
 
   it("refuses changed authority and never evicts a promised completed HTTP run", async () => {
@@ -4166,10 +4251,13 @@ describe("HTTP-origin durable manual receipts", () => {
     expect(reopened.listRuns().some(run => run.id === accepted.id)).toBe(true);
     expect(reopened.runNow(routine.id, undefined, manual(reopened.listRoutines()[0]!))?.id).toBe(accepted.id);
     const atCapacity = JSON.parse(readFileSync(h.options.file!, "utf8"));
-    atCapacity.routineRequestReceipts = Array.from({ length: 1000 }, (_, index) => ({ ...atCapacity.routineRequestReceipts[0],
-      requestId: `http:${index.toString(16).padStart(64, "0")}` }));
+    atCapacity.routineRequestReceipts = [atCapacity.routineRequestReceipts[0], ...Array.from({ length: 999 }, (_, index) => ({ ...atCapacity.routineRequestReceipts[0],
+      requestId: `http:${index.toString(16).padStart(64, "0")}` }))];
     writeFileSync(h.options.file!, JSON.stringify(atCapacity));
     const full = new RoutineManager(h.options), before = full.listRuns().length;
+    const capacityBytes = readFileSync(h.options.file!, "utf8");
+    expect(full.runNow(routine.id, undefined, manual(full.listRoutines()[0]!))?.id).toBe(accepted.id);
+    expect(readFileSync(h.options.file!, "utf8")).toBe(capacityBytes);
     expect(() => full.runNow(routine.id, undefined, manual(full.listRoutines()[0]!, "f"))).toThrow(/history is full/);
     expect(full.listRuns()).toHaveLength(before);
   });

@@ -10,7 +10,7 @@ import { isRoutineHoldCause } from "./routine-holds.ts";
 import { MAX_DATE_MS } from "./routine-intervals.ts";
 import { loadSchedule } from "./routine-schedules.ts";
 import type { Routine, RoutineGoalStatus, RoutinePackageStamp, RoutineRequestReceipt, RoutineRun, RoutineTarget } from "./routines.ts";
-import type { RoutineManualReceipt, StoredRoutineRequestReceipt } from "./routine-request-receipts.ts";
+import { RoutineReceiptCorruptionError, type RoutineManualReceipt, type StoredRoutineRequestReceipt } from "./routine-request-receipts.ts";
 
 const persistedSourceThreadId = z.string().trim().min(1).optional().catch(undefined);
 
@@ -127,19 +127,22 @@ export function loadRun(run: RoutineRun): RoutineRun {
 
 const REQUEST_ACTIONS = new Set<RoutineRequestOperation["action"]>(["create", "update", "pause", "resume", "run_now", "delete"]);
 
-/** The applied routine-request receipts routines.json holds, each whole: one with a field out of shape is dropped. */
+/** Invalid HTTP receipts stop loading: dropping an admitted identity could admit its work again. */
 export function loadRequestReceipts(value: unknown): StoredRoutineRequestReceipt[] {
   if (!Array.isArray(value)) return [];
   return value.filter((receipt): receipt is RoutineRequestReceipt | RoutineManualReceipt => {
-    if (!receipt || typeof receipt !== "object" || receipt.fingerprintVersion !== 1 ||
-      typeof receipt.fingerprint !== "string" || !HASH.test(receipt.fingerprint) ||
-      typeof receipt.resultId !== "string" || !Number.isFinite(receipt.appliedAt)) return false;
-    if (receipt.origin === "http") {
-      return typeof receipt.requestId === "string" && /^http:[a-f0-9]{64}$/.test(receipt.requestId) &&
-        typeof receipt.routineId === "string" && receipt.routineId.length > 0 &&
-        typeof receipt.authority === "string" && HASH.test(receipt.authority);
+    if (!receipt || typeof receipt !== "object") return false;
+    const whole = receipt.fingerprintVersion === 1 && typeof receipt.fingerprint === "string" && HASH.test(receipt.fingerprint) &&
+      typeof receipt.resultId === "string" && Number.isFinite(receipt.appliedAt);
+    const http = receipt.origin === "http" || "authority" in receipt ||
+      ("routineId" in receipt && typeof receipt.requestId === "string" && receipt.requestId.startsWith("http:"));
+    if (http) {
+      if (!whole || receipt.origin !== "http" || typeof receipt.requestId !== "string" || !/^http:[a-f0-9]{64}$/.test(receipt.requestId) ||
+        typeof receipt.routineId !== "string" || !receipt.routineId || typeof receipt.authority !== "string" || !HASH.test(receipt.authority) ||
+        ["messageId", "botId", "threadId", "action"].some((field) => field in receipt)) throw new RoutineReceiptCorruptionError();
+      return true;
     }
-    return receipt.origin === undefined && typeof receipt.requestId === "string" &&
+    return whole && receipt.origin === undefined && typeof receipt.requestId === "string" &&
       typeof receipt.messageId === "string" && typeof receipt.botId === "string" &&
       typeof receipt.threadId === "string" && REQUEST_ACTIONS.has(receipt.action);
   });

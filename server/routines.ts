@@ -10,7 +10,7 @@ import { activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-d
 import { startDueTimer, type DueTimer } from "./due-timer.ts";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
 import type { RoutineRequestOperation } from "../shared/routine-request.ts";
-import { RoutineRequestReceipts, type RoutineRequestReceipt, type RoutineRequestCommit, type RoutineRequestOwner, type RoutineManualRequest, type StoredRoutineRequestReceipt } from "./routine-request-receipts.ts";
+import { RoutineReceiptCorruptionError, RoutineRequestReceipts, type RoutineRequestReceipt, type RoutineRequestCommit, type RoutineRequestOwner, type RoutineManualRequest, type StoredRoutineRequestReceipt } from "./routine-request-receipts.ts";
 import { manualRoutineFingerprint } from "./routine-manual-request.ts";
 import { intervalAllowsOccurrence, intervalHasRestrictions, isSameLocalDay, latestIntervalOccurrence } from "./routine-intervals.ts";
 import { cloneSchedule, limitResetOccurrence, mergeScheduleUpdate, nextOccurrence, RoutineScheduleError, type RoutineSchedule, type RoutineScheduleInput } from "./routine-schedules.ts";
@@ -323,6 +323,7 @@ export class RoutineManager {
       this.holds = holdCauses(disk.holds);
       if (typeof disk.startupLaunchId === "string") this.startupLaunchId = disk.startupLaunchId;
     } catch (error) {
+      if (error instanceof RoutineReceiptCorruptionError) throw error;
       this.routines = []; this.unloadedRoutines = []; this.runs = []; this.routineRequestReceipts = new RoutineRequestReceipts(); this.webhookRunReceipts = [];
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         this.unreadable = true;
@@ -701,7 +702,9 @@ export class RoutineManager {
       const receipt = this.routineRequestReceipts.matchingManual(manual);
       if (receipt) {
         const committed = this.runs.find((run) => run.id === receipt.resultId);
-        if (!committed) throw Object.assign(new Error("The original manual run is unavailable"), { status: 409 });
+        if (!committed || committed.routineId !== id || committed.manual !== true || committed.triggerSource !== "manual") {
+          throw Object.assign(new Error("The original manual run is unavailable"), { status: 409 });
+        }
         return cloneRun(committed);
       }
       this.routineRequestReceipts.assertManualCapacity();
