@@ -49,11 +49,21 @@ async function server() {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(15_000) });
     return { status: response.status, body: await response.json() as any };
   };
-  const bot = (await api("GET", "/api/bots")).body.bots[0];
-  await api("PATCH", `/api/bots/${bot.id}`, { chiefOfStaff: false });
+  const defaultBot = (await api("GET", "/api/bots")).body.bots.find((candidate: any) => candidate.defaultBot);
+  expect(defaultBot).toBeDefined();
+  expect((await api("PATCH", `/api/bots/${defaultBot.id}`, { chiefOfStaff: false })).status).toBe(200);
+  const refused = await api("DELETE", `/api/bots/${defaultBot.id}`);
+  expect(refused.status).toBe(409);
+  expect(refused.body.error).toContain("can't be deleted or archived");
+  console.info("defaultBotDeletionEvidence=" + JSON.stringify({ botId: defaultBot.id, response: refused }));
+  const created = await api("POST", "/api/bots", { name: "Ordinary collection reader fixture" });
+  expect(created.status).toBe(201);
+  const bot = created.body.bot;
+  expect(bot.defaultBot).toBeUndefined();
+  expect(bot.chiefOfStaff).not.toBe(true);
   const context = (await api("GET", "/api/auth/session")).body.manualRoutineRequests.contextId;
-  const collection = { kind: "web-collection", version: 1, sources: [{ url: `http://collection-fixture.invalid:${port}/page#first` },
-    { url: `http://collection-fixture.invalid:${port}/page#second` }], limits: { pages: 2, pageBytes: 1024, bytes: 2048, attempts: 2, durationMs: 30_000 } };
+  const collection = { kind: "web-collection", version: 1, sources: [{ url: `http://collection-fixture.invalid:${port}/page#first` }],
+    limits: { pages: 1, pageBytes: 1024, bytes: 2048, attempts: 2, durationMs: 30_000 } };
   const make = (extra = {}) => api("POST", "/api/routines", { name: "Synthetic collection", prompt: "Literal display instructions", botId: bot.id,
     enabled: false, schedule: { type: "cron", expression: "0 0 1 1 *", timeZone: "UTC" }, collection, ...extra });
   const start = (id: string, key = "same-intent", headers = {}) => api("POST", `/api/routines/${id}/run-protected`, undefined,
@@ -66,8 +76,12 @@ async function server() {
 
 it("reads the original production artifact through authenticated HTTP and rejects unsafe files without rereading", async () => {
   const s = await server();
-  const id = (await s.make()).body.routine.id;
-  const run = (await s.start(id)).body.run;
+  const made = await s.make();
+  expect(made.status).toBe(201);
+  const id = made.body.routine.id;
+  const admitted = await s.start(id);
+  expect(admitted.status).toBe(201);
+  const run = admitted.body.run;
   await s.status(run.id, "completed");
   const route = `/api/routines/${id}/runs/${run.id}/collection-report`;
   const directory = join(s.dataDir, "collection-reports");
@@ -76,7 +90,7 @@ it("reads the original production artifact through authenticated HTTP and reject
   const first = await s.api("GET", route);
   expect(first.status).toBe(200);
   expect(first.body).toEqual({ version: 1, unique: 1,
-    hash: createHash("sha256").update(bytes).digest("hex"), pages: 2,
+    hash: createHash("sha256").update(bytes).digest("hex"), pages: 1,
     sources: [{ url: s.collection.sources[0].url.split("#")[0], text: "<p>synthetic literal page</p>" }] });
   expect(JSON.stringify(first.body)).not.toContain(s.dataDir);
   const opened = await s.api("POST", "/api/auth/pairing", { label: "Synthetic report reader", scopes: ["client"] });
@@ -114,8 +128,8 @@ it("reads the original production artifact through authenticated HTTP and reject
   expect((await s.api("PATCH", `/api/routines/${id}`, { collection: changed })).status).toBe(200);
   expect((await s.api("GET", route)).body).toEqual(first.body);
   expect((await s.api("DELETE", `/api/routines/${id}`)).status).toBe(200);
-  expect((await s.api("GET", route)).body).toEqual(first.body);
-  expect(s.reads).toEqual(["/page", "/page"]);
+  expect(await s.api("GET", route)).toEqual(first);
+  expect(s.reads).toEqual(["/page"]);
   expect(readFileSync(file)).toEqual(bytes);
   console.info("collectionReportEvidence=" + JSON.stringify({ artifactBase64: bytes.toString("base64"), response: first.body,
     typedRun: (await s.runs()).find(candidate => candidate.id === run.id), sourceReads: s.reads, artifactSha256: createHash("sha256").update(bytes).digest("hex") }));
@@ -123,5 +137,12 @@ it("reads the original production artifact through authenticated HTTP and reject
   expect((await s.api("GET", route, undefined, { origin: "https://unpaired.invalid" })).status).toBe(403);
   expect((await s.api("GET", route, undefined, { authorization: "Bearer synthetic-bot-token" })).status).toBe(401);
   expect((await s.api("DELETE", `/api/bots/${s.bot.id}`)).status).toBe(200);
-  expect((await s.api("GET", route)).status).toBe(404);
+  const deleted = await s.api("GET", route);
+  expect(deleted.status).toBe(404);
+  expect(deleted.body.code).toBe("collection_report_not_found");
+  expect(s.reads).toEqual(["/page"]);
+  expect(readFileSync(file)).toEqual(bytes);
+  expect(existsSync(fixture!.fixtureDumpPath)).toBe(false);
+  console.info("ordinaryBotDeletionEvidence=" + JSON.stringify({ botId: s.bot.id, routineId: id, admittedID: run.id,
+    retainedResponse: first, deletedResponse: deleted, sourceReads: s.reads }));
 }, 90_000);

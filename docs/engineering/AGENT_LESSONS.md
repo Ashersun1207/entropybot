@@ -120,6 +120,14 @@
 - 既有 owner-loopback 鉴权会忽略非 session bearer；新增敏感读接口不能把 bot/internal/未知 token 静默回退成本机 owner。真实 HTTP bot-like bearer 探针得到 200（应 401）后，报告路由显式拒绝未被中央 gate 验为 session 的 Authorization header；不改通用鉴权与其他接口。回归保留 paired-client 正例、未知 bearer/错误 session/foreign-origin 拒绝及 service-loopback 负例。
 - 合成 fixture 的计划对象也必须使用持久化规范字段顺序：collector 的绑定基于 JSON 字节顺序，手写 limits 顺序和规范 schema 顺序不同会造成合法读正例失败；不能让所有负例因同一个早期 binding mismatch 而假通过。保留真实 collector 正例、hash-matching schema 负例和 fd 读取期间的替换探针。第二轮 HTTP 夹具还把 foreign-origin 既有 403 误期望为 401，保留失败回执并修正断言，不改产品鉴权。完成前冻结文档/索引与源码一起运行体积、文档、类型和范围 lint。
 
+- 本切片两轮后最终行为门仍为 199 通过/2 失败，明确阻断交回：新 HTTP fixture 最后 bot DELETE 得到 409（不是预期 200，后续删除授权断言未执行）；既有 dispatch restart fixture 的 `runs()[0].collection` 得到 undefined（前一次组合通过，原因未定）。不删断言、不称为 flake、不用报告文件存在冒充通过；后续须先核对实际 bot 删除协议和按 run ID 选取的快照，再由主控授权下一轮。详情在 `docs/verification/collection-report-access.md` 与私有 final-verified 回执。
+
+## A1：有界产品验收补充（测试与证据）
+
+- 默认 bot 的 `defaultBot` 与 `chiefOfStaff` 是独立保护条件；清除后者仍应 DELETE 409。原访问测试选了 `bots[0]`，在组合基线再次得到 409，不能放宽产品删除权限来满足夹具。改为 HTTP 新建普通 bot（201），保留默认 bot 拒绝及明确保护文案，验证 routine 创建/采集完成、报告 GET 200、routine 删除后同一响应、普通 bot 删除后 404 `collection_report_not_found`；全过程源读取 1 次且 artifact 字节不变。两页去重仍由原 dispatch 正例覆盖。
+- `listRuns()` 按全局 `scheduledFor` 降序，等待 admitted ID 结束不授权用首行代表该 run。补充在停止的合成 fixture 中注入已取消、无 collection、未来 scheduledFor 的独立 routine run，加载后先确认它占首行，再按 admitted ID 同时检查 API 与 routines.json 原计划；采集前后及 SIGKILL 后保留 ID、首行 ID、全部 ID、状态和磁盘记录。原 HTTP receipt、重试同 ID、修改计划/旧 key 409、unknown 不重发和无 provider 调用均须保留。该排序控制只证明首行断言在此条件下错误；历史 199/2 中 undefined 的具体原因仍 unknown，不声称已完全解释。
+- 新有界验收首轮为 5 通过/1 失败：新增 retry 断言误期望 200，现有路由实际对首次和相同身份 retry 都返回 201（`scope1-fixtures`）。第二轮仅修正测试预期为既有协议；生产访问代码字节不变，批准的 backend `3c6dc3a` 仅作为显式 bootstrap 组合依赖。最终计数、排序 selector 负例和 SHA/hash 回执见私有 `collection-access-qualification` 交接；历史日志保持不变。此任务不是质量优化，不建台账案例。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

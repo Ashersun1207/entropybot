@@ -32,8 +32,9 @@ async function server() {
   fixture = await launchVerificationServer({ FAKE_CLAUDE_MODE: "happy" });
   const { url, dataDir } = fixture.info;
   writeFileSync(join(dataDir, "collection-fixture.json"), JSON.stringify({ port }), { mode: 0o600 });
-  const restart = async (signal: "SIGTERM" | "SIGKILL" = "SIGTERM") => {
+  const restart = async (signal: "SIGTERM" | "SIGKILL" = "SIGTERM", whileStopped?: () => void) => {
     await waitForExit(child ?? fixture!.child, { signal });
+    whileStopped?.();
     const env = verificationServerEnvironment({ FAKE_CLAUDE_MODE: "happy" }, dataDir, Number(new URL(url).port));
     const log = openSync(fixture!.info.logPath, "a", 0o600);
     try {
@@ -134,17 +135,72 @@ it("never resends a read with unknown outcome after server death and keeps the o
   const s = await server();
   const plan = { ...s.collection, sources: [{ url: s.collection.sources[0].url.replace("/page#first", "/hold") }] };
   const made = await s.make({ collection: plan });
+  expect(made.status).toBe(201);
   const id = made.body.routine.id;
+  const unrelated = await s.make({ name: "Ordering control", collection: undefined });
+  expect(unrelated.status).toBe(201);
+  const controlID = "ordering-control-no-collection";
+  const diskPath = join(s.dataDir, "routines.json");
+  const disk = () => JSON.parse(readFileSync(diskPath, "utf8"));
+  await s.restart("SIGTERM", () => {
+    const saved = disk();
+    saved.runs.push({ id: controlID, routineId: unrelated.body.routine.id, routineName: "Ordering control",
+      botId: s.bot.id, target: "bot", runOn: "maus", status: "cancelled", manual: false,
+      scheduledFor: Date.now() + 86_400_000, createdAt: Date.now(), finishedAt: Date.now() });
+    writeFileSync(diskPath, JSON.stringify(saved), { mode: 0o600 });
+  });
   const first = await s.start(id);
   expect(first.status).toBe(201);
+  const admittedID = first.body.run.id;
+  expect(admittedID).not.toBe(controlID);
   await expect.poll(() => s.reads).toEqual(["/hold"]);
+  const snapshots: unknown[] = [];
+  const snapshot = async (stage: string) => {
+    const apiRuns = await s.runs();
+    const saved = disk();
+    const admitted = apiRuns.find(run => run.id === admittedID);
+    const persisted = saved.runs.find((run: any) => run.id === admittedID);
+    const evidence = { stage, admittedID, rowzeroID: apiRuns[0]?.id, allrunIDs: apiRuns.map(run => run.id),
+      apiPlan: admitted?.collection, diskPlan: persisted?.collection, apiStatus: admitted?.status, diskStatus: persisted?.status,
+      diskRuns: saved.runs, receipts: saved.routineRequestReceipts };
+    snapshots.push(evidence);
+    console.info("collectionRestartEvidence=" + JSON.stringify(evidence));
+    expect(apiRuns).toHaveLength(2);
+    expect(apiRuns[0].id).toBe(controlID);
+    expect(apiRuns[0].routineId).toBe(unrelated.body.routine.id);
+    expect(apiRuns[0].scheduledFor).toBeGreaterThan(admitted.scheduledFor);
+    expect(apiRuns[0].collection).toBeUndefined();
+    expect(apiRuns[0].collection).not.toEqual(plan);
+    expect(admitted.collection).toEqual(plan);
+    expect(persisted.collection).toEqual(plan);
+    return saved;
+  };
+  const before = await snapshot("prekill");
+  expect(before.routineRequestReceipts).toHaveLength(1);
+  expect(before.routineRequestReceipts[0]).toMatchObject({ origin: "http", routineId: id, resultId: admittedID });
+  expect(before.routineRequestReceipts[0].requestId).toEqual(expect.any(String));
+  const retry = await s.start(id);
+  expect(retry.status).toBe(201);
+  expect(retry.body.run.id).toBe(admittedID);
   expect((await s.api("PATCH", `/api/routines/${id}`, { collection: s.collection })).status).toBe(200);
+  await snapshot("prekill-after-plan-change");
   await s.restart("SIGKILL");
-  await s.status(first.body.run.id, "failed");
-  expect((await s.runs())[0].collection).toEqual(plan);
-  expect(s.reads).toEqual(["/hold"]);
+  await snapshot("postload");
+  await s.status(admittedID, "failed");
+  const failed = await snapshot("postfailure");
+  expect(failed.routineRequestReceipts).toEqual(before.routineRequestReceipts);
   expect((await s.start(id)).status).toBe(409);
+  expect((await s.api("PATCH", `/api/routines/${id}`, { collection: plan })).status).toBe(200);
+  const recovered = await s.start(id);
+  expect(recovered.status).toBe(201);
+  expect(recovered.body.run.id).toBe(admittedID);
+  expect((await s.api("PATCH", `/api/routines/${id}`, { collection: s.collection })).status).toBe(200);
+  expect((await s.start(id)).status).toBe(409);
+  const afterChange = await snapshot("changed-plan-old-key-rejected");
+  expect(afterChange.routineRequestReceipts).toEqual(before.routineRequestReceipts);
+  expect(s.reads).toEqual(["/hold"]);
   expect(existsSync(fixture!.fixtureDumpPath)).toBe(false);
+  console.info("collectionRestartControl=" + JSON.stringify({ admittedID, controlID, snapshots, sourceReads: s.reads }));
 }, 90_000);
 
 it("rejects automated collection configurations before admission and retains finite cumulative budgets", async () => {
