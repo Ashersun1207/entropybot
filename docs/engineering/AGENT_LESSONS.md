@@ -82,3 +82,8 @@
 新增条目包含：触发条件、影响与实际证据、根因、修复提交、可执行回归、尚未验证边界。先用最小失败用例确认，再修复；能落到测试或类型约束的经验应落到代码门槛，文档不能替代执行。
 
 维护时合并重复条目，保留决策依据；同一规则不在多个 README/计划里各写一套。本文是应用侧经验真源，具体轮次日志与截图由主控项目的结果文档保留。
+
+## M1b：过期条目的检索投影
+
+- 触发：带 `until` 的主题条目含缩进续文/闭合代码围栏。`withoutExpired` 只删 `entry.line`，续文失去首行身份后仍进入 SQLite 索引、召回和 embedding 请求；prompt/capture 已正确并不证明检索路径正确。修复按既有 `[line, end)` 整段过滤，`hidden` 仍按条目计数，不改原始 Markdown、解析语法或历史/日志/备份。修复提交见 M1b 交付 SHA；回归入口 `server/memory-entries.test.ts`、`server/memory-expiry-retrieval.test.ts`，先保留 4 个断言失败的红例，再验证实际索引、file search、`buildRecall(threadIds: [])` 与无 FTS 命中的主题别名、假 embedding 输入、无文件编辑的跨日重投影及 await 后 stale hash 拒绝。真实模型质量、provider 副本删除、跨聊天遗忘和物理擦除未验证。
+- 本轮验证再次触发 L17：证据 runner 显式使用深层 `TMPDIR`，fake-engine workflow 在 memory 验证前因 permission socket `listen EINVAL` 失败。保留原 suite/server 日志，移除 runner 的 TMPDIR 覆写后仅重跑受影响 workflow；不修改产品、不降低断言。此环境失误与本轮产品修复分别记录，详见 `docs/verification/memory-expiry-retrieval.md`。

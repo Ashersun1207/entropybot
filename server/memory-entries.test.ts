@@ -50,6 +50,31 @@ describe("memory entry grammar", () => {
     expect(hidden).toEqual({ text: "- 2026-09-10 · Likes tea\n", hidden: 1 });
   });
 
+  it("removes complete expired spans while counting entries and preserving adjacent controls", () => {
+    const retained = [
+      "# Memory",
+      "hand-written ~~old~~ note",
+      "- 2026-09-10 · Same day · until 2026-09-15",
+      "  same-day continuation",
+      "- 2026-09-10 · Future · until 2099-01-01",
+      "- 2026-09-10 · No expiry",
+      "- 2026-09-10 · ~~Struck~~ · until 2020-01-01",
+      "  struck continuation",
+      "",
+    ];
+    const expired = [
+      "- 2026-09-10 · Expired command · until 2026-09-14",
+      "  expired continuation",
+      "```sh", "expired fenced command", "```",
+      "  expired tail",
+      "- 2026-09-10 · Another expired command · until 2026-09-14",
+      "  ```sh", "  another expired command", "  ```",
+    ];
+    const text = [...retained.slice(0, 2), ...expired, ...retained.slice(2)].join("\n");
+    expect(withoutExpired(text, "2026-09-15")).toEqual({ text: retained.join("\n"), hidden: 2 });
+    expect(withoutExpired(text, "2026-09-14")).toEqual({ text, hidden: 0 });
+  });
+
   it("accepts only real calendar dates", () => {
     expect(isMemoryDate("2026-09-30")).toBe(true);
     expect(isMemoryDate("2026-02-30")).toBe(false);
