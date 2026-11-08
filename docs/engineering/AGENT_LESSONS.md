@@ -110,6 +110,10 @@
 - P2 独立复审退回：append 已提交后抛错，`confirmed()` 只认消息存在便成功，`write()` 没执行 posted 保存，finally 又删了等待项，导致 run.report 永久 pending、缺 thread/message ID，只有重启才偶然修复。旧回归只数消息和检查重启，不断言发布成功当时的状态，380 通过未覆盖此缺口。R1 红例 `p2-r1-red` 在 append 和首次 posted 保存异常两种注入下均实际得到 pending（2 失败，另 4 项按名称过滤）。修复在确认消息/文本后检查取消与当前 run，再调用现有 noteReport 持久保存精确 posted/threadId/messageId，保存失败不确认 host publication；不重发消息或读取。回归在完成后立即检查内存和 routines.json，额外 flush 后仍检查同一身份，并覆盖持续保存失败不得产生 host completed receipt。保持取消、删除和 stale 防线。修复与精确最终证据见单独 P2 R1 交接提交，原提交证据不外推到修复后。
 - 证据与精确命令见 `docs/verification/web-collection-production.md` 和本轮交接 SHA。仅有合成 DNS/loopback、进程重启与既有 SQLite 持久语义；真实站点/TLS、断电一致性、桌面 UI/安装未验证。报告等待每次派发独立限制为 60 秒，不能宣称无限繁忙恢复；持久采集读取预算和截止不因恢复清零。
 
+## 组合验证的临时目录与显式浏览器开关
+
+- 工程组合 `ddc1bcfe6` 首跑继承 macOS `TMPDIR=/var/folders/...` 别名，`collectWeb` 的 `realpath(outputRoot) === resolve(outputRoot)` 私有目录检查在读取前拒绝，出现45失败/337通过；同时漏传 `OMB_UI_E2E=1`，3个浏览器用例被跳过。修正调用环境为交付所用的合成HOME、规范化短路径 `/private/tmp` 和显式浏览器开关后，同一源码/同一13文件选择385项通过且无跳过；两次前后源码哈希一致。不能因测试目录别名放宽产品路径校验，也不能将 `it.runIf` 跳过记成浏览器验证。原失败与规范环境绿例保留在外层 `private/engineering-foundation-evidence/a1-combination-ddc1bcfe6/`；这是本地组合证据，不是V1/F2回执。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
