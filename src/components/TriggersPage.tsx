@@ -17,6 +17,8 @@ import { LimitWarnings } from "./automations/LimitWarnings";
 import { NewAutomation, type SetUpKind } from "./automations/NewAutomation";
 import { FixButton, StatusMark } from "./automations/parts";
 import { RoutineEditor } from "./RoutineCalendarPage";
+import { CollectionEditor } from "./routines/CollectionEditor";
+import { CollectionDetails } from "./routines/CollectionDetails";
 import { Select } from "./Select";
 import { Switch } from "./SettingsPrimitives";
 import { WebhookEditor } from "./WebhookTrigger";
@@ -53,7 +55,8 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
   const showFilter = all.length >= FILTER_FROM && new Set(all.map((automation) => automation.botId)).size > 1;
   const listed = orderAutomations(all.filter((automation) => !showFilter || botFilter === "all" || automation.botId === botFilter));
   const open = all.find((automation) => automation.id === openId) ?? null;
-  const sentenceOf = (automation: Automation) => automationSentence(automation, botName(automation.botId));
+  const isCollection = (automation: Automation) => state.routines.some(routine => routine.id === automation.id && routine.collection);
+  const sentenceOf = (automation: Automation) => isCollection(automation) ? t("collection.title") : automationSentence(automation, botName(automation.botId));
 
   // Opening one marks its failed runs seen, which is what clears the dot on the sidebar row.
   useEffect(() => {
@@ -63,7 +66,8 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
   const macInset = capabilities.windowChrome === "mac-inset";
   const windowDragStyle = macInset ? ({ WebkitAppRegion: "drag" } as CSSProperties) : undefined;
   const windowNoDragStyle = macInset ? ({ WebkitAppRegion: "no-drag" } as CSSProperties) : undefined;
-  const editRoutine = editing?.kind === "schedule" ? state.routines.find((routine) => routine.id === editing.id) : undefined;
+  const openCollection = open?.kind === "schedule" ? state.routines.find(routine => routine.id === open.id && routine.collection) : undefined;
+  const editRoutine = editing?.kind === "schedule" || editing?.kind === "collection" ? state.routines.find((routine) => routine.id === editing.id) : undefined;
   const editWebhook = editing?.kind === "webhook" ? state.webhooks.find((webhook) => webhook.id === editing.id) : undefined;
   const editApp = editing?.kind === "app" ? appTriggers.triggers.find((trigger) => trigger.id === editing.id) : undefined;
 
@@ -118,10 +122,10 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
                           {name && <div className="mt-0.5 text-[13px] text-ink">{sentenceOf(automation)}</div>}
                           {status.state === "needs-you"
                             ? <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-warning">{t("automations.needsYou", { reason: status.reason ?? "" })}<FixButton automation={automation} status={status} actions={actions} onEdit={() => setEditing({ kind: automation.kind, id: automation.id })} /></div>
-                            : <div className="mt-0.5 text-[13px] text-ink-secondary">{statusLine(automation)}</div>}
+                            : <div className="mt-0.5 text-[13px] text-ink-secondary">{isCollection(automation) ? t("collection.manualHelp") : statusLine(automation)}</div>}
                           {actions.error && actions.errorFor?.endsWith(`:${automation.id}`) && <p role="alert" className="mt-1 text-[12px] text-danger">{actions.error}</p>}
                         </div>
-                        {status.state !== "done" && <Switch checked={automation.enabled} disabled={actions.busy === `toggle:${automation.id}`} aria-label={t("automations.toggle", { name: automation.name })} onClick={() => void actions.toggle(automation)} className="mt-0.5 shrink-0" />}
+                        {!isCollection(automation) && status.state !== "done" && <Switch checked={automation.enabled} disabled={actions.busy === `toggle:${automation.id}`} aria-label={t("automations.toggle", { name: automation.name })} onClick={() => void actions.toggle(automation)} className="mt-0.5 shrink-0" />}
                       </li>
                     );
                   })}
@@ -134,7 +138,9 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
         )}
         {open && (
           <div className="absolute inset-y-0 right-0 z-30 flex shadow-2xl lg:static lg:shadow-none">
-            <AutomationPanel key={open.id} automation={open} sentence={sentenceOf(open)} onClose={() => setOpenId(null)} onDeleted={() => setOpenId(null)} onEdit={() => setEditing({ kind: open.kind, id: open.id })} />
+            {openCollection
+              ? <CollectionDetails key={open.id} routine={openCollection} onClose={() => setOpenId(null)} onEdit={() => setEditing({ kind: "collection", id: open.id })} />
+              : <AutomationPanel key={open.id} automation={open} sentence={sentenceOf(open)} onClose={() => setOpenId(null)} onDeleted={() => setOpenId(null)} onEdit={() => setEditing({ kind: open.kind, id: open.id })} />}
           </div>
         )}
       </div>
@@ -143,6 +149,7 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
         <NewAutomation initialText={newText} onClose={() => setNewText(null)} onSetUpYourself={(kind, botId) => { setNewText(null); setEditing({ kind, botId }); }} />
       )}
       {editing?.kind === "schedule" && (editRoutine || !editing.id) && <RoutineEditor routine={editRoutine} bots={visibleBots} initialBotId={editing.botId} plain onClose={() => setEditing(null)} />}
+      {editing?.kind === "collection" && (editRoutine || !editing.id) && <CollectionEditor routine={editRoutine} bots={visibleBots} initialBotId={editing.botId} onClose={() => setEditing(null)} />}
       {editing?.kind === "webhook" && (editWebhook || !editing.id) && (
         <WebhookEditor webhook={editWebhook} bots={visibleBots} initialBotId={editing.botId} onClose={() => setEditing(null)} onCredential={(credential, id) => { saveWebhookCredential(webhookCredentialStore(), id, credential); setOpenId(id); }} />
       )}

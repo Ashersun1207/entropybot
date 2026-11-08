@@ -8,7 +8,7 @@ import { imeComposing } from "@/lib/send-key";
 import { useStore, type Bot } from "@/state/store";
 import { Select } from "../Select";
 
-export type SetUpKind = "schedule" | "webhook" | "app";
+export type SetUpKind = "schedule" | "webhook" | "app" | "collection";
 
 /** The bot "+ New" talks to: the one open now, else the one most recently talked to. */
 export function defaultBot(bots: readonly Bot[], selectedId: string): Bot | undefined {
@@ -60,6 +60,7 @@ export function NewAutomation({ initialText = "", onClose, onSetUpYourself }: {
         {yourself ? (
           <>
             <div role="radiogroup" aria-label={t("automations.newBox.when")} className="mt-4 space-y-2">
+              {choice("collection", t("collection.title"), CalendarClock)}
               {choice("schedule", t("automations.newBox.onSchedule"), CalendarClock)}
               {choice("app", t("automations.newBox.whenAppEvent"), AppWindow)}
               {choice("webhook", t("automations.newBox.whenApp"), Share2)}
@@ -83,6 +84,7 @@ export function NewAutomation({ initialText = "", onClose, onSetUpYourself }: {
                 </Select>
               </label>
             )}
+            <button type="button" onClick={() => onSetUpYourself("collection", bot?.id ?? "")} className="mt-3 rounded-lg px-2 py-1.5 text-[13px] text-accent-text hover:bg-raised">{t("collection.title")}</button>
             <div className="mt-4 flex items-center justify-between gap-2">
               <button type="button" onClick={() => setYourself(true)} className="rounded-lg px-2 py-1.5 text-[13px] text-ink-secondary underline-offset-2 hover:text-ink hover:underline">{t("automations.newBox.yourself")}</button>
               <button type="button" disabled={!text.trim() || !bot} onClick={send} className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-[13px] font-medium text-accent-ink hover:brightness-110 disabled:opacity-40"><Send size={14} />{t("automations.newBox.send")}</button>

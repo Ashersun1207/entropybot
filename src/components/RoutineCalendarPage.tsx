@@ -22,7 +22,6 @@ import {
   Pause,
   Play,
   Repeat2,
-  Search,
   Target,
   Trash2,
   UserRoundPlus,
@@ -85,6 +84,9 @@ import {
 import { api, openBotThread, openThread, useStore, type Bot, type Group } from "@/state/store";
 import { useManualRoutineRun } from "./automations/actions";
 import { RoutineScheduleNote } from "./RoutineScheduleNote";
+import { CollectionEditor } from "./routines/CollectionEditor";
+import { BotPicker } from "./routines/BotPicker";
+import { CollectionRunReport } from "./routines/CollectionRunReport";
 import { CalendarEventCard, HOUR_HEIGHT, statusState } from "./routines/CalendarEventCard";
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -225,51 +227,6 @@ function AttachmentChips({
           {onRemove && <button type="button" onClick={() => onRemove(attachment.id)} className="rounded p-0.5 text-ink-secondary hover:bg-raised hover:text-ink" aria-label={t("routines.attachment.remove", { name: attachment.name })}><X size={12} /></button>}
         </div>
       ))}
-    </div>
-  );
-}
-
-function BotPicker({
-  bots,
-  selected,
-  multiple,
-  locked,
-  onChange,
-}: {
-  bots: Bot[];
-  selected: string[];
-  multiple: boolean;
-  locked?: boolean;
-  onChange: (ids: string[]) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const filtered = bots.filter((bot) => `${bot.name} ${bot.title}`.toLowerCase().includes(query.toLowerCase()));
-  return (
-    <div className="rounded-xl border border-hairline/50 bg-inset/60 p-2">
-      {!locked && bots.length > 5 && (
-        <label className="mb-2 flex items-center gap-2 rounded-lg border border-transparent bg-panel px-2.5 py-2 text-ink-secondary focus-within:border-focus">
-          <Search size={14} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("routines.findBot")} className="min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-tertiary" />
-        </label>
-      )}
-      <div className="grid max-h-48 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
-        {filtered.map((bot) => {
-          const active = selected.includes(bot.id);
-          return (
-            <button
-              key={bot.id}
-              type="button"
-              disabled={locked}
-              onClick={() => onChange(multiple ? (active ? selected.filter((id) => id !== bot.id) : [...selected, bot.id]) : [bot.id])}
-              className={cn("flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-left transition", active ? "bg-accent/12 ring-1 ring-accent/50" : "hover:bg-raised", locked && "cursor-default")}
-            >
-              <BotAvatar bot={bot} state={active ? "happy" : "idle"} size={32} animated={false} />
-              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{bot.name}</span>
-              {active && <CheckCircle2 size={14} className="shrink-0 text-accent" />}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -1316,6 +1273,7 @@ export function EventDetails({
     ? item.kind === "routine" ? item.run : null
     : submittedRun && (state.routineRuns.find((candidate) => candidate.id === submittedRun.id) ?? submittedRun);
   const call = item.kind === "call" ? item.call : null;
+  const isCollection = Boolean(run?.collection ?? routine?.collection);
   const isRoomGoal = !isCall && (run?.target ?? routine?.target) === "room-goal";
   const goalGroupId = isRoomGoal ? (run ? run.groupId : routine?.groupId) : undefined;
   const goalGroup = state.groups.find((group) => group.id === goalGroupId);
@@ -1420,7 +1378,7 @@ export function EventDetails({
         <div className="min-w-0 flex-1">
           <div className="break-words text-[15px] font-semibold leading-snug text-ink">{title}</div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            {routine && <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", routine.enabled ? "bg-success/15 text-success" : "bg-inset text-ink-secondary")}>{routineScheduleState(routine)}</span>}
+            {routine && <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", routine.enabled ? "bg-success/15 text-success" : "bg-inset text-ink-secondary")}>{isCollection ? t("collection.title") : routineScheduleState(routine)}</span>}
             <span className="text-[11px] text-ink-secondary">{niceDate(item.at)} · {niceTime(item.at)}{isCall ? ` – ${niceTime(item.at + item.durationMinutes * 60_000)}` : ""}</span>
           </div>
         </div>
@@ -1428,7 +1386,8 @@ export function EventDetails({
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        {run && <div role="status" aria-live="polite" className="rounded-xl border border-hairline/40 bg-inset p-3"><div className="flex items-center gap-2 text-[12px] font-medium text-ink">{run.status === "running" && <Loader2 size={13} className="animate-spin text-accent" />}{routineRunLabel(run)}</div>{run.output && <div className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap text-[12px] leading-relaxed text-ink-secondary">{routineRunText(run, "output")}</div>}{run.error && <div className={cn("mt-2 text-[12px]", partlyDone(run) ? "text-warning" : "text-danger")}>{routineRunText(run, "error")}</div>}</div>}
+        {run && <div role="status" aria-live="polite" className="rounded-xl border border-hairline/40 bg-inset p-3"><div className="flex items-center gap-2 text-[12px] font-medium text-ink">{run.status === "running" && <Loader2 size={13} className="animate-spin text-accent" />}{routineRunLabel(run)}</div>{run.output && !isCollection && <div className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap text-[12px] leading-relaxed text-ink-secondary">{routineRunText(run, "output")}</div>}{run.error && !isCollection && <div className={cn("mt-2 text-[12px]", partlyDone(run) ? "text-warning" : "text-danger")}>{routineRunText(run, "error")}</div>}</div>}
+        {isCollection && run && <CollectionRunReport run={run} />}
         {run?.attention && <div className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 text-warning"><CircleAlert size={15} className="mt-0.5 shrink-0" /><div className="min-w-0 whitespace-pre-wrap text-[12px] leading-relaxed">{routineRunText(run, "attention")}</div></div>}
         {run?.status === "waiting" && !run.attention && <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 text-[12px] text-warning">{t("routines.drawer.runWaiting")}</div>}
 
@@ -1439,7 +1398,8 @@ export function EventDetails({
           </div>
         </DrawerField>
         {isRoomGoal && goalGroupId && <DrawerField label={t("routines.drawer.group")}><div className="text-[13px] text-ink">{goalGroup?.name ?? t("routines.drawer.groupUnavailable")}</div></DrawerField>}
-        {(routine || call) && (
+        {isCollection && <p className="text-[12px] text-ink-secondary">{t("collection.manualHelp")}</p>}
+        {!isCollection && (routine || call) && (
           <DrawerField label={t("routines.drawer.schedule")}>
             <div className="text-[13px] text-ink">{scheduleLabel((routine ?? call)!.schedule)}</div>
             {routine?.schedule.type === "cron" && <div className="mt-2"><CronSchedulePreview schedule={routine.schedule} paused={!routine.enabled} /></div>}
@@ -1470,7 +1430,7 @@ export function EventDetails({
           <div className="flex items-center gap-2">
             {manualUncertain && <button onClick={() => runRoutineNow(true)} disabled={working} className="ui-button text-[12px]">{t("routines.manual.startAnother")}</button>}
             <button onClick={() => runRoutineNow()} disabled={working} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-[12px] font-semibold text-accent-ink hover:brightness-110 disabled:opacity-50">{starting ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}{starting ? t("routines.starting") : manualUncertain ? t("commandAllowlist.retry") : t("routines.runNow")}</button>
-            <button disabled={working} onClick={() => void invoke(`/api/routines/${routine.id}`, "PATCH", { enabled: !routine.enabled })} title={t(routine.enabled ? "routines.drawer.pauseRoutine" : "routines.drawer.resumeRoutine")} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-hairline/50 bg-control px-3 py-2 text-[12px] font-medium text-ink hover:bg-raised-hover disabled:opacity-40">{routine.enabled ? <Pause size={13} /> : <Play size={13} />}{routine.enabled ? t("routines.pause") : t("routines.resume")}</button>
+            {!isCollection && <button disabled={working} onClick={() => void invoke(`/api/routines/${routine.id}`, "PATCH", { enabled: !routine.enabled })} title={t(routine.enabled ? "routines.drawer.pauseRoutine" : "routines.drawer.resumeRoutine")} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-hairline/50 bg-control px-3 py-2 text-[12px] font-medium text-ink hover:bg-raised-hover disabled:opacity-40">{routine.enabled ? <Pause size={13} /> : <Play size={13} />}{routine.enabled ? t("routines.pause") : t("routines.resume")}</button>}
           </div>
         )}
         <div className="flex flex-wrap items-center gap-1">
@@ -1596,6 +1556,7 @@ export function RoutineEditor({
   defaultRunOn?: RoutineRunOn; plain?: boolean;
   onClose: () => void;
 }) {
+  if (routine?.collection) return <CollectionEditor routine={routine} bots={bots} lockedBotId={lockedBotId} onClose={onClose} />;
   const at = routine?.schedule.type === "once"
     ? routine.schedule.at
     : routine?.schedule.type === "daily"

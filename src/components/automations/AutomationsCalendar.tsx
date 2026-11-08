@@ -13,6 +13,7 @@ import { api, useStore } from "@/state/store";
 import { useRoutineRunsFrom } from "@/state/older-routine-runs";
 import { CalendarGrid, EventDetails, EventEditor, QuickComposer, type CalendarEventItem, type EventKind, type EventSeed } from "../RoutineCalendarPage";
 import type { ResetDrop } from "../routines/LimitResetMarkers";
+import { CollectionEditor } from "../routines/CollectionEditor";
 
 /** The schedules (and scheduled calls) on a week or day grid. An automation opens the same panel as the list; a call
  * keeps its own details. */
@@ -152,7 +153,7 @@ export function AutomationsCalendar({ botFilter, selectedAutomationId, onOpenAut
         )}
       </div>
       {quick && <><div className="fixed inset-0 z-40 bg-black/25" onMouseDown={() => setQuick(null)} /><QuickComposer seed={quick} bots={visibleBots} routinesOnly={routinesOnly} onClose={() => setQuick(null)} onMore={(seed) => { setQuick(null); setEditor(seed); }} onSavedRoutine={(routine) => dispatch({ type: "routinePatched", routine })} onSavedCall={upsertCall} /></>}
-      {editor && <EventEditor seed={editor} bots={visibleBots} routinesOnly={routinesOnly} onClose={() => setEditor(null)} onSavedCall={upsertCall} />}
+      {editor && (editor.routine?.collection ? <CollectionEditor routine={editor.routine} bots={visibleBots} onClose={() => setEditor(null)} /> : <EventEditor seed={editor} bots={visibleBots} routinesOnly={routinesOnly} onClose={() => setEditor(null)} onSavedCall={upsertCall} />)}
     </div>
   );
 }

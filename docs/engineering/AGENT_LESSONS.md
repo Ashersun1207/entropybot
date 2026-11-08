@@ -128,6 +128,12 @@
 - `listRuns()` 按全局 `scheduledFor` 降序，等待 admitted ID 结束不授权用首行代表该 run。补充在停止的合成 fixture 中注入已取消、无 collection、未来 scheduledFor 的独立 routine run，加载后先确认它占首行，再按 admitted ID 同时检查 API 与 routines.json 原计划；采集前后及 SIGKILL 后保留 ID、首行 ID、全部 ID、状态和磁盘记录。原 HTTP receipt、重试同 ID、修改计划/旧 key 409、unknown 不重发和无 provider 调用均须保留。该排序控制只证明首行断言在此条件下错误；历史 199/2 中 undefined 的具体原因仍 unknown，不声称已完全解释。
 - 新有界验收首轮为 5 通过/1 失败：新增 retry 断言误期望 200，现有路由实际对首次和相同身份 retry 都返回 201（`scope1-fixtures`）。第二轮仅修正测试预期为既有协议；生产访问代码字节不变，批准的 backend `3c6dc3a` 仅作为显式 bootstrap 组合依赖。最终计数、排序 selector 负例和 SHA/hash 回执见私有 `collection-access-qualification` 交接；历史日志保持不变。此任务不是质量优化，不建台账案例。
 
+## A1：采集 UI 的验证边界
+
+- 新类型接入原编辑器时，包装原 EventEditor 会改变既有直接捕获控件的测试边界；本轮实际 3 项失败、77 项通过。修复在真实调用入口分流采集编辑，保留原普通编辑器导出/行为，不改既有断言。新增采集组件通过实际 DOM 挂载测试输入、payload 和错误。回归入口 `src/components/routines/CollectionUI.test.ts` 与完整 `RoutineCalendarPage.simple.test.ts`。
+- 真实 App 同时有 sidebar 和 Routine details 两个 aside。浏览器测试必须按 `aria-label="Routine details"` 精确选择；泛选第一个 aside 得到侧栏预览，不能当运行详情或报告正文。新浏览器夹具还修正了旧导航位置和把 SVG 加号当文本的选择器错误，这些不算产品红例。
+- 后端 durable summary 的 `Path:` 行是私有元数据。采集详情只显示验证过的计数/hash 对应状态，报告正文只在显式动作后从受权路由读取并以有界、折叠 pre 显示。详情脱敏不能证明原聊天/侧栏预览也脱敏；本轮真实浏览器已看到该共享显示缺口，完整接受须由主控分配共享投影修复和报告接口集成，不以合成 report fetch 单测冒充端到端。当前检查点与限制见 [验证说明](../verification/web-collection-ui.md)。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
