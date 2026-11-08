@@ -43,6 +43,13 @@ beforeEach(() => {
     if (path === "/api/auth/session") return json({ kind: "loopback", manualRoutineRequests: { version: 1, contextId: currentContext } });
     if (path === "/api/bots/bot") return profile;
     if (path === "/api/routines/routine/run-protected") { posts.push(init!); return answer(); }
+    if (typeof path === "string" && path.startsWith("/api/bots?")) return json({ bots: [bot], groups: [] });
+    if (typeof path === "string" && path.startsWith("/api/routines?")) return json({ routines: [routine], runs: [] });
+    if (path === "/api/instances") return json({ instances: [] });
+    if (path === "/api/config") return json({});
+    if (path === "/api/webhooks") return json({ webhooks: [] });
+    if (path === "/api/notifications") return json({ notifications: [] });
+    if (path === "/api/live/call") return json({ call: null });
     throw Error(`Unexpected fixture request ${path}`);
   }));
 });
@@ -52,7 +59,82 @@ afterEach(() => {
 });
 const key = (i: number) => new Headers(posts[i].headers).get("Idempotency-Key");
 
+function stallMetadataFetch(phase: "initial" | "post-settings", endpoint: "environment" | "session", subscribers = 2) {
+  const original = fetch;
+  const counts = { environment: 0, session: 0 };
+  const calls: { endpoint: string; ordinal: number; init: RequestInit | undefined }[] = [];
+  const stalledOrdinal = phase === "initial" ? 1 : subscribers + 1;
+  let release: (() => Promise<void>) | undefined;
+  vi.stubGlobal("fetch", vi.fn<typeof fetch>((path, init) => {
+    const name = path === "/.well-known/entropybot/environment" ? "environment" : path === "/api/auth/session" ? "session" : null;
+    if (name) {
+      const ordinal = ++counts[name];
+      calls.push({ endpoint: name, ordinal, init });
+      if (name === endpoint && ordinal === stalledOrdinal) return new Promise<Response>((resolve) => {
+        release = async () => { resolve(await original(path, init)); };
+      });
+    }
+    return original(path, init);
+  }));
+  return {
+    calls, stalledOrdinal,
+    release: async () => { const pending = release; release = undefined; await pending?.(); },
+  };
+}
+
+const preflightCases = (["initial", "post-settings"] as const).flatMap((phase) =>
+  (["environment", "session"] as const).flatMap((endpoint) => [false, true].map((priorPending) => [phase, endpoint, priorPending] as const)));
+
 describe("actual StoreProvider and routine details consumer", () => {
+  it.each(preflightCases)("settles subscribers after a stalled %s %s preflight (prior pending: %s)", async (phase, endpoint, priorPending) => {
+    mount();
+    if (priorPending) {
+      answer = async () => { throw Error("lost response"); };
+      act(() => dispatch({ type: "runRoutine", routineId: routine.id, onError: vi.fn() })); await flush();
+    }
+    answer = async () => json({ run });
+    const previousPosts = posts.length, previousMarker = localStorage.getItem(MANUAL_RUN_STORAGE);
+    const stall = stallMetadataFetch(phase, endpoint);
+    const callbacks = [0, 1].map(() => ({ onStarted: vi.fn(), onError: vi.fn(), onSettled: vi.fn() }));
+    try {
+      act(() => { for (const subscription of callbacks) dispatch({ type: "runRoutine", routineId: routine.id, ...subscription }); });
+      await flush();
+      expect(posts).toHaveLength(previousPosts);
+      for (const subscription of callbacks) expect(subscription.onSettled).not.toHaveBeenCalled();
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_000); }); await flush();
+      expect(posts).toHaveLength(previousPosts);
+      expect(localStorage.getItem(MANUAL_RUN_STORAGE)).toBe(previousMarker);
+      for (const subscription of callbacks) {
+        expect(subscription.onError).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ reason: "blocked" }));
+        expect(subscription.onSettled).toHaveBeenCalledTimes(1); expect(subscription.onStarted).not.toHaveBeenCalled();
+      }
+      const pair = stall.calls.filter((call) => call.ordinal === stall.stalledOrdinal);
+      expect(pair).toHaveLength(2);
+      for (const call of pair) {
+        expect(call.init?.cache).toBe("no-store"); expect(call.init?.credentials).toBe("same-origin");
+        expect(call.init?.signal?.aborted).toBe(true);
+      }
+      await stall.release(); await flush(); expect(posts).toHaveLength(previousPosts);
+      const onStarted = vi.fn();
+      act(() => dispatch({ type: "runRoutine", routineId: routine.id, onStarted })); await flush();
+      expect(onStarted).toHaveBeenCalledExactlyOnceWith(run); expect(posts).toHaveLength(previousPosts + 1);
+      if (priorPending) expect(key(previousPosts)).toBe(key(0));
+      expect(new Headers(posts[previousPosts].headers).get("X-Entropybot-Manual-Context")).toBe(contextId);
+      for (const subscription of callbacks) expect(subscription.onSettled).toHaveBeenCalledTimes(1);
+    } finally { await stall.release(); await flush(); }
+  });
+  it.each(["initial", "post-settings"] as const)("releases the details busy state after a stalled %s preflight", async (phase) => {
+    mount(true); const stall = stallMetadataFetch(phase, "session", 1);
+    try {
+      click("Run now"); await flush();
+      expect([...host.querySelectorAll("button")].find((button) => button.textContent === "Starting…")?.disabled).toBe(true);
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_000); }); await flush();
+      expect(posts).toHaveLength(0);
+      expect([...host.querySelectorAll("button")].find((button) => button.textContent === "Run now")?.disabled).toBe(false);
+      await stall.release(); await flush(); expect(posts).toHaveLength(0);
+      click("Run now"); await flush(); expect(posts).toHaveLength(1);
+    } finally { await stall.release(); await flush(); }
+  });
   it("notifies every coalesced subscriber once after the settings barrier", async () => {
     let release!: (res: Response) => void; profile = new Promise((done) => { release = done; }); mount();
     const first = { onStarted: vi.fn(), onError: vi.fn(), onSettled: vi.fn() };

@@ -4,6 +4,8 @@ import { decodeManualRoutineScope, type ManualRoutineScope } from "../lib/sessio
 import { api } from "./api";
 
 export const MANUAL_RUN_STORAGE = "entropybot.manual-routine-intents.v1";
+/** Maximum time for one manual-run metadata preflight, including response bodies. */
+export const MANUAL_ROUTINE_PREFLIGHT_TIMEOUT_MS = 5_000;
 type Marker = ManualRoutineScope & { routineId: string; key: string; phase: "pending" | "confirmed" };
 type Ledger = { version: 1; entries: Marker[] };
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -41,13 +43,27 @@ function save(storage: Storage, marker: Marker) {
 }
 
 async function authoritativeScope(): Promise<ManualRoutineScope> {
-  const [environment, session] = await Promise.all([
-    api<unknown>("/.well-known/entropybot/environment", { cache: "no-store", credentials: "same-origin" }),
-    api<unknown>("/api/auth/session", { cache: "no-store", credentials: "same-origin" }),
-  ]);
-  const scope = decodeManualRoutineScope(environment, session);
-  if (!scope) throw new ManualRunError("blocked");
-  return scope;
+  const controller = new AbortController();
+  const deadline = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener("abort", () => reject(new ManualRunError("blocked")), { once: true });
+  });
+  const timer = setTimeout(() => controller.abort(), MANUAL_ROUTINE_PREFLIGHT_TIMEOUT_MS);
+  const init = { cache: "no-store", credentials: "same-origin", timeoutMs: MANUAL_ROUTINE_PREFLIGHT_TIMEOUT_MS, signal: controller.signal } as const;
+  try {
+    const [environment, session] = await Promise.race([
+      Promise.all([
+        api<unknown>("/.well-known/entropybot/environment", init),
+        api<unknown>("/api/auth/session", init),
+      ]),
+      deadline,
+    ]);
+    const scope = decodeManualRoutineScope(environment, session);
+    if (!scope) throw new ManualRunError("blocked");
+    return scope;
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
 }
 
 export function decodeManualRun(body: unknown, routineId: string): RoutineRun | null {
