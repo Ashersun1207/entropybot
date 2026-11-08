@@ -10,6 +10,7 @@ import { activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-d
 import { startDueTimer, type DueTimer } from "./due-timer.ts";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
 import type { RoutineRequestOperation } from "../shared/routine-request.ts";
+import { RoutineRequestReceipts, type RoutineRequestReceipt, type RoutineRequestCommit, type RoutineRequestOwner } from "./routine-request-receipts.ts";
 import { intervalAllowsOccurrence, intervalHasRestrictions, isSameLocalDay, latestIntervalOccurrence } from "./routine-intervals.ts";
 import { cloneSchedule, limitResetOccurrence, mergeScheduleUpdate, nextOccurrence, RoutineScheduleError, type RoutineSchedule, type RoutineScheduleInput } from "./routine-schedules.ts";
 import { runsOnce } from "../shared/limit-reset.ts";
@@ -138,27 +139,7 @@ export interface RoutineRun extends RoutineLineCodes {
   seenAt?: number;
 }
 
-export interface RoutineRequestReceipt {
-  requestId: string;
-  messageId: string;
-  botId: string;
-  threadId: string;
-  action: RoutineRequestOperation["action"];
-  fingerprintVersion: 1;
-  fingerprint: string;
-  resultId: string;
-  appliedAt: number;
-}
-
-export interface RoutineRequestCommit {
-  requestId: string;
-  messageId: string;
-  botId: string;
-  threadId: string;
-  action: RoutineRequestOperation["action"];
-  fingerprintVersion: 1;
-  fingerprint: string;
-}
+export type { RoutineRequestReceipt, RoutineRequestCommit, RoutineRequestOwner } from "./routine-request-receipts.ts";
 
 type RoutineRequestCommitFor<Action extends RoutineRequestOperation["action"]> =
   Omit<RoutineRequestCommit, "action"> & { action: Action };
@@ -197,11 +178,6 @@ interface RoutineFile {
 }
 
 
-export type RoutineRequestOwner = Pick<RoutineRequestReceipt, "requestId" | "messageId" | "botId" | "threadId">;
-
-function routineRequestOwnerKey(owner: RoutineRequestOwner): string {
-  return JSON.stringify([owner.requestId, owner.messageId, owner.botId, owner.threadId]);
-}
 
 /** What a routine's checks found: items for one AI run, a sentence while an app cannot be read, and the next time they
  * have something to do on time. */
@@ -302,7 +278,7 @@ export class RoutineManager {
   /** Written back unchanged on every save, so unrelated work never deletes a repairable row. */
   private unloadedRoutines: Routine[] = [];
   private runs: RoutineRun[] = [];
-  private routineRequestReceipts: RoutineRequestReceipt[] = [];
+  private routineRequestReceipts = new RoutineRequestReceipts();
   private webhookRunReceipts: EventRunReceipt[] = [];
   private timer: DueTimer | null = null;
   private startupRunsQueued = false;
@@ -339,14 +315,14 @@ export class RoutineManager {
         return loaded ? [loaded] : [];
       }) : [];
       this.runs = Array.isArray(disk.runs) ? disk.runs.map(loadRun) : []; this.malformedAttachments = attachmentsMalformed([...(disk.routines ?? []), ...(disk.runs ?? [])]);
-      this.routineRequestReceipts = loadRequestReceipts(disk.routineRequestReceipts);
+      this.routineRequestReceipts = new RoutineRequestReceipts(loadRequestReceipts(disk.routineRequestReceipts));
       this.webhookRunReceipts = loadEventReceipts(disk.webhookRunReceipts, this.runs, this.now());
       this.frozenPending = disk.frozenResultsCleared !== true;
       this.ownerNotices = loadOwnerNotices(disk.ownerNotices);
       this.holds = holdCauses(disk.holds);
       if (typeof disk.startupLaunchId === "string") this.startupLaunchId = disk.startupLaunchId;
     } catch (error) {
-      this.routines = []; this.unloadedRoutines = []; this.runs = []; this.routineRequestReceipts = []; this.webhookRunReceipts = [];
+      this.routines = []; this.unloadedRoutines = []; this.runs = []; this.routineRequestReceipts = new RoutineRequestReceipts(); this.webhookRunReceipts = [];
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         this.unreadable = true;
         // JSON.parse errors can echo a fragment of the input, so they never reach the log.
@@ -448,47 +424,38 @@ export class RoutineManager {
   }
 
   routineRequestReceipt(requestId: string): RoutineRequestReceipt | null {
-    const receipt = this.routineRequestReceipts.find((candidate) => candidate.requestId === requestId);
-    return receipt ? { ...receipt } : null;
+    return this.routineRequestReceipts.receipt(requestId);
   }
 
   routineRequestReceiptOwners(): RoutineRequestOwner[] {
-    return this.routineRequestReceipts.map(({ requestId, messageId, botId, threadId }) => ({
-      requestId,
-      messageId,
-      botId,
-      threadId,
-    }));
+    return this.routineRequestReceipts.owners();
   }
 
   /** Unsettled receipts are never count-evicted: an open card keeps its exactly-once recovery for its whole life. */
   forgetRoutineRequestReceipt(request: RoutineRequestCommit): boolean {
-    const receipt = this.matchingRoutineRequestReceipt(request);
-    if (!receipt) return false;
-    const index = this.routineRequestReceipts.indexOf(receipt);
+    if (!this.routineRequestReceipts.matching(request)) return false;
     this.commitMutation(() => {
-      this.routineRequestReceipts.splice(index, 1);
+      this.routineRequestReceipts.forget(request);
     });
     return true;
   }
 
   forgetRoutineRequestReceiptsForThread(threadId: string): number {
-    const kept = this.routineRequestReceipts.filter((receipt) => receipt.threadId !== threadId);
-    const removed = this.routineRequestReceipts.length - kept.length;
+    const kept = this.routineRequestReceipts.withoutThread(threadId);
+    const removed = this.routineRequestReceipts.size - kept.length;
     if (removed === 0) return 0;
     this.commitMutation(() => {
-      this.routineRequestReceipts = kept;
+      this.routineRequestReceipts = new RoutineRequestReceipts(kept);
     });
     return removed;
   }
 
   reconcileRoutineRequestReceipts(reachable: readonly RoutineRequestOwner[]): number {
-    const keys = new Set(reachable.map(routineRequestOwnerKey));
-    const kept = this.routineRequestReceipts.filter((receipt) => keys.has(routineRequestOwnerKey(receipt)));
-    const removed = this.routineRequestReceipts.length - kept.length;
+    const kept = this.routineRequestReceipts.reachable(reachable);
+    const removed = this.routineRequestReceipts.size - kept.length;
     if (removed === 0) return 0;
     this.commitMutation(() => {
-      this.routineRequestReceipts = kept;
+      this.routineRequestReceipts = new RoutineRequestReceipts(kept);
     });
     return removed;
   }
@@ -518,7 +485,7 @@ export class RoutineManager {
   create(input: RoutineInput, request?: RoutineRequestCommitFor<"create">): Routine {
     this.assertWritable();
     if (request) {
-      const receipt = this.matchingRoutineRequestReceipt(request);
+      const receipt = this.routineRequestReceipts.matching(request);
       if (receipt) {
         const committed = this.routines.find((routine) => routine.id === receipt.resultId);
         if (committed) return this.routineWithHealth(committed);
@@ -545,7 +512,7 @@ export class RoutineManager {
     const discardResults = this.applyResultsInput(routine, input.resultsThreadId);
     this.commitMutation(() => {
       this.routines.unshift(routine);
-      if (request) this.rememberRoutineRequest(request, routine.id, at);
+      if (request) this.routineRequestReceipts.remember(request, routine.id, at);
     }, discardResults);
     this.emitRoutine(routine);
     return this.routineWithHealth(routine);
@@ -561,7 +528,7 @@ export class RoutineManager {
   ): Routine | null {
     this.assertWritable();
     if (request) {
-      const receipt = this.matchingRoutineRequestReceipt(request);
+      const receipt = this.routineRequestReceipts.matching(request);
       if (receipt) {
         const committed = this.routines.find((routine) => routine.id === receipt.resultId);
         return committed ? this.routineWithHealth(committed) : null;
@@ -631,7 +598,7 @@ export class RoutineManager {
           cancelledRuns.push(run);
         }
       }
-      if (request) this.rememberRoutineRequest(request, routine.id, now);
+      if (request) this.routineRequestReceipts.remember(request, routine.id, now);
     }, discardResults);
     for (const run of cancelledRuns) this.emitRun(run);
     this.emitRoutine(routine);
@@ -640,7 +607,7 @@ export class RoutineManager {
 
   remove(id: string, request?: RoutineRequestCommitFor<"delete">): boolean {
     this.assertWritable();
-    if (request && this.matchingRoutineRequestReceipt(request)) return true;
+    if (request && this.routineRequestReceipts.matching(request)) return true;
     const at = this.routines.findIndex((r) => r.id === id);
     if (at === -1) return false;
     const changedRuns: RoutineRun[] = [];
@@ -658,7 +625,7 @@ export class RoutineManager {
           changedRuns.push(run);
         }
       }
-      if (request) this.rememberRoutineRequest(request, id, this.now());
+      if (request) this.routineRequestReceipts.remember(request, id, this.now());
     });
     for (const run of changedRuns) this.emitRun(run);
     this.options.emit?.({ kind: "routine.deleted", routineId: id });
@@ -717,7 +684,7 @@ export class RoutineManager {
   runNow(id: string, request?: RoutineRequestCommitFor<"run_now">): RoutineRun | null {
     if (this.closing) return null;
     if (request) {
-      const receipt = this.matchingRoutineRequestReceipt(request);
+      const receipt = this.routineRequestReceipts.matching(request);
       if (receipt) {
         const committed = this.runs.find((run) => run.id === receipt.resultId);
         return committed ? cloneRun(committed) : null;
@@ -731,7 +698,7 @@ export class RoutineManager {
     this.commitMutation(() => {
       run = this.newRun(routine, this.now(), true, allocations, request?.threadId ?? routine.sourceThreadId);
       if (request) run.sourceThreadId = request.threadId;
-      if (request) this.rememberRoutineRequest(request, run.id, this.now());
+      if (request) this.routineRequestReceipts.remember(request, run.id, this.now());
     }, () => this.discardResultsThreads(allocations));
     if (routine.resultsThreadId !== previousDestination) this.emitRoutine(routine);
     this.emitRun(run);
@@ -1484,35 +1451,6 @@ export class RoutineManager {
     }
   }
 
-  private matchingRoutineRequestReceipt(request: RoutineRequestCommit): RoutineRequestReceipt | null {
-    const receipt = this.routineRequestReceipts.find((candidate) => candidate.requestId === request.requestId);
-    if (!receipt) return null;
-    if (
-      receipt.action !== request.action ||
-      receipt.messageId !== request.messageId ||
-      receipt.botId !== request.botId ||
-      receipt.threadId !== request.threadId ||
-      receipt.fingerprintVersion !== request.fingerprintVersion ||
-      receipt.fingerprint !== request.fingerprint
-    ) {
-      throw new Error("Routine request receipt does not match this confirmation card");
-    }
-    return receipt;
-  }
-
-  private rememberRoutineRequest(
-    request: RoutineRequestCommit,
-    resultId: string,
-    appliedAt: number,
-  ) {
-    const existing = this.matchingRoutineRequestReceipt(request);
-    if (existing) {
-      if (existing.resultId !== resultId) throw new Error("Routine request receipt has another result");
-      return;
-    }
-    this.routineRequestReceipts.unshift({ ...request, resultId, appliedAt });
-  }
-
   private assertWritable(): void {
     if (this.unreadable) throw Object.assign(new Error("Saved routines could not be read. Repair routines.json before changing them."), { status: 503 });
   }
@@ -1522,7 +1460,7 @@ export class RoutineManager {
     const before = {
       routines: this.routines.map(cloneRoutine),
       runs: this.runs.map(cloneRun),
-      receipts: this.routineRequestReceipts.map((receipt) => ({ ...receipt })),
+      receipts: this.routineRequestReceipts.snapshot(),
     };
     try {
       mutate();
@@ -1530,7 +1468,7 @@ export class RoutineManager {
     } catch (error) {
       this.routines = before.routines;
       this.runs = before.runs;
-      this.routineRequestReceipts = before.receipts;
+      this.routineRequestReceipts = new RoutineRequestReceipts(before.receipts);
       try { rollback?.(); }
       catch (cleanupError) { console.error("routine: could not discard uncommitted results thread", cleanupError); }
       throw error;
@@ -1557,7 +1495,7 @@ export class RoutineManager {
       ...(this.frozenPending ? {} : { frozenResultsCleared: true }),
       routines: [...this.routines, ...this.unloadedRoutines],
       runs: this.runs,
-      routineRequestReceipts: this.routineRequestReceipts,
+      routineRequestReceipts: this.routineRequestReceipts.snapshot(),
       webhookRunReceipts: this.webhookRunReceipts,
       ...(this.startupLaunchId === undefined ? {} : { startupLaunchId: this.startupLaunchId }),
       ...(this.ownerNotices.length ? { ownerNotices: this.ownerNotices } : {}),
