@@ -75,6 +75,22 @@ afterAll(() => {
 });
 
 describe("an automation's line in the chat", () => {
+  it("projects a collection summary for display without changing the durable message", async () => {
+    const text = `Web collection report\nPages: 2\nUnique: 1\nPath: ${JSON.stringify('/private/collection/[open](https://adversary.invalid)/<img src="pixel">')}\nSHA-256: ${"a".repeat(64)}`;
+    const message: Message = { id: "collection", parentId: "m2", role: "bot", kind: "text", text, at: at(3), automation: line("run-1", { trigger: "manual" }) };
+    await draw(transcript([message]));
+    const row = document.querySelector('[data-mid="collection"]')!;
+    expect(row.textContent).toContain("Pages: 2");
+    expect(row.textContent).toContain("Unique: 1");
+    expect(row.textContent).not.toContain("Path:");
+    expect(row.textContent).not.toContain("/private/collection");
+    expect(row.querySelectorAll("a,img,iframe,script")).toHaveLength(0);
+    expect(message.text).toBe(text);
+    await draw(transcript([{ ...message, role: "user" }]));
+    expect(document.querySelector('[data-mid="collection"]')!.textContent).toContain(text);
+    await draw(transcript([{ ...message, automation: undefined }]));
+    expect(document.querySelector('[data-mid="collection"]')!.textContent).toContain("Path:");
+  });
   it("is the bot's own message under the automation's name, with its run one click away", async () => {
     await draw(transcript([{ id: "r1", parentId: "m2", role: "bot", kind: "text", text: "Acme replied about the order.", at: at(3), automation: line("run-1") }]));
     const label = caption("run-1");

@@ -2,7 +2,7 @@
   "collection.title": "手动网页采集",
   "collection.manualHelp": "仅在点击“立即运行”时，在本机采集你列出的页面。保存不会开始运行，也不使用模型。",
   "collection.urls": "页面网址 · 每行一个",
-  "collection.urlHelp": "输入 1–100 个完整的 HTTP 或 HTTPS 网址，每行一个（每个最多 8192 个字符）。空行忽略，不允许包含账号密码。片段会移除；重复页面仍计入页面数，但报告只保留一个来源。服务器会拒绝私有网络地址。",
+  "collection.urlHelp": "输入 1–100 个完整的 HTTP 或 HTTPS 网址，每行一个（每个最多 8192 个字符）。空行忽略，不允许包含账号密码。片段会移除；重复页面仍计入页面数，但报告只保留一个来源。应用会拒绝私有网络或内部网络中的地址。",
   "collection.invalidUrls": "请检查每一行：填写 1–100 个完整的 HTTP 或 HTTPS 网址，不含账号密码、空格或标记。未删除或保存任何页面。",
   "collection.overBudget": "页面列表超过已保存的页面或尝试次数上限，请减少后再保存。",
   "collection.saveFailed": "无法保存采集任务。请检查输入和访问权限后重试。",
@@ -20,9 +20,9 @@
   "collection.inertHelp": "采集内容以纯文本显示，链接和指令均不会生效。",
   "collection.source": "来源 {number}",
   "collection.previewBound": "仅预览此来源的前 20,000 个字符。",
-  "routines.manual.blocked": "暂时无法手动运行。请检查浏览器存储，并登录支持受保护运行的服务器。待确认请求已保留。",
+  "routines.manual.blocked": "应用暂时无法确认能否安全启动此任务。请检查浏览器存储和登录状态，然后重试。待确认请求已保留。",
   "routines.manual.unknown": "上次请求可能已经运行。重试会确认同一个请求；如需另行运行，请先查看运行记录。",
-  "routines.manual.changed": "账号或工作区已变化，上次请求已保留。请返回原账号和工作区重试；如需另行运行，请先查看运行记录。",
+  "routines.manual.changed": "此任务或登录状态已变化，上次请求已保留。请返回提交请求的位置重试；如需另行运行，请先查看运行记录。",
   "routines.manual.startAnother": "另行运行…",
   "routines.manual.acknowledge": "上次请求可能已经运行，且不会被取消。仍要另行运行吗？",
   "voice.gemini.keyPlaceholder": "粘贴你的 Google AI Studio API 密钥",
@@ -7479,5 +7479,5 @@
   "memorySettings.storageUnknown": "凭证存储状态未知，尚未确认已受到安全保护。",
   "native.tray.open": "打开 {app}",
   "native.tray.quit": "退出 {app}",
-  "native.startup.opening": "正在打开工作区…"
+  "native.startup.opening": "正在打开 Entropybot…"
 }

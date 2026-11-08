@@ -106,7 +106,7 @@ it.runIf(enabled).each(["lost", "readback", "in-flight"] as const)("recovers %s 
     const opened = await api("POST", "/api/auth/pairing", { label: "Synthetic changed caller", scopes: ["client"] });
     switchedToken = (await api("POST", "/api/auth/pair", { code: opened.code })).token;
     await click("Retry");
-    await expect.poll(() => evaluate("document.body.textContent.includes('The account or workspace changed. The previous request has been kept.')")).toBe(true);
+    await expect.poll(() => evaluate("document.body.textContent.includes('This task or your sign-in changed. The previous request has been kept.')")).toBe(true);
     await expect.poll(() => has("Retry")).toBe(true);
     expect(posts).toHaveLength(1); expect(await marker()).toEqual(original);
     switchedToken = undefined;

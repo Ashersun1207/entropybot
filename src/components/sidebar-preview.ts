@@ -8,6 +8,7 @@ import { t } from "@/lib/i18n";
 import { sidebarConnectorPreview, sidebarGoalRunPreview } from "@/lib/sidebar-layout";
 import { citationPreviewText } from "@/lib/citations";
 import { plainPreviewText } from "@/lib/plain-preview";
+import { collectionSummaryDisplay } from "@/lib/collection-summary-display";
 import { isClientCancellation, isStoppedTurnName } from "../../shared/client-cancel";
 import { roomWorkingPreview } from "@/lib/room-threads";
 import { localizedCard } from "@/lib/widget-text";
@@ -57,7 +58,7 @@ export function lastLine(bot: Bot, visible: Message[], instances: InstanceInfo[]
   const peer = peerLine(last);
   if (peer) return `${peer.name}: ${plainPreviewText(peer.body)}`;
   if (last.role !== "user" && isClientCancellation(last.text ?? "")) return t("chat.turnStopped");
-  return plainPreviewText(citationPreviewText(serverCardText(last) ?? last.text ?? ""));
+  return plainPreviewText(citationPreviewText(collectionSummaryDisplay(last) ?? serverCardText(last) ?? last.text ?? ""));
 }
 
 export function serverCardText(message: Pick<Message, "kind" | "widget">): string | undefined {
@@ -93,7 +94,7 @@ export function groupPreview(group: Group, bots: Bot[], instances: InstanceInfo[
       ? sidebarGoalRunPreview(last.goalRun)
       : last.kind === "connector" && last.connector
         ? sidebarConnectorPreview(last.connector, t)
-        : (last.text ?? "");
+        : (collectionSummaryDisplay(last) ?? last.text ?? "");
   const readable = plainPreviewText(citationPreviewText(text));
   if (last.role === "user") return t("sidebar.preview.you", { text: readable });
   return last.from ? `${last.from.name}: ${readable}` : readable;

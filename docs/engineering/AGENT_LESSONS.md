@@ -114,6 +114,12 @@
 
 - 工程组合 `ddc1bcfe6` 首跑继承 macOS `TMPDIR=/var/folders/...` 别名，`collectWeb` 的 `realpath(outputRoot) === resolve(outputRoot)` 私有目录检查在读取前拒绝，出现45失败/337通过；同时漏传 `OMB_UI_E2E=1`，3个浏览器用例被跳过。修正调用环境为交付所用的合成HOME、规范化短路径 `/private/tmp` 和显式浏览器开关后，同一源码/同一13文件选择385项通过且无跳过；两次前后源码哈希一致。不能因测试目录别名放宽产品路径校验，也不能将 `it.runIf` 跳过记成浏览器验证。原失败与规范环境绿例保留在外层 `private/engineering-foundation-evidence/a1-combination-ddc1bcfe6/`；这是本地组合证据，不是V1/F2回执。
 
+## A1：摘要显示与持久回执分离
+
+- 真实采集 UI 已在详情隐藏路径，但原聊天与侧栏仍展示 durable summary 的 `Path:`；只验详情/报告不能证明公共显示面已覆盖。最小红例在真实 ChatView 挂载与 sidebar preview 各失败一项；同批原词汇门仍有两项失败，不能用新功能通过掩盖。修复以 manual automation 元数据及完整已知摘要结构、正整数计数和 hash 共同识别，只在前端显示固定标题与计数；原持久消息和 host 发布文本参与 exact-content reconciliation，禁止为脱敏改写 durable bytes。普通用户仿写与非法结构保持原样。
+- 回归入口为 `collection-summary-display.test.ts`、`ChatView.automation.test.ts`、`sidebar-preview.test.ts` 和真实 `collection-ui.e2e.test.ts`；同时检查聊天正文、侧栏、回复引用及原消息/产物不变。ChatView 已有体积上限，应复用现有 `botLineText` 显示入口，不增加并行渲染职责或抬高预算。最终 SHA/精确计数见 [验证说明](../verification/web-collection-ui.md) 与 source-bound 回执。此投影不是授权或任意文本脱敏器；原导出/搜索/存储及独立报告读取器的大小边界不在本切片验收内。
+- 文案变更后，reload 浏览器回归的旧英文整句断言仍停留在 account/workspace，首轮实际三项失败；更新为新产品整句后仍须保留所有原身份、Retry 和未额外发 POST 的断言。扩大语言检查还暴露未改动的 `i18n.test.ts` 两项 Node 24 默认 navigator `en-US` 与期望 `en` 的失败，精确基线模块探针同样 34 通过/2 失败；这是新增发现的范围外门槛限制，不能吞掉或修改词汇断言来称整体通过。
+
 ## Collection report access
 
 - 新增 GET 路由经过已有鉴权，不代表 paired client 可达：CLIENT_ALLOW 默认 admin-only，实际 HTTP paired-client 负例发现报告 GET 漏加白名单。只添加精确 method/path，再验证隐藏 bot、错误 routine/run 与 thread audience；不能以 owner loopback 成功代替成员授权。报告必须通过原始手动 request receipt、run 快照、计划 binding 与完成 hash 验证，发布摘要 path/hash 和 pending/posted 均不授权。回归 `server/collection-report-access*.test.ts`，证据与边界见 `docs/verification/collection-report-access.md`。

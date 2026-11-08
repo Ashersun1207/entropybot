@@ -2,6 +2,7 @@ import type { Message } from "@/state/store";
 import { activeLocale, t } from "@/lib/i18n";
 import { lastNonReceipt } from "@/lib/receipts";
 import { noticeText } from "@/lib/activity-text";
+import { collectionSummaryDisplay } from "./collection-summary-display";
 import type { ServerTextParams } from "../../shared/server-text";
 
 export interface TranscriptLookups {
@@ -55,6 +56,6 @@ export function dayLabel(at: number, today = localDay(Date.now())): string {
   return dates.format(at);
 }
 
-export function botLineText(message: { text?: string; textCode?: string; textParams?: ServerTextParams }): string {
-  return noticeText(message.textCode, message.text ?? "", message.textParams);
+export function botLineText(message: { text?: string; textCode?: string; textParams?: ServerTextParams } & Partial<Pick<Message, "role" | "kind" | "automation">>): string {
+  return collectionSummaryDisplay(message) ?? noticeText(message.textCode, message.text ?? "", message.textParams);
 }

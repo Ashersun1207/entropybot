@@ -9,6 +9,17 @@ const screen = () => message({ kind: "screen", png: "frame", mime: "image/jpeg" 
 const bot = { id: "ada", name: "Ada", messages: [], busy: false } as unknown as Bot;
 
 describe("sidebar previews", () => {
+  it("hides a collection's private path in bot and group previews, preserving lookalikes", () => {
+    const text = `Web collection report\nPages: 2\nUnique: 1\nPath: "/private/collection/report.json"\nSHA-256: ${"a".repeat(64)}`;
+    const report = message({ text, automation: { routineId: "r", runId: "run", executionThreadId: "exec", name: "Pages", scheduledFor: 1, trigger: "manual" } });
+    expect(botPreview(bot, [report], [], false)).toContain("Pages: 2");
+    expect(botPreview(bot, [report], [], true)).not.toContain("Path:");
+    const group = { id: "g", messages: [report] } as Group;
+    expect(groupPreview(group, [bot], [], false)).not.toContain("/private/");
+    expect(botPreview(bot, [{ ...report, role: "user" }], [], false)).toContain("Path:");
+    expect(botPreview(bot, [{ ...report, automation: undefined }], [], false)).toContain("Path:");
+    expect(report.text).toBe(text);
+  });
   it("shows a bot's reply, not the screen frame its computer turn ended with", () => {
     const visible = [message({ role: "user", text: "Paint a sunset" }), message({ text: "I painted a sunset in JS Paint." }), screen()];
     expect(botPreview(bot, visible, [], false)).toBe("I painted a sunset in JS Paint.");
