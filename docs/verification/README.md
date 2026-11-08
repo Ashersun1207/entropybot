@@ -332,6 +332,20 @@ sent mentions, multiline scrolling and responsive wrapping in real chat views.
 The [Group and Goal Local VM recipe](group-local-vm.md) checks per-speaker
 desktop routing, cancellation, and computer authority cleanup.
 
+### Engineering, collection and delivery evidence
+
+- [F2 release full-regression gate (blocked state)](release-full-gate.md)
+- [B1 source-server performance baseline](perf-baseline.md)
+- [Manual routine request identity and context protocol](routine-manual-request.md)
+- [Manual routine client context protocol](routine-run-client.md)
+- [Protected manual-run frontend consumer](protected-routine-client.md)
+- [A1a manual web collection module](web-collection.md)
+- [A1c collection host adapter](web-collection-host.md)
+- [A1d guarded HTTP collection reader](web-collection-http.md)
+- [M1a memory source and forgetting scope](memory-source-scope.md)
+- [M1b expired multiline retrieval](memory-expiry-retrieval.md)
+- [C1a paired chat preparation attribution](chat-preparation-attribution.md)
+
 ## Evidence
 
 The [Gemini speech fixture](gemini-speech.md) checks write-only credentials,
