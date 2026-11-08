@@ -145,8 +145,9 @@ it.each(["tree-held", "tree-closed", "orphan-held", "orphan-closed"])("reclaims 
   await expect.poll(() => { try { return readFileSync(heartbeat, "utf8").length; } catch { return 0; } }).toBeGreaterThan(0);
   if (!mode.startsWith("orphan-")) controller.abort();
   const result = await outcome;
-  expect(result.error).toMatchObject({ kind: mode.startsWith("orphan-") ? "cleanup" : "cancelled", ownedGroupStopped: true });
-  const evidence = result.error!.evidence!;
+  if (mode.startsWith("orphan-")) expect(result.error).toBeUndefined();
+  else expect(result.error).toMatchObject({ kind: "cancelled", ownedGroupStopped: true });
+  const evidence = (result.result ?? result.error)!.evidence!;
   expect(evidence).toMatchObject({ exitAt: expect.any(Number), closeAt: expect.any(Number), groupGoneAt: expect.any(Number), termAttemptAt: expect.any(Number), killAttemptAt: expect.any(Number) });
   if (mode === "orphan-closed") expect(evidence.closeAt!).toBeLessThan(evidence.termAttemptAt!);
   if (mode === "orphan-held") expect(evidence.closeAt!).toBeGreaterThan(evidence.termAttemptAt!);
@@ -158,6 +159,65 @@ it.each(["tree-held", "tree-closed", "orphan-held", "orphan-closed"])("reclaims 
   expect(f.events.some(event => event.event === "insurance")).toBe(false);
   await control.runner.close();
   expect((await controlOutcome).error?.ownedGroupStopped).toBe(true);
+});
+
+it.each([0, 7])("reaps a pipe-holding descendant after root exit %i without losing the exit status", async code => {
+  const f = fixture();
+  const helper = `
+    process.on('SIGTERM', () => { console.log('descendant-term'); process.exit(0); });
+    setInterval(() => {}, 100);
+    setTimeout(() => process.exit(90), 8000).unref();
+    process.send('ready');
+  `;
+  const root = `
+    const { spawn } = require('node:child_process');
+    const child = spawn(process.execPath, ['-e', ${JSON.stringify(helper)}], {
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+    });
+    child.once('message', () => { console.log('descendant-ready'); process.exit(${code}); });
+  `;
+  const outcome = await f.runner.run(process.execPath, ["-e", root], { cwd, env, forwardOutput: false })
+    .then(result => ({ result, error: undefined }), error => ({ result: undefined, error: error as GateCommandError }));
+  if (code === 0) {
+    expect(outcome.error).toBeUndefined();
+    expect(outcome.result?.stdout).toContain("descendant-term");
+  } else {
+    expect(outcome.error).toMatchObject({ kind: "exit", ownedGroupStopped: true });
+    expect(outcome.error?.message).toContain("exit code 7");
+  }
+  const evidence = (outcome.result ?? outcome.error)!.evidence!;
+  expect(evidence).toMatchObject({ exitAt: expect.any(Number), closeAt: expect.any(Number), groupGoneAt: expect.any(Number), termAttemptAt: expect.any(Number) });
+  expect(evidence.killAttemptAt).toBeUndefined();
+  expect(evidence.exitAt!).toBeLessThan(evidence.termAttemptAt!);
+  expect(evidence.termAttemptAt!).toBeLessThan(evidence.closeAt!);
+  expect(evidence.termAttemptAt!).toBeLessThan(evidence.groupGoneAt!);
+  process.stdout.write(JSON.stringify({ scenario: `post-exit-term-${code}`, evidence }) + "\n");
+});
+
+it("retains failure evidence when post-exit descendant cleanup cannot be confirmed", async () => {
+  const f = fixture({ graceMs: 50, killWaitMs: 100 });
+  const outcome = f.command("orphan-held");
+  await f.ready();
+  const pid = f.events.find(event => event.event === "root-ready" && event.descendant)!.pid;
+  const originalKill = process.kill.bind(process);
+  const kill = vi.spyOn(process, "kill").mockImplementation((target, signal) => {
+    if (target === -pid && signal !== 0) throw Object.assign(new Error("synthetic EPERM"), { code: "EPERM" });
+    return originalKill(target, signal);
+  });
+  try {
+    const { error } = await outcome;
+    expect(error).toMatchObject({ kind: "cleanup", ownedGroupStopped: false });
+    expect(error?.message).toContain("synthetic EPERM");
+    expect(error?.evidence).toMatchObject({ exitAt: expect.any(Number), termAttemptAt: expect.any(Number), killAttemptAt: expect.any(Number) });
+    expect(error?.evidence?.closeAt).toBeUndefined();
+    expect(error?.evidence?.groupGoneAt).toBeUndefined();
+    expect(f.runner.ownedGroupStopped).toBe(false);
+    process.stdout.write(JSON.stringify({ scenario: "post-exit-unknown", evidence: error?.evidence }) + "\n");
+  } finally {
+    kill.mockRestore();
+    originalKill(-pid, "SIGKILL");
+    await expect.poll(() => { try { originalKill(-pid, 0); return true; } catch { return false; } }).toBe(false);
+  }
 });
 
 it("reports uncertainty on denied termination instead of treating permission failure as exit", async () => {

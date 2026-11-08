@@ -82,14 +82,18 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
         else signalError = String(error);
       }
     };
-    const stop = (kind: FailureKind, detail: string) => {
+    const beginCleanup = () => {
       if (settled) return;
-      failure ??= { kind, detail };
       stoppingAt ??= performance.now();
       if (spawned && !softSent) {
         softSent = true;
         send("SIGTERM");
       }
+    };
+    const stop = (kind: FailureKind, detail: string) => {
+      if (settled) return;
+      failure ??= { kind, detail };
+      beginCleanup();
     };
     const abort = () => {
       const reason = signal.reason as Stop;
@@ -108,6 +112,7 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
       for (const [stream, listener] of streams) stream.removeListener("data", listener);
       for (const stream of errorStreams) stream.removeListener("error", onOutputError);
       if (!confirmed) {
+        failure ??= { kind: "cleanup", detail: "command exited but descendants or output streams remain active after cleanup budget" };
         child.stdout?.destroy();
         child.stderr?.destroy();
         child.unref();
@@ -119,7 +124,7 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
     const check = () => {
       const running = alive();
       if ((exited || !spawned && closed) && closed && !running) { finish(true); return; }
-      if (exited && !failure && performance.now() - exitAt >= 250) stop("cleanup", "command exited but descendants or output streams remain active");
+      if (exited && stoppingAt === undefined && performance.now() - exitAt >= 250) beginCleanup();
       if (stoppingAt === undefined) return;
       const elapsed = performance.now() - stoppingAt;
       if (!escalated && elapsed >= graceMs) { escalated = true; send("SIGKILL"); }
