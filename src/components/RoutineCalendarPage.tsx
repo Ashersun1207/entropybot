@@ -1462,7 +1462,7 @@ export function EventDetails({
               : <div className="space-y-1">{recentRuns.map((recent) => <RecentRunRow key={recent.id} run={recent} current={recent.id === run?.id} onOpen={() => onOpenRun?.(recent)} />)}</div>}
           </DrawerField>
         )}
-        {error && <div role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-[12px] text-danger">{error}</div>}
+        {(error || manualUncertain) && <div role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-[12px] text-danger">{error || t("routines.manual.unknown")}</div>}
       </div>
 
       <div className="space-y-2 border-t border-hairline/40 px-4 py-3">

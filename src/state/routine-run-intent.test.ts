@@ -56,9 +56,10 @@ describe("protected manual intent", () => {
     answer = async () => { throw new TypeError("lost response"); };
     await expect(createRoutineRunIntents().run("routine", settings)).rejects.toMatchObject({ reason: "unknown" });
     answer = async () => json({ run });
-    await expect(createRoutineRunIntents().run("routine", settings)).resolves.toEqual(run);
+    const recovered = createRoutineRunIntents();
+    await expect(recovered.run("routine", settings)).resolves.toEqual(run);
     expect(key(1)).toBe(key(0));
-    await createRoutineRunIntents().run("routine", settings);
+    await recovered.run("routine", settings);
     expect(key(2)).not.toBe(key(1));
     expect(new Headers(posts[0].headers).get("X-Entropybot-Manual-Context")).toBe(contextId);
   });
@@ -98,6 +99,37 @@ describe("protected manual intent", () => {
     await expect(createRoutineRunIntents().run("routine", settings)).rejects.toMatchObject({ reason: "blocked" });
     expect(posts).toHaveLength(0); expect(localStorage.getItem(MANUAL_RUN_STORAGE)).toBe(raw);
   });
+  it("never evicts an unreconciled confirmed marker to admit a new operation", async () => {
+    const entries = Array.from({ length: 32 }, (_, i) => ({ environmentId: environment.environmentId, contextId, routineId: `prior-${i}`, key: crypto.randomUUID(), phase: "confirmed" }));
+    const raw = JSON.stringify({ version: 1, entries }); localStorage.setItem(MANUAL_RUN_STORAGE, raw);
+    await expect(createRoutineRunIntents().run("routine", settings)).rejects.toMatchObject({ reason: "blocked" });
+    expect(posts).toHaveLength(0); expect(localStorage.getItem(MANUAL_RUN_STORAGE)).toBe(raw);
+  });
+  it("makes room only by evicting a marker this owner has reconciled", async () => {
+    const owner = createRoutineRunIntents(); await owner.run("routine", settings);
+    const ledger = JSON.parse(localStorage.getItem(MANUAL_RUN_STORAGE)!);
+    const retained = Array.from({ length: 31 }, (_, i) => ({ ...ledger.entries[0], routineId: `unresolved-${i}`, key: crypto.randomUUID() }));
+    ledger.entries.push(...retained); localStorage.setItem(MANUAL_RUN_STORAGE, JSON.stringify(ledger));
+    const originalFetch = fetch;
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (path, init) => {
+      if (path === "/api/routines/other/run-protected") { posts.push(init!); return json({ run: { ...run, routineId: "other" } }); }
+      return originalFetch(path, init);
+    }));
+    await owner.run("other", settings);
+    const entries = JSON.parse(localStorage.getItem(MANUAL_RUN_STORAGE)!).entries;
+    expect(entries).toHaveLength(32); expect(entries.slice(0, 31)).toEqual(retained);
+    expect(entries[31]).toMatchObject({ routineId: "other", phase: "confirmed" });
+    expect(posts).toHaveLength(2);
+  });
+  it("keeps a successful marker recoverable after a fresh owner and rejects changed context", async () => {
+    await createRoutineRunIntents().run("routine", settings);
+    const stored = localStorage.getItem(MANUAL_RUN_STORAGE);
+    auth = { ...session, manualRoutineRequests: { version: 1, contextId: `mr1_${"b".repeat(64)}` } };
+    await expect(createRoutineRunIntents().run("routine", settings)).rejects.toMatchObject({ reason: "changed" });
+    expect(posts).toHaveLength(1); expect(localStorage.getItem(MANUAL_RUN_STORAGE)).toBe(stored);
+    auth = session; const recovered = createRoutineRunIntents(); await recovered.run("routine", settings);
+    expect(key(1)).toBe(key(0)); await recovered.run("routine", settings); expect(key(2)).not.toBe(key(0));
+  });
   it("fails closed when storage cannot be read", async () => {
     vi.stubGlobal("localStorage", { getItem: () => { throw Error("denied"); } });
     await expect(createRoutineRunIntents().run("routine", settings)).rejects.toMatchObject({ reason: "blocked" }); expect(posts).toHaveLength(0);
@@ -121,6 +153,14 @@ describe("protected manual intent", () => {
     await expect(owner.run("routine", settings)).resolves.toEqual(run); expect(key(2)).toBe(key(0));
     expect(JSON.parse(fault.storage.getItem(MANUAL_RUN_STORAGE)!).entries[0].phase).toBe("confirmed");
     await owner.run("routine", settings); expect(key(3)).not.toBe(key(0));
+  });
+  it("replays the persisted confirmed key when readback uncertainty loses its owner", async () => {
+    const fault = failConfirmedReadback();
+    await expect(createRoutineRunIntents().run("routine", settings)).rejects.toMatchObject({ reason: "unknown" });
+    expect(fault.failures()).toBe(1);
+    expect(JSON.parse(fault.storage.getItem(MANUAL_RUN_STORAGE)!).entries[0].phase).toBe("confirmed");
+    await expect(createRoutineRunIntents().run("routine", settings)).resolves.toEqual(run);
+    expect(key(1)).toBe(key(0));
   });
   it("requires acknowledgement to replace a readback-unknown intent in a changed context", async () => {
     const owner = createRoutineRunIntents(); const fault = failConfirmedReadback();

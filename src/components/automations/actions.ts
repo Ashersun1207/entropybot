@@ -1,6 +1,6 @@
 // What a person can do to an automation, the same from the page, its panel and the chat card.
 import { useRef, useState } from "react";
-import { ManualRunError } from "@/state/routine-run-intent";
+import { hasStoredManualRunIntent, ManualRunError } from "@/state/routine-run-intent";
 
 import type { Automation } from "@/lib/automations";
 import { copyText } from "@/lib/copy-text";
@@ -18,16 +18,16 @@ export function useManualRoutineRun(routineId: string | undefined, options: {
   const { dispatch } = useStore();
   const pending = useRef(false);
   const [starting, setStarting] = useState(false);
-  const [manualUncertain, setManualUncertain] = useState(false);
+  const [manualUncertain, setManualUncertain] = useState(() => !!routineId && hasStoredManualRunIntent(routineId));
   const runRoutineNow = (acknowledgePriorRun = false) => {
     if (!routineId || options.disabled || pending.current) return;
     if (acknowledgePriorRun && !window.confirm(t("routines.manual.acknowledge"))) return;
     pending.current = true;
     setStarting(true);
     options.onStarting();
-    dispatch({ type: "runRoutine", routineId, acknowledgePriorRun,
+    dispatch({ type: "runRoutine", routineId, acknowledgePriorRun: acknowledgePriorRun ? true : manualUncertain ? false : undefined,
       onStarted: (run) => { setManualUncertain(false); options.onStarted(run); },
-      onError: (error) => { setManualUncertain(error instanceof ManualRunError && error.reason !== "blocked"); options.onError(error); },
+      onError: (error) => { setManualUncertain(hasStoredManualRunIntent(routineId) || error instanceof ManualRunError && error.reason !== "blocked"); options.onError(error); },
       onSettled: () => { pending.current = false; setStarting(false); options.onSettled(); },
     });
   };

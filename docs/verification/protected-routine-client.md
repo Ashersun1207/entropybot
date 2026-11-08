@@ -1,5 +1,7 @@
 # Protected manual routine frontend consumer
 
+The [reload recovery follow-up](routine-run-reload-recovery.md) supersedes the historical provider-only recovery and confirmed-entry eviction semantics below. It adds actual browser reload/server restart evidence and conservatively reconciles stored confirmed markers in a fresh owner.
+
 A1b5 is a bounded frontend candidate on baseline `1077ee7d0293427ce4b76e4579cf0e2c00afaa86`, sole writer in `engineering-protected-run-client`. Parent review and serial integration remain separate. The original partial candidate's storage-readback failure is addressed by the bounded R1 below and awaits parent re-review. The catalog blocker remains parent-owned; this task does not resolve or recheck i18n.
 
 StoreProvider routes its actual `runRoutine` action through `routine-run-intent.ts`. It reads the advertised protocol and strict authenticated session metadata without using the general session decoder's loopback fallback, captures scope before waiting for execution settings, then rechecks authoritative scope before POST. Only `/run-protected` is used. Both identity and context headers are mandatory. The server remains the final authority. There is no automatic retry or legacy fallback.

@@ -28,11 +28,21 @@ function load(storage: Storage): Ledger {
   return ledger;
 }
 
-function save(storage: Storage, marker: Marker) {
+export function hasStoredManualRunIntent(routineId: string): boolean {
+  try { return load(globalThis.localStorage).entries.some((marker) => marker.routineId === routineId); }
+  catch { return true; }
+}
+
+function isCompleted(marker: Marker, completed: ReadonlyMap<string, Marker>) {
+  const known = completed.get(marker.routineId);
+  return marker.phase === "confirmed" && known?.key === marker.key && sameScope(known, marker);
+}
+
+function save(storage: Storage, marker: Marker, completed: ReadonlyMap<string, Marker>) {
   const ledger = load(storage);
   ledger.entries = ledger.entries.filter((m) => m.routineId !== marker.routineId);
   if (ledger.entries.length >= 32) {
-    const confirmed = ledger.entries.findIndex((m) => m.phase === "confirmed");
+    const confirmed = ledger.entries.findIndex((m) => isCompleted(m, completed));
     if (confirmed < 0) throw new ManualRunError("blocked");
     ledger.entries.splice(confirmed, 1);
   }
@@ -80,26 +90,29 @@ export function decodeManualRun(body: unknown, routineId: string): RoutineRun | 
 export function createRoutineRunIntents() {
   const inFlight = new Map<string, { scope: Promise<ManualRoutineScope>; promise: Promise<RoutineRun> }>();
   const uncertain = new Map<string, Marker>();
-  const execute = async (routineId: string, scope: ManualRoutineScope, settings: () => Promise<void>, acknowledgePriorRun: boolean): Promise<RoutineRun> => {
+  const completed = new Map<string, Marker>();
+  const needsRecovery = (marker: Marker) => !isCompleted(marker, completed);
+  const execute = async (routineId: string, scope: ManualRoutineScope, settings: () => Promise<void>, acknowledgePriorRun: boolean | undefined): Promise<RoutineRun> => {
     let marker: Marker | undefined;
     try {
       const storage = globalThis.localStorage;
       const previous = load(storage).entries.find((m) => m.routineId === routineId);
       const held = uncertain.get(routineId);
       if (held && (!previous || previous.key !== held.key || !sameScope(previous, held))) throw new ManualRunError("blocked");
-      if (previous && (held || previous.phase === "pending") && !sameScope(previous, scope) && !acknowledgePriorRun) throw new ManualRunError("changed");
+      if (previous && (held || needsRecovery(previous) || acknowledgePriorRun === false) && !sameScope(previous, scope) && !acknowledgePriorRun) throw new ManualRunError("changed");
       await settings();
       const current = await authoritativeScope();
       if (!sameScope(scope, current)) throw new ManualRunError("changed");
       // Re-read after awaits so another mounted consumer's unknown request keeps its identity.
       const latest = load(storage).entries.find((m) => m.routineId === routineId);
       if (held && (!latest || latest.key !== held.key || !sameScope(latest, held))) throw new ManualRunError("blocked");
-      const pending = held ?? (latest?.phase === "pending" ? latest : undefined);
+      const pending = held ?? (latest && (needsRecovery(latest) || acknowledgePriorRun === false) ? latest : undefined);
       if (pending && !sameScope(pending, scope) && !acknowledgePriorRun) throw new ManualRunError("changed");
       marker = pending && !acknowledgePriorRun ? { ...pending, phase: "pending" } : {
         ...scope, routineId, key: crypto.randomUUID(), phase: "pending",
       };
-      save(storage, marker);
+      save(storage, marker, completed);
+      completed.delete(routineId);
       uncertain.set(routineId, marker);
       const body: unknown = await api(`/api/routines/${encodeURIComponent(routineId)}/run-protected`, {
         method: "POST", credentials: "same-origin", timeoutMs: 30_000,
@@ -109,7 +122,9 @@ export function createRoutineRunIntents() {
       if (!run) throw new ManualRunError("unknown");
       const persisted = load(storage).entries.find((m) => m.routineId === routineId);
       if (!persisted || persisted.key !== marker.key || !sameScope(persisted, marker)) throw new ManualRunError("unknown");
-      save(storage, { ...marker, phase: "confirmed" });
+      save(storage, { ...marker, phase: "confirmed" }, completed);
+      completed.set(routineId, { ...marker, phase: "confirmed" });
+      if (completed.size > 32) completed.delete(completed.keys().next().value!);
       uncertain.delete(routineId);
       return run;
     } catch (error) {
@@ -118,7 +133,7 @@ export function createRoutineRunIntents() {
     }
   };
   return {
-    run(routineId: string, settings: () => Promise<void>, acknowledgePriorRun = false): Promise<RoutineRun> {
+    run(routineId: string, settings: () => Promise<void>, acknowledgePriorRun?: boolean): Promise<RoutineRun> {
       const pending = inFlight.get(routineId);
       const scope = authoritativeScope().catch(() => { throw new ManualRunError("blocked"); });
       if (pending) {

@@ -95,6 +95,11 @@
 - 边界：只覆盖已有 Chat Completions runtime；没有调用真实 Magpie、Composio 或用户数据，不能宣称云端服务恢复、安装包或 UI 实测通过。已有启动等待预算保持原样；执行中失败仍走原不确定结果/关闭语义，不自动重试外部动作。
 - 文档漏检：`398e32e2d` 新增验证文档但未接入 README，原 359 项行为/体积回归未包含文档守卫。主控 04:27 运行 `scripts/testing/verification-docs.test.ts` 时 6 通过/1 失败，`are all reachable from README.md` 在第 102 行实际得到 `["optional-connectors-isolation.md"]`，期望 `[]`；本 worktree 原提交重现同一失败，证据 `optional-connectors-evidence/docs-index-red.{json,log}`。根因是新增文档时未把索引与文档守卫纳入变更范围检查。修复补 README 链接；以后新增/移动验证文档均运行该守卫，行为/类型检查不能替代文档可达性验证。此次文档修复不改生产代码，不重跑未变的 359 项；修复身份及文档守卫绿例见后续单独提交与交接。
 
+## A1：手动运行在 reload 后恢复
+
+- 触发：confirmed setItem 成功而紧随的 getItem 抛错。旧 provider 的 uncertain map 保留原 key，但 reload/更换 provider 丢失该 map；原有同 provider 重试通过并不能证明 reload 安全。基线 `a92388449` 的新增红例实际发出两个不同 key，真实 Chrome 夹具在故障、原服务器同 dataDir 重启及 Page.reload 后缺少 Retry。修复身份见本条所属提交：新 owner 对任何既有 marker 先以原 key/context 对账，confirmed phase 不单独授权旋转或驱逐；本 owner 的成功回执有界保存，显式 Retry 即使在同 provider 重开详情后也强制复用原操作，提前替换仍须原确认。回归入口 `src/state/routine-run-intent.test.ts`、`src/state/routine-run-intent.integration.test.ts`、`scripts/testing/routine-run-reload-ui.e2e.test.ts`；含实际 browser reload、同目录 server restart、真实合成认证 context 变更前置拒绝、unmount 后迟到响应和替换身份 fence、32 条容量保留/可确认驱逐。边界：reload 后即使先前成功也保守要求再对账；32 条未对账会阻止新 routine；无多 tab 仲裁、真实账号/模型/Keychain 或安装包验收。证据与测试入口见 [验证说明](../verification/routine-run-reload-recovery.md)。
+- 本轮测试入口失败分别保留：默认 server setup 在 happy-dom 引入 node:sqlite、Vitest it.each 脱离 receiver、外部配置 .ts 被按 CJS 载入、EventDetails 实为 aside 而不是 dialog。另一个 browser 探针在 Page.reload 返回后读到旧文档控件；修正为先观察新文档标记消失与 readyState，再断言 Retry。fixture-only 类型配置首版还漏带既有 app/Vite 声明与 DOM.AsyncIterable，补齐外部检查配置后通过，没有改产品类型或 strict。只有修正后的真实断言红例才算产品复现，setup 失败、provider remount 与旧文档 DOM 都不能替代 browser reload 证据。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

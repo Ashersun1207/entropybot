@@ -200,6 +200,53 @@ describe("actual StoreProvider and routine details consumer", () => {
     }
     expect(JSON.parse(storage.getItem(MANUAL_RUN_STORAGE)!).entries[0].phase).toBe("confirmed");
   });
+  it("restores readback uncertainty in a new provider before allowing a deliberate new operation", async () => {
+    mount(true);
+    const storage = localStorage;
+    let failNext = false, failed = false;
+    vi.stubGlobal("localStorage", {
+      getItem: (name: string) => {
+        if (failNext) { failNext = false; failed = true; throw Error("readback denied"); }
+        return storage.getItem(name);
+      },
+      setItem: (name: string, value: string) => {
+        storage.setItem(name, value);
+        if (!failed && JSON.parse(value).entries[0].phase === "confirmed") failNext = true;
+      },
+    });
+    click("Run now"); await flush(); expect(failed).toBe(true);
+    act(() => root!.unmount()); root = undefined; host.remove(); mount(true);
+    expect(host.textContent).toContain("previous request may already have run");
+    expect(posts).toHaveLength(1);
+    click("Retry"); await flush(); expect(key(1)).toBe(key(0));
+    click("Run now"); await flush(); expect(key(2)).not.toBe(key(0));
+  });
+  it.each([false, true])("fences a late response after provider unmount (replace: %s)", async (replace) => {
+    mount(true); let release!: (response: Response) => void;
+    answer = () => new Promise((resolve) => { release = resolve; });
+    click("Run now"); await flush(); expect(posts).toHaveLength(1);
+    act(() => root!.unmount()); root = undefined; host.remove(); mount(true);
+    answer = async () => json({ run });
+    if (replace) {
+      window.confirm = vi.fn().mockReturnValue(true);
+      click("Start another run…"); await flush(); expect(key(1)).not.toBe(key(0));
+    }
+    const stored = localStorage.getItem(MANUAL_RUN_STORAGE)!;
+    release(json({ run })); await flush(); expect(posts).toHaveLength(replace ? 2 : 1);
+    if (replace) expect(localStorage.getItem(MANUAL_RUN_STORAGE)).toBe(stored);
+    else {
+      click("Retry"); await flush(); expect(key(1)).toBe(key(0));
+      click("Run now"); await flush(); expect(key(2)).not.toBe(key(0));
+    }
+  });
+  it("reconciles again after closing and reopening details in the same provider", async () => {
+    mount(true); click("Run now"); await flush();
+    act(() => root!.render(createElement(StoreProvider, null)));
+    function Details() { return createElement(EventDetails, { item: { kind: "routine", id: "reopened", at: Date.now(), durationMinutes: 30, routine, run: null }, bots: [bot], onClose: vi.fn(), onEdit: vi.fn(), onCallChanged: vi.fn(), onOpenRoom: vi.fn() }); }
+    act(() => root!.render(createElement(StoreProvider, null, createElement(Details))));
+    click("Retry"); await flush(); expect(key(1)).toBe(key(0));
+    click("Run now"); await flush(); expect(key(2)).not.toBe(key(0));
+  });
   it("renders unknown/retry/success/new-run through the real details button", async () => {
     mount(true); answer = async () => { throw Error("lost"); }; click("Run now"); await flush();
     expect(host.textContent).toContain("previous request may already have run");

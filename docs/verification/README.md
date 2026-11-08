@@ -339,6 +339,7 @@ desktop routing, cancellation, and computer authority cleanup.
 - [Manual routine request identity and context protocol](routine-manual-request.md)
 - [Manual routine client context protocol](routine-run-client.md)
 - [Protected manual-run frontend consumer](protected-routine-client.md)
+- [Manual routine reload and restart recovery](routine-run-reload-recovery.md)
 - [A1a manual web collection module](web-collection.md)
 - [A1c collection host adapter](web-collection-host.md)
 - [A1d guarded HTTP collection reader](web-collection-http.md)
