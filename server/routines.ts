@@ -434,6 +434,10 @@ export class RoutineManager {
     return run ? cloneRun(run) : null;
   }
 
+  collectionRequestId(runId: string, routineId: string): string | null {
+    return this.routineRequestReceipts.manualForRun(runId, routineId)?.requestId ?? null;
+  }
+
   routineRequestReceipt(requestId: string): RoutineRequestReceipt | null {
     return this.routineRequestReceipts.receipt(requestId);
   }

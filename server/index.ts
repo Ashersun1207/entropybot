@@ -464,6 +464,7 @@ import { createScreenFrameSource, rememberTurnFrame, type ScreenCapture } from "
 import { screenFrameHash, screenSurfaceForTool, screenTouchingTool, settledFrameIsNews } from "./screen-frame-gate.ts";
 import { asSchedule, RoutineRequestService } from "./routine-requests.ts"; import { ownerSpokeOnly } from "./cloud-routine-level.ts"; import { routineRunCard, routineRunFallbackText } from "./routine-run-card.ts";
 import { activeRoutinesContext } from "./active-routines-context.ts";
+import { createCollectionReportAccessRoutes } from "./routes/collection-report-access.ts";
 import { createRoutineCollectionDispatch } from "./routine-collection-dispatch.ts";
 import { createRefusedHandoffs } from "./host/refused-handoffs.ts"; import { automationContextText, createAutomationReports, newestAutomationLines } from "./automation-reports.ts"; import { createAutomationDestinations } from "./automation-destinations.ts"; import { createProactive } from "./host/proactive.ts"; import { createFirstHourHooks, startFirstHour, welcomeDonePatch } from "./host/first-hour-host.ts"; import { greetingMessage } from "./host/first-hour.ts"; import { READ_AND_DRAFT_PARTS, READ_AND_DRAFT_REFUSAL, READ_AND_DRAFT_TOOLS, recordsAnswer } from "./read-and-draft.ts"; import { createPresenceRoutes } from "./routes/presence.ts"; import { needsYouNow } from "./today.ts";
 import { engineLabel, LimitResetClock, nearLimitNote } from "./limit-resets.ts"; import { loadPlanUsage, planAccountsFromInstances } from "./plan-usage.ts"; import { LimitFailovers, limitBackupAllowed } from "./limit-failover.ts"; import { createLimitResetRoutes } from "./routes/limit-resets.ts";
@@ -12180,6 +12181,7 @@ ROUTES.push(createBotMessageRoutes({
 }));
 const chatApps = createChatApps({ store, dataDir: DATA_DIR });
 const chatAppsMcp = createChatAppsMcp({ store, apps: chatApps, dataDir: DATA_DIR, storedServers: () => cfg.mcpServers ?? {}, mountedServers: engineMcpServers, personMcp: teamConnections.personMcp, oauth: mcpOAuth });
+ROUTES.push(createCollectionReportAccessRoutes({ dataDir: DATA_DIR, routines: () => routines, visible: auth => visibleTo(viewerFor(auth)), botExists: id => Boolean(store.bot(id)), threadBot: id => threadOwner(id)?.bot }));
 ROUTES.push(createChatAppRoutes({ store, apps: chatApps, threadRefusal: cloudThreadRefusal, mcpRpc: chatAppsMcp.rpc }));
 const { react } = createReactions({
   store, reply: (input) => teamMessages.reactedIn(input.auth, input.threadId, input.target.id, input.answer, { sendId: input.sendId, sender: messageSender(input.auth) }) ?? personReplies.deliver({ ...input, about: "message" }),

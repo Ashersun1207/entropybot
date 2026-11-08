@@ -114,6 +114,12 @@
 
 - 工程组合 `ddc1bcfe6` 首跑继承 macOS `TMPDIR=/var/folders/...` 别名，`collectWeb` 的 `realpath(outputRoot) === resolve(outputRoot)` 私有目录检查在读取前拒绝，出现45失败/337通过；同时漏传 `OMB_UI_E2E=1`，3个浏览器用例被跳过。修正调用环境为交付所用的合成HOME、规范化短路径 `/private/tmp` 和显式浏览器开关后，同一源码/同一13文件选择385项通过且无跳过；两次前后源码哈希一致。不能因测试目录别名放宽产品路径校验，也不能将 `it.runIf` 跳过记成浏览器验证。原失败与规范环境绿例保留在外层 `private/engineering-foundation-evidence/a1-combination-ddc1bcfe6/`；这是本地组合证据，不是V1/F2回执。
 
+## Collection report access
+
+- 新增 GET 路由经过已有鉴权，不代表 paired client 可达：CLIENT_ALLOW 默认 admin-only，实际 HTTP paired-client 负例发现报告 GET 漏加白名单。只添加精确 method/path，再验证隐藏 bot、错误 routine/run 与 thread audience；不能以 owner loopback 成功代替成员授权。报告必须通过原始手动 request receipt、run 快照、计划 binding 与完成 hash 验证，发布摘要 path/hash 和 pending/posted 均不授权。回归 `server/collection-report-access*.test.ts`，证据与边界见 `docs/verification/collection-report-access.md`。
+- 既有 owner-loopback 鉴权会忽略非 session bearer；新增敏感读接口不能把 bot/internal/未知 token 静默回退成本机 owner。真实 HTTP bot-like bearer 探针得到 200（应 401）后，报告路由显式拒绝未被中央 gate 验为 session 的 Authorization header；不改通用鉴权与其他接口。回归保留 paired-client 正例、未知 bearer/错误 session/foreign-origin 拒绝及 service-loopback 负例。
+- 合成 fixture 的计划对象也必须使用持久化规范字段顺序：collector 的绑定基于 JSON 字节顺序，手写 limits 顺序和规范 schema 顺序不同会造成合法读正例失败；不能让所有负例因同一个早期 binding mismatch 而假通过。保留真实 collector 正例、hash-matching schema 负例和 fd 读取期间的替换探针。第二轮 HTTP 夹具还把 foreign-origin 既有 403 误期望为 401，保留失败回执并修正断言，不改产品鉴权。完成前冻结文档/索引与源码一起运行体积、文档、类型和范围 lint。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
