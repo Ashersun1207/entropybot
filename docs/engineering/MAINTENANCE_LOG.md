@@ -83,3 +83,10 @@
 - 未改依赖版本、lockfile、包管理器安装钩子或真实应用数据；本轮确实修改了 connector 安装脚本。正式签名/公证仍缺 Developer ID/会员。本轮源码修复未代替实际构建安装，S6 生产背景归因、公网 TLS 与 Windows HOME 保持未验证。
 - 独立复审 R1–R4 退回后：companion 补实际部署主域 `openmausbot.com`，主/次旧域各覆盖保留原地址、stored access、pair 精确调用和不安全/lookalike 地址零发送。connector e2e env、对象名、数据保留/回滚/secret 断言全部对齐；旧 home fixture 镜像仓库不符合现有协议，不能伪造同 digest 新仓库，改为要求两个可信、不同且按允许仓库固定 digest 的显式输入。Linux hook 对齐 `/opt/Entropybot`、新资源/策略、测试 env；卸载保留精确旧 launcher/policy 的受控清理，并保持 parser 拒绝时留策略文件。
 - R2/R3 的源码/语法及 macOS 可运行定向检查与 Linux 实际执行分开记录。本机无 Docker/Linux VM，未执行 root 安装、内核策略或容器升级/回滚；缺两份可信镜像，connector e2e 仍是平台交付阻断。归档 workflow 检查只证明历史契约，未作为启用发布 gate 的运行证明。
+
+## 2026-11-09：每周首次开工集中增量审查（工程分支）
+
+- 触发：周一首次开工（AGENTS 每周/三轮先到者）。只读范围 `392f54255..6daad935d`，33 文件、+1559/−160：manual-routine 幂等回执抽取、context 协议、受保护路由、前端 intent 消费者、V1-R2 FIFO 修复。会话 `ses_e43e42f41ffegdbfKMlYPqBmmg`；未跑产品/测试/网络，V1 文件只盘点不审。
+- 结论：无新增安全/架构阻断；回执抽取未产生第二 authority 或第二调度器，principal/authority 由 `manualAuthority`/`personKey` 共享，context 非 secret 只经 header 不经 URL/日志，ledger 32 条与 HTTP receipt 1000 条均有界，无依赖/lockfile/workflow/安装钩子变化。
+- 新 P2：前端 `routine-run-intent.ts` 两处权威 metadata GET 未传 timeout/signal；api.ts 仅在给定 `timeoutMs` 时加截止。预检永不 settle 则操作停留 inFlight，同 routine 后续订阅并挂住，details 保持 busy，POST 的 30 秒超时根本到不了。这是静态发现，未动态复现，与已关闭的 coalescing/readback 不同根。待交回 A1 前端 owner 做有界修复（两处 deadline、stalled 预检 settle 回调并释放 entry、保留 prior pending identity、不发 POST）。
+- 未验证：完整浏览器 reload、多标签、unmount-in-flight、原生后端端到端、远端 CI。F2 producer 仍被 Chrome HOME 隔离前置、发布候选 HEAD 与远端 CI 验证阻塞。审查墙钟与 model wait unknown。
