@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 20
     env:
       NODE_OPTIONS: --max-old-space-size=6144
+      OMB_VITEST_RETRY_DIRECTORY: ${{ runner.temp }}/retry-observations
+      OMB_VITEST_RETRY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,8 +28,13 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - id: retry-init
+        run: node scripts/testing/ci-retry-summary.mjs --init
       - id: ci-contract
         run: pnpm exec vitest run scripts/entropybot-ci-workflow.test.ts
+        env:
+          OMB_VITEST_RETRY_LOG: ${{ env.OMB_VITEST_RETRY_DIRECTORY }}/ci-contract.jsonl
+          OMB_VITEST_RETRY_BATCH_ID: ci-contract
       - id: lint
         run: pnpm lint
       - id: identity
@@ -40,8 +47,20 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
       - id: patches
         run: node scripts/check-patches.mjs --verify
+        env:
+          OMB_VITEST_RETRY_LOG: ${{ env.OMB_VITEST_RETRY_DIRECTORY }}/patches.jsonl
+          OMB_VITEST_RETRY_BATCH_ID: patches
       - id: guards
         run: pnpm exec vitest run scripts/testing/file-size-ratchet.test.ts scripts/testing/verification-docs.test.ts src/locales/vocabulary.test.ts electron/updater.test.mjs server/local-computer.test.ts
+        env:
+          OMB_VITEST_RETRY_LOG: ${{ env.OMB_VITEST_RETRY_DIRECTORY }}/guards.jsonl
+          OMB_VITEST_RETRY_BATCH_ID: guards
+      - id: retry-summary
+        if: always()
+        run: node scripts/testing/ci-retry-summary.mjs
+        env:
+          OMB_VITEST_RETRY_OUTCOMES: >-
+            {"ci-contract":"${{ steps.ci-contract.outcome }}","patches":"${{ steps.patches.outcome }}","guards":"${{ steps.guards.outcome }}"}
   behavior-evals:
     needs: check
     runs-on: ubuntu-latest

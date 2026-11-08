@@ -3,7 +3,8 @@
 // OMB_VITEST_RETRY_LOG for the job summary. Retries are bounded per file: once
 // a listed test fails every attempt, the file's later listed tests get none.
 import { appendFileSync } from "node:fs";
-import type { RunnerTask, RunnerTestCase } from "vitest";
+import { randomUUID } from "node:crypto";
+import type { RunnerTask, RunnerTestCase, RunnerTestFile } from "vitest";
 import { VitestTestRunner } from "vitest/runners";
 import { CI_RETRIES, findRetryEntry, loadRetryList, retriesInCi, testIdentity } from "./ci-retry-list.mjs";
 
@@ -29,6 +30,31 @@ function safeRetryList() {
 export default class CiRetryRunner extends VitestTestRunner {
   /** Files where a listed test failed every attempt: no more retries there. */
   private readonly exhausted = new Set<string>();
+  private readonly counts = { firstPass: 0, retriedPass: 0, failed: 0, other: 0 };
+  private readonly batchId = `${process.env.OMB_VITEST_RETRY_BATCH_ID ?? "batch"}-${randomUUID()}`;
+  private readonly runId = process.env.OMB_VITEST_RETRY_RUN_ID;
+
+  override onBeforeRunFiles(files: RunnerTestFile[]) {
+    const log = process.env.OMB_VITEST_RETRY_LOG;
+    if (log) {
+      const record = { schemaVersion: 1, runId: this.runId, batchId: this.batchId, kind: "start", files: files.map((file) => this.relPath(file.filepath)) };
+      try { appendFileSync(log, `${JSON.stringify(record)}\n`); } catch (error) { console.warn(`ci-retry-runner: could not record a start: ${String(error)}`); }
+    }
+  }
+
+  override onAfterRunFiles(files: RunnerTestFile[]) {
+    const log = process.env.OMB_VITEST_RETRY_LOG;
+    if (log) {
+      const record = { schemaVersion: 1, runId: this.runId, batchId: this.batchId, kind: "finish", counts: { ...this.counts } };
+      try { appendFileSync(log, `${JSON.stringify(record)}\n`); } catch (error) { console.warn(`ci-retry-runner: could not record a finish: ${String(error)}`); }
+    }
+    return super.onAfterRunFiles(files);
+  }
+
+  private relPath(filepath: string) {
+    const file = testIdentity(this.config.root, { name: "", file: { filepath } as RunnerTestFile });
+    return file.file;
+  }
 
   override onBeforeRunTask(test: RunnerTestCase) {
     if (list.length > 0 && !this.exhausted.has(test.file.filepath) && findRetryEntry(list, testIdentity(this.config.root, test))) test.retry = CI_RETRIES;
@@ -37,11 +63,18 @@ export default class CiRetryRunner extends VitestTestRunner {
 
   override onAfterRunTask(test: RunnerTask) {
     super.onAfterRunTask(test);
-    const retries = test.result?.retryCount ?? 0;
-    if (retries > 0 && test.result?.state === "fail") this.exhausted.add(test.file.filepath);
+    if (test.type === "test") {
+      const retries = test.result?.retryCount ?? 0;
+      const state = test.result?.state;
+      if (state === "pass") { if (retries > 0) this.counts.retriedPass += 1; else this.counts.firstPass += 1; }
+      else if (state === "fail") this.counts.failed += 1;
+      else this.counts.other += 1;
+      if (retries > 0 && state === "fail") this.exhausted.add(test.file.filepath);
+    }
+    const retries = test.type === "test" ? (test.result?.retryCount ?? 0) : 0;
     const log = process.env.OMB_VITEST_RETRY_LOG;
     if (retries === 0 || !log || test.type !== "test") return;
-    const line = { ...testIdentity(this.config.root, test), retries, state: test.result?.state, platform: process.platform };
+    const line = { kind: "retry", ...testIdentity(this.config.root, test), retries, state: test.result?.state, platform: process.platform, runId: this.runId, batchId: this.batchId };
     try {
       appendFileSync(log, `${JSON.stringify(line)}\n`);
     } catch (error) {

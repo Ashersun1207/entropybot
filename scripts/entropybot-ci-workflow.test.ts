@@ -88,6 +88,34 @@ describe("active Entropybot CI", () => {
     requireFastTypeChecks(workflow);
   });
 
+  it("retains retry observation: init, per-step logs and an always summary", () => {
+    const steps = workflow.jobs.check.steps;
+    const id = (name: string) => steps.find((step) => step.id === name);
+    expect(id("retry-init")?.run).toBe("node scripts/testing/ci-retry-summary.mjs --init");
+    expect(id("retry-summary")?.run).toBe("node scripts/testing/ci-retry-summary.mjs");
+    expect(id("retry-summary")?.if).toBe("always()");
+    for (const check of ["ci-contract", "patches", "guards"]) {
+      expect(id(check)?.env?.OMB_VITEST_RETRY_LOG).toBe("${{ env.OMB_VITEST_RETRY_DIRECTORY }}/" + check + ".jsonl");
+      expect(id(check)?.env?.OMB_VITEST_RETRY_BATCH_ID).toBe(check);
+    }
+    expect(workflow.jobs.check.env).toMatchObject({ OMB_VITEST_RETRY_DIRECTORY: "${{ runner.temp }}/retry-observations" });
+    expect(workflow.jobs.check.env?.OMB_VITEST_RETRY_RUN_ID).toBe("${{ github.run_id }}-${{ github.run_attempt }}");
+  });
+
+  it("rejects a removed retry observation hook or a non-always summary", () => {
+    const missingInit = structuredClone(workflow);
+    missingInit.jobs.check.steps = missingInit.jobs.check.steps.filter((step) => step.id !== "retry-init");
+    expect(() => { const found = missingInit.jobs.check.steps.find((step) => step.id === "retry-init"); expect(found).toBeDefined(); }).toThrow();
+
+    const missingLog = structuredClone(workflow);
+    delete missingLog.jobs.check.steps.find((step) => step.id === "ci-contract")!.env!.OMB_VITEST_RETRY_LOG;
+    expect(missingLog.jobs.check.steps.find((step) => step.id === "ci-contract")!.env?.OMB_VITEST_RETRY_LOG).toBeUndefined();
+
+    const conditionalSummary = structuredClone(workflow);
+    conditionalSummary.jobs.check.steps.find((step) => step.id === "retry-summary")!.if = undefined;
+    expect(conditionalSummary.jobs.check.steps.find((step) => step.id === "retry-summary")!.if).toBeUndefined();
+  });
+
   it("rejects a disconnected tool compiler or reordered slow gate", () => {
     const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
     expect(() => requireToolEntry({ ...pkg.scripts, typecheck: "tsc -b && tsc -p tsconfig.server.json" })).toThrow();

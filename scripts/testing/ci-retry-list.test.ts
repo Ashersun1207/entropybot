@@ -54,14 +54,20 @@ describe("the known-flaky list", () => {
 });
 
 describe("the job summary", () => {
+  const runId = "legacy-fixture-run";
+  const start = { schemaVersion: 1, runId, batchId: "batch", kind: "start", files: ["server/boat-included.test.ts"] };
+  const finish = (counts) => ({ schemaVersion: 1, runId, batchId: "batch", kind: "finish", counts });
+  const complete = (extra = []) => [JSON.stringify(start), ...extra, JSON.stringify(finish({ firstPass: 0, retriedPass: 1, failed: 1, other: 0 }))].join("\n");
+
   it("lists each retried test with its owner, and warns about it", () => {
     const entry = list[0]!;
-    const log = [
-      JSON.stringify({ file: entry.file, test: entry.test, retries: 1, state: "pass", platform: "win32" }),
-      JSON.stringify({ file: "server/x.test.ts", test: "a > b", retries: 2, state: "fail", platform: "linux" }),
-      "not json",
+    const second = "server/x.test.ts";
+    const log = [JSON.stringify({ ...start, files: [entry.file, second] }),
+      JSON.stringify({ schemaVersion: 1, runId, batchId: "batch", kind: "retry", file: entry.file, test: entry.test, retries: 1, state: "pass", platform: "win32" }),
+      JSON.stringify({ schemaVersion: 1, runId, batchId: "batch", kind: "retry", file: second, test: "a > b", retries: 2, state: "fail", platform: "linux" }),
+      JSON.stringify(finish({ firstPass: 0, retriedPass: 1, failed: 1, other: 0 })),
     ].join("\n");
-    const { markdown, annotations } = retrySummary(log, list);
+    const { markdown, annotations } = retrySummary(log, list, { runId });
     expect(markdown).toContain("### Flaky tests that needed a retry");
     expect(markdown).toContain(`| \`${entry.file}\` > ${entry.test.replace(/\|/g, "\\|")} | 1 | passed on a retry | ${entry.owner} |`);
     expect(markdown).toContain("| `server/x.test.ts` > a > b | 2 | failed every attempt | unlisted |");
@@ -70,16 +76,29 @@ describe("the job summary", () => {
   });
 
   it("reports an unreadable list as a warning, apart from the retries", () => {
-    const log = `${JSON.stringify({ listError: "the flaky-test list could not be read, so no test is retried: boom" })}\n${JSON.stringify({ listError: "the flaky-test list could not be read, so no test is retried: boom" })}\n`;
-    const { markdown, annotations } = retrySummary(log, list);
+    const log = `${JSON.stringify(start)}\n${JSON.stringify({ listError: "the flaky-test list could not be read, so no test is retried: boom" })}\n${JSON.stringify({ listError: "the flaky-test list could not be read, so no test is retried: boom" })}\n${JSON.stringify(finish({ firstPass: 1, retriedPass: 0, failed: 0, other: 0 }))}\n`;
+    const { markdown, annotations } = retrySummary(log, list, { runId });
     expect(annotations).toHaveLength(1);
     expect(annotations[0]).toMatch(/^::warning title=Flaky-test list unreadable::/);
     expect(markdown).toContain("The flaky-test list could not be read");
     expect(markdown).not.toContain("needed a retry");
   });
 
-  it("says nothing when no test needed a retry", () => {
-    expect(retrySummary("", list)).toEqual({ markdown: "", annotations: [] });
+  it("distinguishes no retries from incomplete observation", () => {
+    const { markdown, annotations, status } = retrySummary("", list, { runId });
+    expect(status).toBe("incomplete");
+    expect(markdown).toContain("missing evidence is not zero retries");
+    expect(annotations).toHaveLength(1);
+    expect(annotations[0]).toMatch(/^::warning title=Retry observation incomplete::/);
+  });
+
+  it("reports zero retries only when a complete observation covers executed tests", () => {
+    const log = `${JSON.stringify(start)}\n${JSON.stringify(finish({ firstPass: 1, retriedPass: 0, failed: 0, other: 0 }))}\n`;
+    const { markdown, annotations, status, counts } = retrySummary(log, list, { runId });
+    expect(status).toBe("observed-no-retries");
+    expect(counts).toEqual({ firstPass: 1, retriedPass: 0, retriedFailed: 0, failedWithoutRetry: 0, observedTests: 1 });
+    expect(annotations).toHaveLength(0);
+    expect(markdown).toBe("");
   });
 });
 
@@ -103,13 +122,16 @@ describe("the runner", () => {
   }
 
   async function vitest(directory: string, env: Record<string, string | undefined>) {
-    const childEnv: Record<string, string | undefined> = { ...process.env, OMB_VITEST_RETRY_LIST: join(directory, "list.json"), OMB_VITEST_RETRY_LOG: join(directory, "retries.jsonl"), ...env };
+    const childEnv: Record<string, string | undefined> = { ...process.env, OMB_VITEST_RETRY_LIST: join(directory, "list.json"), OMB_VITEST_RETRY_LOG: join(directory, "retries.jsonl"), OMB_VITEST_RETRY_RUN_ID: "runner-fixture-run", OMB_VITEST_RETRY_BATCH_ID: "runner-fixture-batch", ...env };
     for (const [key, value] of Object.entries(childEnv)) if (value === undefined) delete childEnv[key];
     return new Promise<{ code: number; output: string }>((resolve) => {
       execFile(process.execPath, [VITEST, "run", "--config", join(directory, "vitest.config.mjs"), "--reporter=json"], { cwd: directory, env: childEnv as NodeJS.ProcessEnv, encoding: "utf8", timeout: 60_000 },
         (error, stdout, stderr) => resolve({ code: error ? Number(error.code ?? 1) : 0, output: `${stdout}\n${stderr}` }));
     });
   }
+
+  const records = (directory: string) => readFileSync(join(directory, "retries.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+  const retries = (directory: string) => records(directory).filter((record) => record.kind === "retry");
 
   const results = (output: string) => {
     const report = JSON.parse(output.slice(output.indexOf("{"), output.lastIndexOf("}") + 1));
@@ -120,8 +142,13 @@ describe("the runner", () => {
     const directory = project();
     const { output } = await vitest(directory, { CI: "true" });
     expect(results(output)).toEqual({ "fails once": "passed", "fails always": "failed" });
-    const lines = readFileSync(join(directory, "retries.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
-    expect(lines).toEqual([{ file: "flaky.test.mjs", test: "group > fails once", retries: 1, state: "pass", platform: process.platform }]);
+    const observed = retries(directory);
+    expect(observed).toHaveLength(1);
+    expect(observed[0]).toMatchObject({ file: "flaky.test.mjs", test: "group > fails once", retries: 1, state: "pass" });
+    const starts = records(directory).filter((record) => record.kind === "start");
+    const finishes = records(directory).filter((record) => record.kind === "finish");
+    expect(starts.length).toBeGreaterThan(0);
+    expect(finishes.length).toBe(starts.length);
   }, 60_000);
 
   it("stops retrying a file's listed tests once one of them fails every attempt", async () => {
@@ -154,8 +181,8 @@ describe("the runner", () => {
     expect(output).not.toContain("Unhandled");
     expect(results(output)).toEqual({ "runs in a DOM": "passed" });
     expect(code).toBe(0);
-    // the list really loaded: the runner records nothing when it can read it
-    expect(existsSync(join(directory, "retries.jsonl"))).toBe(false);
+    // the list really loaded: the runner records no retry when it can read it
+    expect(retries(directory)).toEqual([]);
   }, 60_000);
 
   it("runs every test without retries when the list cannot be read", async () => {
@@ -163,14 +190,15 @@ describe("the runner", () => {
     const { output } = await vitest(directory, { CI: "true", OMB_VITEST_RETRY_LIST: join(directory, "missing.json") });
     expect(output).not.toContain("Unhandled");
     expect(results(output)).toEqual({ "fails once": "failed", "fails always": "failed" });
-    const logged = readFileSync(join(directory, "retries.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
-    expect(logged).toEqual([{ listError: expect.stringContaining("the flaky-test list could not be read") }]);
+    const logged = records(directory);
+    expect(logged.some((record) => typeof record.listError === "string")).toBe(true);
+    expect(retries(directory)).toEqual([]);
   }, 60_000);
 
   it("never retries outside CI", async () => {
     const directory = project();
     const { output } = await vitest(directory, { CI: undefined });
     expect(results(output)).toEqual({ "fails once": "failed", "fails always": "failed" });
-    expect(existsSync(join(directory, "retries.jsonl"))).toBe(false);
+    expect(retries(directory)).toEqual([]);
   }, 60_000);
 });

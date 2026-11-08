@@ -110,7 +110,7 @@ export async function verifyPatchBehavior(root = repositoryRoot, options = {}) {
     const report = join(temporary, "vitest.json");
     const capability = createGateCapability(temporary);
     const bootstrap = gateBootstrapArgs(capability);
-    const env = Object.fromEntries(["PATH", "SystemRoot", "WINDIR", "TMPDIR", "TEMP", "TMP", "CI"].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
+    const env = Object.fromEntries(["PATH", "SystemRoot", "WINDIR", "TMPDIR", "TEMP", "TMP", "CI", "OMB_VITEST_RETRY_LOG", "OMB_VITEST_RETRY_RUN_ID", "OMB_VITEST_RETRY_BATCH_ID"].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
     Object.assign(env, { HOME: temporary, USERPROFILE: temporary, OMB_VITEST_WORKERS: "1" });
     await runner.run(process.execPath, [...bootstrap, join(root, "node_modules/vitest/vitest.mjs"), "run", "--root", root, "--config", join(root, "vite.config.ts"), "--configLoader", "native", gateVitestWorkerArg(capability), "--reporter=default", "--reporter=json", `--outputFile.json=${report}`, ...vitestFiles], { cwd: root, env }, "Vitest patch suites");
     validateVitestReport(JSON.parse(readFileSync(report, "utf8")), root);

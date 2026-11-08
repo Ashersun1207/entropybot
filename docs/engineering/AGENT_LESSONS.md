@@ -83,6 +83,11 @@
 
 - 地址栏检测外层协议时，不能把路径、查询或 fragment 中的 `://` 当作外层协议。回归入口为 `src/lib/browser-address.test.ts`。修复必须同时保留非 Web 协议拒绝行为；本次第一版只匹配 HTTP(S) 曾让 FTP 被补成 HTTPS，既有负例立即捕获，最终改为匹配开头的完整协议结构。该证据覆盖公开解析函数及调用者静态接线，未覆盖真实浏览器导航。
 
+## D3：CI重试观测
+
+- 旧retry-summary对空/坏/缺日志都输出空摘要，缺环境和outcome时仍能输出“0重试”，且坏JSON行被静默丢弃。现在只读producer开始/结束标记、run/batch身份和结构化retry记录，缺任一必要证据即incomplete，不把无日志当零重试。回归入口 `scripts/testing/ci-retry-observation.node-test.mjs` 与 `scripts/testing/ci-retry-list.test.ts`；runner新增start/finish/counts，retry行带runId/batchId，CI契约保护`--init`、per-step日志和`if: always()`汇总。
+- 测试失败或取消不能因汇总成功被冲淡；原退出码由检查步骤决定，汇总只报告。补丁门环境白名单需显式透传重试日志/run/batch，否则内部Vitest拿不到，记录不完整。retrySummary不再宣称零重试；旧“legacy行”可见但不构成完整观测。缺少命令outcome、manifest或某个step日志均为unknown。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
