@@ -1,4 +1,9 @@
 {
+  "routines.manual.blocked": "Manual run is blocked. Check browser storage and sign in to a server that supports protected runs. Pending requests have been kept.",
+  "routines.manual.unknown": "The previous request may already have run. Retry to check the same request, or review the runs before starting another.",
+  "routines.manual.changed": "The account or workspace changed. The previous request has been kept. Return to its account and workspace to retry, or review the runs before starting another.",
+  "routines.manual.startAnother": "Start another run…",
+  "routines.manual.acknowledge": "The previous request may already have run and will not be cancelled. Start another run anyway?",
   "connectedWorkspaces.localTitle": "Environments on this computer",
   "connectedWorkspaces.missing": "missing",
   "connectedWorkspaces.current": "Current",

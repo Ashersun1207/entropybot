@@ -51,6 +51,7 @@ function CloudReady({ routine, onDone }: { routine?: Routine; onDone: () => void
   const [motion, setMotion] = useState<{ kind: MausMotion; key: number }>({ kind: "none", key: 0 });
   const [leaving, setLeaving] = useState(false);
   const [run, setRun] = useState<"idle" | "starting" | "started" | "failed">("idle");
+  const [runError, setRunError] = useState("");
   useEffect(() => {
     // One frame late: a motion issued in the avatar's mounting commit is lost.
     const frame = requestAnimationFrame(() => setMotion({ kind: "celebrate", key: 1 }));
@@ -70,7 +71,7 @@ function CloudReady({ routine, onDone }: { routine?: Routine; onDone: () => void
     dispatch({
       type: "runRoutine", routineId: routine.id,
       onStarted: () => { setRun("started"); setTimeout(() => setLeaving(true), 1800); },
-      onError: () => setRun("failed"),
+      onError: (cause) => { setRun("failed"); setRunError(cause instanceof Error ? cause.message : t("cloudSetup.ready.runFailed")); },
     });
   };
   const next = routine ? nextRunLabel(routine.nextRunAt) : null;
@@ -85,7 +86,7 @@ function CloudReady({ routine, onDone }: { routine?: Routine; onDone: () => void
             {next ? <> {t("cloudSetup.ready.runs", { when: next })}</> : null}
           </p>
         : <p className="mt-1 text-[13px] leading-relaxed text-ink-secondary">{t("cloudSetup.ready.body")}</p>}
-      {run === "failed" && <p role="alert" className="mt-1.5 text-[12px] text-danger">{t("cloudSetup.ready.runFailed")}</p>}
+      {run === "failed" && <p role="alert" className="mt-1.5 text-[12px] text-danger">{runError}</p>}
     </div>
     {routine
       ? <div className="relative mt-4 flex w-full flex-col gap-2">

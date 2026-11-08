@@ -1,5 +1,6 @@
 // What a person can do to an automation, the same from the page, its panel and the chat card.
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { ManualRunError } from "@/state/routine-run-intent";
 
 import type { Automation } from "@/lib/automations";
 import { copyText } from "@/lib/copy-text";
@@ -9,6 +10,29 @@ import { useShowThreads } from "@/lib/thread-preferences";
 import { loadWebhookCredentials, removeWebhookCredential, saveWebhookCredential, webhookCredentialStore } from "@/lib/webhook-credentials";
 import type { WebhookCredential } from "@/lib/webhooks";
 import { api, openBotThread, useStore } from "@/state/store";
+
+export function useManualRoutineRun(routineId: string | undefined, options: {
+  disabled: boolean; onStarting: () => void; onStarted: (run: RoutineRun) => void;
+  onError: (error: unknown) => void; onSettled: () => void;
+}) {
+  const { dispatch } = useStore();
+  const pending = useRef(false);
+  const [starting, setStarting] = useState(false);
+  const [manualUncertain, setManualUncertain] = useState(false);
+  const runRoutineNow = (acknowledgePriorRun = false) => {
+    if (!routineId || options.disabled || pending.current) return;
+    if (acknowledgePriorRun && !window.confirm(t("routines.manual.acknowledge"))) return;
+    pending.current = true;
+    setStarting(true);
+    options.onStarting();
+    dispatch({ type: "runRoutine", routineId, acknowledgePriorRun,
+      onStarted: (run) => { setManualUncertain(false); options.onStarted(run); },
+      onError: (error) => { setManualUncertain(error instanceof ManualRunError && error.reason !== "blocked"); options.onError(error); },
+      onSettled: () => { pending.current = false; setStarting(false); options.onSettled(); },
+    });
+  };
+  return { starting, manualUncertain, runRoutineNow };
+}
 
 export function useAutomationActions() {
   const { state, dispatch } = useStore();

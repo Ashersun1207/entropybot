@@ -1,5 +1,6 @@
 import { cloudAsleep, onCloudPower } from "../lib/cloud-power";
 import { api, ApiError, snapshotArrays } from "./api";
+import { createRoutineRunIntents } from "./routine-run-intent";
 import {
   createContext,
   useCallback,
@@ -667,7 +668,7 @@ export type Action =
   | { type: "createRoutine"; input: RoutineInput }
   | { type: "updateRoutine"; routineId: string; patch: Partial<RoutineInput> }
   | { type: "deleteRoutine"; routineId: string }
-  | { type: "runRoutine"; routineId: string; onStarted?: (run: RoutineRun) => void; onError?: (error: unknown) => void; onSettled?: () => void }
+  | { type: "runRoutine"; routineId: string; acknowledgePriorRun?: boolean; onStarted?: (run: RoutineRun) => void; onError?: (error: unknown) => void; onSettled?: () => void }
   | { type: "cancelRoutineRun"; runId: string }
   | { type: "markRoutineRunSeen"; runId: string }
   | { type: "markAllRoutineRunsSeen" }
@@ -2155,6 +2156,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const roomAnswer = roomAnswers(() => stateRef.current, rawDispatch);
     const olderPagesInFlight = new Set<string>();
     const newTaskOnce = createNewTaskOnce();
+    const routineRunIntents = createRoutineRunIntents();
     let creatingBot = false;
     const showError = (e: unknown) => { if (isBotLimitRefusal(e)) return; if (isNoAiRefusal(e)) wrapped({ type: "notice", notice: { kind: "note", botName: null, text: e.message } }); else rawDispatch({ type: "error", message: e instanceof Error ? e.message : String(e) }); };
     const showSavedState = (owner: SavedOwner) => (error: unknown) => {
@@ -2357,14 +2359,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           api(`/api/routines/${action.routineId}`, { method: "DELETE" }).catch(showError);
           break;
         case "runRoutine":
-          void waitForExecutionSettings(executionBotsBeforeAction)
-            .then(() => api(`/api/routines/${action.routineId}/run`, { method: "POST" }))
-            .then(({ run }) => action.onStarted?.(run))
-            .catch((error) => {
+          void routineRunIntents.run(action.routineId, () => waitForExecutionSettings(executionBotsBeforeAction), action.acknowledgePriorRun)
+            .then((run) => action.onStarted?.(run), (error) => {
               if (action.onError) action.onError(error);
               else showError(error);
             })
-            .finally(() => action.onSettled?.());
+            .finally(() => action.onSettled?.()).catch(showError);
           break;
         case "cancelRoutineRun":
           api(`/api/routine-runs/${action.runId}/cancel`, { method: "POST" }).catch(showError);

@@ -1,4 +1,9 @@
 {
+  "routines.manual.blocked": "暂时无法手动运行。请检查浏览器存储，并登录支持受保护运行的服务器。待确认请求已保留。",
+  "routines.manual.unknown": "上次请求可能已经运行。重试会确认同一个请求；如需另行运行，请先查看运行记录。",
+  "routines.manual.changed": "账号或工作区已变化，上次请求已保留。请返回原账号和工作区重试；如需另行运行，请先查看运行记录。",
+  "routines.manual.startAnother": "另行运行…",
+  "routines.manual.acknowledge": "上次请求可能已经运行，且不会被取消。仍要另行运行吗？",
   "voice.gemini.keyPlaceholder": "粘贴你的 Google AI Studio API 密钥",
   "voice.gemini.model": "Gemini 语音合成模型",
   "keys.label.geminiTts": "Gemini 语音合成 API 密钥",

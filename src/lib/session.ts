@@ -1,20 +1,41 @@
 import { t } from "./i18n";
 import { serverErrorText } from "./server-error";
 
+export interface ManualRoutineContext { version: 1; contextId: string }
+export interface ManualRoutineScope { environmentId: string; contextId: string }
+
+export function manualRoutineContext(value: unknown): ManualRoutineContext | undefined {
+  const record = Object(value) as Record<string, unknown>;
+  return record.version === 1 && typeof record.contextId === "string" && /^mr1_[a-f0-9]{64}$/.test(record.contextId)
+    ? { version: 1, contextId: record.contextId } : undefined;
+}
+
+export function decodeManualRoutineScope(environment: unknown, session: unknown): ManualRoutineScope | null {
+  const env = Object(environment) as Record<string, unknown>;
+  const auth = Object(session) as Record<string, unknown>;
+  const capabilities = Object(env.capabilities) as Record<string, unknown>;
+  const context = manualRoutineContext(auth.manualRoutineRequests);
+  const eligible = auth.kind === "loopback" && auth.trust === undefined || auth.kind === "session" &&
+    typeof auth.id === "string" && auth.id.length > 0 && Array.isArray(auth.scopes) && auth.scopes.every((scope) => typeof scope === "string") && auth.scopes.includes("client");
+  return eligible && context && capabilities.manualRoutineRequests === 1 && typeof env.environmentId === "string" &&
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(env.environmentId)
+    ? { environmentId: env.environmentId, contextId: context.contextId } : null;
+}
+
 export interface EnvironmentDescriptor {
   environmentId: string;
   label: string;
   platform: string;
   version: string;
-  capabilities: { remoteSessions: true; selfUpdate: "desktop-managed" | "operator"; emailSignIn?: boolean; sharedComputers?: true; cloudHome?: true; cloudTeam?: true };
+  capabilities: { manualRoutineRequests?: 1; remoteSessions: true; selfUpdate: "desktop-managed" | "operator"; emailSignIn?: boolean; sharedComputers?: true; cloudHome?: true; cloudTeam?: true };
 }
 
 /** A Team Cloud's session: the team and this person's role in it (owner, admin or member). */
 export interface TeamSession { id: string; name: string; role: string }
 
 export type SessionState =
-  | { kind: "loopback"; trust?: "service" }
-  | { kind: "session"; id: string; label: string; email?: string; scopes: string[]; expiresAt: number; cloudGuest?: true; openedThreads?: string[]; reactor?: string; team?: TeamSession }
+  | { kind: "loopback"; trust?: "service"; manualRoutineRequests?: ManualRoutineContext }
+  | { kind: "session"; manualRoutineRequests?: ManualRoutineContext; id: string; label: string; email?: string; scopes: string[]; expiresAt: number; cloudGuest?: true; openedThreads?: string[]; reactor?: string; team?: TeamSession }
   | { kind: "unauthenticated"; error: string }
   | { kind: "unreachable"; error: string };
 
@@ -47,6 +68,7 @@ export async function readSessionState(fetchImpl: typeof fetch = fetch): Promise
   if (record.kind === "session" && typeof record.id === "string") {
     return {
       kind: "session",
+      ...(manualRoutineContext(record.manualRoutineRequests) ? { manualRoutineRequests: manualRoutineContext(record.manualRoutineRequests) } : {}),
       id: record.id,
       label: typeof record.label === "string" ? record.label : "",
       ...(typeof record.email === "string" ? { email: record.email } : {}),
@@ -60,7 +82,10 @@ export async function readSessionState(fetchImpl: typeof fetch = fetch): Promise
       } : {}),
     };
   }
-  return record.trust === "service" ? { kind: "loopback", trust: "service" } : { kind: "loopback" };
+  return record.trust === "service" ? { kind: "loopback", trust: "service" } : {
+    kind: "loopback",
+    ...(record.kind === "loopback" && manualRoutineContext(record.manualRoutineRequests) ? { manualRoutineRequests: manualRoutineContext(record.manualRoutineRequests) } : {}),
+  };
 }
 
 function teamSessionOf(value: unknown): TeamSession | null {

@@ -83,6 +83,7 @@ import {
   type RoutineTarget,
 } from "@/lib/routines";
 import { api, openBotThread, openThread, useStore, type Bot, type Group } from "@/state/store";
+import { useManualRoutineRun } from "./automations/actions";
 import { RoutineScheduleNote } from "./RoutineScheduleNote";
 import { CalendarEventCard, HOUR_HEIGHT, statusState } from "./routines/CalendarEventCard";
 
@@ -1307,8 +1308,6 @@ export function EventDetails({
   const advanced = useAdvancedMode();
   const showThreads = useShowThreads();
   const [working, setWorking] = useState(false);
-  const runNowPending = useRef(false);
-  const [starting, setStarting] = useState(false);
   const [submittedRun, setSubmittedRun] = useState<RoutineRun | null | undefined>(undefined);
   const [error, setError] = useState("");
   const isCall = item.kind === "call";
@@ -1360,27 +1359,14 @@ export function EventDetails({
     }
   };
 
-  const runRoutineNow = () => {
-    if (!routine || working || runNowPending.current) return;
-    runNowPending.current = true;
-    setStarting(true);
-    setSubmittedRun(null);
-    setWorking(true);
-    setError("");
-    // Stays pending through the store's settings flush and the POST, so a double-click cannot create two runs.
-    dispatch({
-      type: "runRoutine",
-      routineId: routine.id,
-      // Prefer later SSE records over this response, which may already be stale.
-      onStarted: setSubmittedRun,
-      onError: (cause) => setError(cause instanceof Error ? cause.message : String(cause)),
-      onSettled: () => {
-        runNowPending.current = false;
-        setStarting(false);
-        setWorking(false);
-      },
-    });
-  };
+  const { starting, manualUncertain, runRoutineNow } = useManualRoutineRun(routine?.id, {
+    disabled: working,
+    onStarting: () => { setSubmittedRun(null); setWorking(true); setError(""); },
+    // Prefer later SSE records over this response, which may already be stale.
+    onStarted: setSubmittedRun,
+    onError: (cause) => setError(cause instanceof Error ? cause.message : String(cause)),
+    onSettled: () => setWorking(false),
+  });
 
   const joinRoom = async () => {
     if (!call) return;
@@ -1482,7 +1468,8 @@ export function EventDetails({
       <div className="space-y-2 border-t border-hairline/40 px-4 py-3">
         {routine && (
           <div className="flex items-center gap-2">
-            <button onClick={runRoutineNow} disabled={working} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-[12px] font-semibold text-accent-ink hover:brightness-110 disabled:opacity-50">{starting ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}{starting ? t("routines.starting") : t("routines.runNow")}</button>
+            {manualUncertain && <button onClick={() => runRoutineNow(true)} disabled={working} className="ui-button text-[12px]">{t("routines.manual.startAnother")}</button>}
+            <button onClick={() => runRoutineNow()} disabled={working} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-[12px] font-semibold text-accent-ink hover:brightness-110 disabled:opacity-50">{starting ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}{starting ? t("routines.starting") : manualUncertain ? t("commandAllowlist.retry") : t("routines.runNow")}</button>
             <button disabled={working} onClick={() => void invoke(`/api/routines/${routine.id}`, "PATCH", { enabled: !routine.enabled })} title={t(routine.enabled ? "routines.drawer.pauseRoutine" : "routines.drawer.resumeRoutine")} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-hairline/50 bg-control px-3 py-2 text-[12px] font-medium text-ink hover:bg-raised-hover disabled:opacity-40">{routine.enabled ? <Pause size={13} /> : <Play size={13} />}{routine.enabled ? t("routines.pause") : t("routines.resume")}</button>
           </div>
         )}
