@@ -88,5 +88,16 @@
 
 - 触发：周一首次开工（AGENTS 每周/三轮先到者）。只读范围 `392f54255..6daad935d`，33 文件、+1559/−160：manual-routine 幂等回执抽取、context 协议、受保护路由、前端 intent 消费者、V1-R2 FIFO 修复。会话 `ses_e43e42f41ffegdbfKMlYPqBmmg`；未跑产品/测试/网络，V1 文件只盘点不审。
 - 结论：无新增安全/架构阻断；回执抽取未产生第二 authority 或第二调度器，principal/authority 由 `manualAuthority`/`personKey` 共享，context 非 secret 只经 header 不经 URL/日志，ledger 32 条与 HTTP receipt 1000 条均有界，无依赖/lockfile/workflow/安装钩子变化。
-- 新 P2：前端 `routine-run-intent.ts` 两处权威 metadata GET 未传 timeout/signal；api.ts 仅在给定 `timeoutMs` 时加截止。预检永不 settle 则操作停留 inFlight，同 routine 后续订阅并挂住，details 保持 busy，POST 的 30 秒超时根本到不了。这是静态发现，未动态复现，与已关闭的 coalescing/readback 不同根。待交回 A1 前端 owner 做有界修复（两处 deadline、stalled 预检 settle 回调并释放 entry、保留 prior pending identity、不发 POST）。
-- 未验证：完整浏览器 reload、多标签、unmount-in-flight、原生后端端到端、远端 CI。F2 producer 仍被 Chrome HOME 隔离前置、发布候选 HEAD 与远端 CI 验证阻塞。审查墙钟与 model wait unknown。
+- 新 P2（当轮发现，后续已关闭）：前端 `routine-run-intent.ts` 两处权威 metadata GET 未传 timeout/signal；api.ts 仅在给定 `timeoutMs` 时加截止。预检永不 settle 则操作停留 inFlight，同 routine 后续订阅并挂住，details 保持 busy，POST 的 30 秒超时根本到不了。当时为静态发现，未动态复现，与 coalescing/readback 不同根。后续已有 `MANUAL_ROUTINE_PREFLIGHT_TIMEOUT_MS=5000`、共享 AbortController/请求和body截止及finally回收；回归 `src/state/routine-run-intent.integration.test.ts` 的 stalled preflight 用例。2026-11-09 A1完整候选ac389fc3a和工程09abbd32a均包含该实现；关闭依据为既有交付/组合证据与本次源码核对，本次未重跑该回归，不重复派发。
+- 当轮未验证：完整浏览器 reload、多标签、unmount-in-flight、原生后端端到端、远端 CI。后续reload及unmount隔离已有独立合成证据，多标签仍独立诊断；不追认本次旧审查亲验。F2 producer 仍被 Chrome HOME 隔离前置、发布候选 HEAD 与远端 CI 验证阻塞。审查墙钟与 model wait unknown。
+
+## 2026-11-09：A1 多轮收口后的集中增量维护与安全审查
+
+- 触发：连续多个产品切片已交付，按每三轮/每周先到者补充集中增量审查。只读范围 `a92388449..ac389fc3a` 及必要上下文，71文件、+2728/−126；审查会话 `ses_e426c4b03ffeSJJqmp978XQm78`。候选HEAD/tree和clean状态核对通过；工程09ab与候选分开记录，ff/ae未正式合入。
+- 结论：未发现新的、证据充分的维护或安全阻断，不是整仓安全证明。复用此前独立审查/失败修正/回执，未跑测试、探针或浏览器，不将既有111文件1121通过/2todo、4browser写成本审查执行。
+- 跨模块核对：版本化plan/manual-local-bot准入/run快照与原HTTP receipt身份一致；无第二authority/调度器。reader逐跳校验DNS并pin连接地址，保留Host/TLS、有限页/跳转/字节/截止、不读Cookie/应用凭证。合成host/port hook仅测试显式preload，没有生产旁路。
+- 发布与文件：入队不等于发布，posted确认持久保存thread/message身份；取消/删除/缺失run阻止旧摘要。报告GET独立校验audience/receipt/plan/completion/root/普通单链接/no-follow/nonblock/替换/hash/schema，显示投影不授权文件读取。每次报告dispatch最多60秒，不保证无限繁忙后必达。
+- 客户端：实际流字节先受限再解析JSON，取消/失败释放reader；exact-run和卸载隔离保留。候选公共摘要投影只改显示、不改持久对账字节；两个摘要解析器职责不同，未确认有必须删除的重复路径。
+- Git差异证明本范围无依赖/lockfile、安装脚本/hook、workflow、许可证归属或上游来源替换变化，无merge commit；未发现确认恶意行为或隐蔽外发证据。
+- 保留事项：pt-BR母语审核未完成，不能正式合并/发布放行；This computer/My Cloud两个copy TODO不算执行覆盖。多标签归独立诊断owner，不重复。真实TLS/站点、完整Team Cloud HTTP audience、断电一致性、内核I/O截止、native/package、全仓/远端CI均未补证，历史重启undefined根因仍unknown。
+- 本条仅维护记录；未构建、安装、推送、调用真实模型或访问live数据/Keychain。
