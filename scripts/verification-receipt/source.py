@@ -62,7 +62,7 @@ def snapshot(root):
         blocked = next((str(parent.relative_to(root)) for parent in path.parents if parent != root and root in parent.parents and parent.is_symlink()), None)
         if blocked:
             item = {'type':'blocked', 'ancestor':blocked}
-        elif not path.exists() and not path.is_symlink():
+        elif not path.is_symlink() and not path.exists():
             item = {'type':'deleted'}
         else:
             item = identity(path)

@@ -25,7 +25,7 @@ python3 -B scripts/verification-receipt/cli.py verify \
 `checks.json`含schemaVersion及checkId；每check声明正整数version、argv数组、cwd、正timeoutSeconds、adapter和显式allowSkipped/allowTodo。定义整体hash，变动需要新证据。默认只注册既有 `scripts/release-signing.node-test.mjs` 的轻量单元检查，不构建、不调用真实签名/Keychain。
 
 - `counts-json`：必需独立报告，字段total/passed/failed/skipped/todo精确且非负整数，计数一致且非空，严格默认skip/todo为0。
-- `node-junit`：Node原生JUnit结构化报告，逐testcase检查failure/error/skipped，并读取suite级failure/error；严格默认跳过/todo拒绝。
+- `node-junit`：Node原生JUnit结构化报告，逐testcase检查failure/error/skipped；以Node的 `skipped type="todo"` 分离待办，skip/todo策略独立。声明的suite/root总数与失败/跳过数、Node原生summary注释均须与实际testcase一致，矛盾或重复计数拒绝；严格默认跳过/todo为0。
 - `exit`：显式无测试报告型检查（如lint/typecheck），仅退出及生命周期结果；counts为null。不得用它替代需要结构化报告的测试检查。
 
 工具不把日志解析失败视作0失败，不解析所有工具通用正则。bridge只从已知GateCommandError元数据格式提取退出码/信号，不用它判断测试计数。
@@ -44,4 +44,4 @@ python3 -B scripts/verification-receipt/cli.py verify \
 python3 -B scripts/verification-receipt/test_receipts.py
 ```
 
-15类验收通过同一CLI与临时Git仓库测试，不复制验收器。真实项目接入与独立审查结果见外层 `docs/execution/V1-verification-receipts.md`。来源绑定规范和既有runner限制仍见MAINTENANCE/AGENT_LESSONS；旧B1/F1证据不追认成本工具产生。
+15类验收和2项审查回归通过同一CLI与临时Git仓库测试，不复制验收器。审查新增反例包括suite/root计数矛盾、Node summary不完整，以及原生TODO在skip允许时仍必须按独立策略拒绝。真实项目接入与独立审查结果见外层 `docs/execution/V1-verification-receipts.md`。来源绑定规范和既有runner限制仍见MAINTENANCE/AGENT_LESSONS；旧B1/F1证据不追认成本工具产生。

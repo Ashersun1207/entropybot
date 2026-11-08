@@ -70,6 +70,11 @@ def run(root, registry, name, out):
             if not cancelled[0]:
                 process = subprocess.Popen([node['path'],'--experimental-strip-types',str(Path(__file__).with_name('bridge.ts'))],
                                            stdin=subprocess.PIPE,stdout=stdout,stderr=stderr,env=env)
+                if cancelled[0] and process.poll() is None:
+                    try:
+                        process.send_signal(cancelled[0])
+                    except ProcessLookupError:
+                        pass
                 process.communicate(json.dumps(request).encode())
         state = load_json(directory/'execution.json')
         receipt['execution'] = state
@@ -92,7 +97,7 @@ def run(root, registry, name, out):
             receipt['sourceAfter'] = snapshot(root)
             if receipt['sourceAfter']['digest'] != before['digest']:
                 receipt['status']='invalidated'
-            receipt['artifacts'] = [artifact(directory,name) for name in ['stdout.log','stderr.log','execution.json','report.json'] if (directory/name).exists() or (directory/name).is_symlink()]
+            receipt['artifacts'] = [artifact(directory,name) for name in ['stdout.log','stderr.log','execution.json','report.json'] if (directory/name).is_symlink() or (directory/name).exists()]
         except Exception as error:
             receipt['status']='error';receipt['errorType']=type(error).__name__
         receipt['finishedAt']=utc();receipt['durationSeconds']=time.monotonic()-started

@@ -58,6 +58,9 @@ print('fixture complete')
 
     def run_check(self, mode='ok', timeout=5):
         self.register(mode, timeout)
+        return self.run_registered()
+
+    def run_registered(self):
         result = subprocess.run(self.args('run'), capture_output=True, text=True, timeout=15)
         paths=list(self.out.glob('*/receipt.json'))
         self.assertTrue(paths, result.stderr)
@@ -189,6 +192,36 @@ print('fixture complete')
         _,path,_=self.run_check()
         data=json.loads(self.registry.read_text());data['checks']['fixture']['version']=2
         self.registry.write_text(json.dumps(data));self.verify(path,False)
+
+    def test_16_junit_inconsistent_suite_counts(self):
+        for xml in [
+            '<testsuites><testsuite tests="2" skipped="1"><testcase name="ok"/></testsuite></testsuites>',
+            '<testsuites><testsuite tests="50" failures="0"><testcase name="ok"/></testsuite></testsuites>',
+            '<testsuites tests="2"><testcase name="ok"/></testsuites>',
+            '<testsuites><testcase name="ok"/><!-- tests 50 --></testsuites>',
+        ]:
+            with self.subTest(xml=xml):
+                self.register()
+                (self.root/'fixture.py').write_text('import pathlib, sys\npathlib.Path(sys.argv[1]).write_text('+repr(xml)+')\n')
+                data=json.loads(self.registry.read_text());data['checks']['fixture']['adapter']='node-junit'
+                self.registry.write_text(json.dumps(data))
+                result,path,_=self.run_registered()
+                self.assertNotEqual(result.returncode,0)
+                self.verify(path,False)
+
+    def test_17_native_node_todo_policy_independent_of_skip(self):
+        (self.root/'todo.mjs').write_text("import {test} from 'node:test';test('pending',{todo:true},()=>{});test('ok',()=>{});\n")
+        for allow_skip,allow_todo,accepted in [(True,False,False),(False,True,True),(True,True,True)]:
+            with self.subTest(skip=allow_skip,todo=allow_todo):
+                self.register()
+                data=json.loads(self.registry.read_text());check=data['checks']['fixture']
+                check.update(argv=['node','--test','--test-reporter=junit','--test-reporter-destination={report}','todo.mjs'],adapter='node-junit',allowSkipped=allow_skip,allowTodo=allow_todo)
+                self.registry.write_text(json.dumps(data))
+                result,path,receipt=self.run_registered()
+                self.assertEqual(result.returncode==0,accepted)
+                self.assertEqual(receipt['report']['counts']['todo'],1)
+                self.assertEqual(receipt['report']['counts']['skipped'],0)
+                self.verify(path,accepted)
 
 
 if __name__=='__main__':

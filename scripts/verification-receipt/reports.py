@@ -1,7 +1,6 @@
 import json
 import math
-import xml.etree.ElementTree as ET
-
+from junit import junit_counts
 from source import digest
 
 
@@ -63,22 +62,7 @@ def parse_report(directory, check):
         if counts['total'] != sum(counts[key] for key in ['passed','failed','skipped','todo']):
             raise ValueError('inconsistent report counts')
     else:
-        tree = ET.parse(path)
-        if tree.getroot().tag not in ['testsuites','testsuite']:
-            raise ValueError('expected JUnit report')
-        cases = list(tree.iter('testcase'))
-        counts = {'total':len(cases),'passed':0,'failed':0,'skipped':0,'todo':0}
-        for case in cases:
-            if case.find('failure') is not None or case.find('error') is not None:
-                counts['failed'] += 1
-            elif case.find('skipped') is not None:
-                skipped = case.find('skipped')
-                kind = 'todo' if 'todo' in (skipped.get('message','')+' '+(skipped.text or '')).lower() else 'skipped'
-                counts[kind] += 1
-            else:
-                counts['passed'] += 1
-        if any(int(suite.get('errors','0')) or int(suite.get('failures','0')) for suite in tree.iter('testsuite')):
-            counts['failed'] = max(1,counts['failed'])
+        counts = junit_counts(path)
     passed = counts['total'] > 0 and counts['failed'] == 0
     passed = passed and (check['allowSkipped'] or counts['skipped'] == 0) and (check['allowTodo'] or counts['todo'] == 0)
     return {'valid':True,'passed':bool(passed),'counts':counts}
