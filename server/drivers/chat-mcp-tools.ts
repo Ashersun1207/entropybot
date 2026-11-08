@@ -493,7 +493,12 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
     for (const [index, mount] of mounts.entries()) {
       if (signal.aborted || closed) throw aborted();
       if (index < builtIns) {
-        if (mount.status === "rejected") throw mount.reason;
+        if (mount.status === "rejected") {
+          const name = servers[index]![0];
+          if (name !== "composio" && name !== OWN_APPS_SERVER) throw mount.reason;
+          await skip(name, new Error("Connected apps are unavailable; their tools were omitted"));
+          continue;
+        }
         offered.push(mount.value);
         continue;
       }

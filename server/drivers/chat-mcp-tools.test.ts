@@ -386,6 +386,21 @@ describe("Chat MCP session", () => {
     warn.mockRestore();
   });
 
+  it("closes unavailable apps, keeps healthy built-ins, and preserves the turn's selection", async () => {
+    const failed = fixture(`if(message.method === "tools/list") { send({jsonrpc:"2.0",id:message.id,error:{code:-32000,message:"synthetic-secret-canary"}}); continue; }`);
+    const ready = fixture();
+    const session = await mountChatTools({ composio: failed.server, composioOwn: ready.server, data: ready.server }, ready.controller.signal, false,
+      { allow: ["mcp:composio:*", "mcp:own_apps:write", "mcp:data:read"] });
+    sessions.push(session);
+    expect(session.definitions.map((tool) => tool.function.name)).toEqual(["own_apps_write"]);
+    expect(session.skipped).toEqual([{ server: "composio", reason: "Connected apps are unavailable; their tools were omitted" }]);
+    expect(alive(failed.read().pid)).toBe(false);
+    expect(() => session.validate("composio_write", { value: "no" })).toThrow("not advertised");
+    expect(() => session.validate("data_write", { value: "no" })).toThrow("not advertised");
+    await expect(session.execute("own_apps_write", { value: "healthy" }, ready.controller.signal)).resolves.toMatchObject({ ok: true });
+    expect(session.view("own_apps_write", { value: "healthy" }).ask).toBe(true);
+  });
+
   it("still fails setup when a harness mount (not a configured server) fails", async () => {
     const ready = fixture();
     const failed = fixture(`if(message.method === "tools/list") { reply(message,{tools:"invalid"}); continue; }`);

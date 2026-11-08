@@ -88,6 +88,12 @@
 - 旧retry-summary对空/坏/缺日志都输出空摘要，缺环境和outcome时仍能输出“0重试”，且坏JSON行被静默丢弃。现在只读producer开始/结束标记、run/batch身份和结构化retry记录，缺任一必要证据即incomplete，不把无日志当零重试。回归入口 `scripts/testing/ci-retry-observation.node-test.mjs` 与 `scripts/testing/ci-retry-list.test.ts`；runner新增start/finish/counts，retry行带runId/batchId，CI契约保护`--init`、per-step日志和`if: always()`汇总。
 - 测试失败或取消不能因汇总成功被冲淡；原退出码由检查步骤决定，汇总只报告。补丁门环境白名单需显式透传重试日志/run/batch，否则内部Vitest拿不到，记录不完整。retrySummary不再宣称零重试；旧“legacy行”可见但不构成完整观测。缺少命令outcome、manifest或某个step日志均为unknown。
 
+## 可选 Connected Apps 故障隔离
+
+- 触发：Composio bridge 的 initialize 或 tools/list 返回 RPC error。实际根因是 `mountChatTools` 按 built-in/custom 分组，把可选 `composio`/`own_apps` 与必需 agents 一起直接抛错；准备成功不代表挂载成功，聊天因此在模型请求前失败。修复只让这两个可选 bridge 的挂载拒绝走现有 skipped notice，关闭失败 client、整组省略其工具，通知使用固定文本，不带上游错误、URL 或凭证；取消、必需服务失败、schema 校验与 toolScope 错误继续拒绝。修复身份以本条所属提交为准。
+- 准备路径已核实：`appsIntegrations` → `mcpIntegration` 的 connectorTools 清单读取经过 `connectedServiceSlugs`，库存网络失败已有降级，原 allowlist 保留；不应为猜测的准备失败新增宽泛 catch，策略/序列化等异常仍上抛。回归入口：`server/drivers/openai-chat-tools.test.ts` 的 optional connected-app outages（真实 stdio MCP + loopback 假 Chat Completions，四个失败阶段先红后绿、健康工具实际执行、通知脱敏、取消与必需 agents/policy 拒绝）；`chat-mcp-tools.test.ts` 检查失败进程关闭、健康内置工具与选择/审批边界；`composio.test.ts`、`host/team-connections-host.test.ts` 检查准备流程。测试首轮因合成 broker token 不符合既有 64 位 hex 契约失败，修正 fixture 后重跑，不修改产品校验。
+- 边界：只覆盖已有 Chat Completions runtime；没有调用真实 Magpie、Composio 或用户数据，不能宣称云端服务恢复、安装包或 UI 实测通过。已有启动等待预算保持原样；执行中失败仍走原不确定结果/关闭语义，不自动重试外部动作。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

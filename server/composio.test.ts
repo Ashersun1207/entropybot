@@ -975,6 +975,24 @@ describe.sequential("Composio Sessions", () => {
     }
   });
 
+  it("prepares a granted bridge during an inventory outage without dropping its allowlist", async () => {
+    setManagedBrokerAccess({ url: origin + "/broker", token: "1".repeat(64) });
+    brokerConnectedServicesFail = true;
+    const grants: Record<string, ConnectorToolGrant> = { gmail: { tools: ["GMAIL_FETCH_EMAILS"] } };
+    try {
+      const integration = await mcpIntegration({}, {
+        harnessUrl: "http://127.0.0.1:8799", commsToken: "synthetic-turn-token",
+        botId: "outage-bot", threadId: "outage-thread", connectorTools: grants,
+      });
+      expect(integration?.env[CONNECTOR_ALLOWED_TOOLS_ENV]).toBe(JSON.stringify(grants));
+      expect(integration?.env[CONNECTOR_SERVICE_SLUGS_ENV]).toBeUndefined();
+      expect(integration?.args[0]).toContain("connector-proxy");
+    } finally {
+      brokerConnectedServicesFail = false;
+      setManagedBrokerAccess(null);
+    }
+  });
+
   it("reads an unreachable connection inventory as no service slugs", async () => {
     await expect(connectedServiceSlugs({})).resolves.toEqual([]);
   });

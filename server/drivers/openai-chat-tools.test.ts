@@ -147,7 +147,7 @@ async function fixture(script: Script, provider: Provider = "openai-compat", api
     ? readFileSync(join(directory, "effects.ndjson"), "utf8").trim().split("\n").map((line) => JSON.parse(line))
     : [];
   return {
-    instance, recorder, requests, threadId, directory, integrations, effects, rpcStarted,
+    instance, recorder, requests, threadId, directory, integrations, effects, rpcStarted, origin,
     start: (input: Partial<SendTurnInput> = {}) => instance.adapter.sendTurn({
       threadId, text: "Store the synthetic receipt.", model: "fixture-model", integrations, ...input,
     }),
@@ -1350,6 +1350,74 @@ describe("structured tool execution boundaries", () => {
     const pending = f.recorder.events.find((event) => event.type === "request.opened");
     if (pending) expect(await f.instance.adapter.respondToRequest(f.threadId, pending.requestId!, { behavior: "allow" })).toBe("unavailable");
     expect(f.recorder.events.filter((event) => event.type === "turn.completed")).toHaveLength(1);
+  });
+});
+
+describe("optional connected-app outages", () => {
+  function failingBridge(directory: string, method: "initialize" | "tools/list", hold = false) {
+    const script = join(directory, "optional-apps.mjs");
+    writeFileSync(script, `
+      import { createInterface } from "node:readline";
+      createInterface({ input: process.stdin }).on("line", async (line) => {
+        const m = JSON.parse(line);
+        if (m.method === ${JSON.stringify(method)}) {
+          ${hold ? 'await fetch(process.argv[2] + "/mcp-start", { method: "POST", body: "{}" }); return;' : `process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: m.id, error: { code: -32000, message: "Cloudflare 1042 https://private.invalid/?token=fixture-secret-canary" } }) + "\\n"); return;`}
+        }
+        if (m.method === "initialize") process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: m.id, result: { capabilities: {} } }) + "\\n");
+      });
+    `);
+    return { command: process.execPath, args: [script], env: {} };
+  }
+
+  it.each([
+    ["composio", "initialize"], ["composio", "tools/list"],
+    ["composioOwn", "initialize"], ["composioOwn", "tools/list"],
+  ] as const)("omits unavailable %s tools after %s fails and completes a fake chat with healthy tools", async (server, method) => {
+    const f = await fixture((_body, response, round) => round === 1
+      ? sse(response, [chunk({ tool_calls: [toolCall()] }, "tool_calls")])
+      : answer(response, "Synthetic chat survived the optional outage."));
+    const bridge = failingBridge(f.directory, method);
+    await f.start({ approvalMode: "full", integrations: { ...f.integrations, [server]: bridge } });
+    expect(await f.completed()).toMatchObject({ ok: true });
+    expect(f.requests).toHaveLength(2);
+    expect(f.effects()).toEqual([{ name: "receipt", value: "done" }]);
+    expect(f.requests[0].tools!.map((tool) => tool.function.name)).toContain("audit_write");
+    expect(f.recorder.events).toContainEqual(expect.objectContaining({ type: "item.completed", itemType: "assistant_text", text: "Synthetic chat survived the optional outage." }));
+    const mountedName = server === "composioOwn" ? "own_apps" : server;
+    expect(f.requests[0].tools!.some((tool) => tool.function.name.startsWith(mountedName + "_"))).toBe(false);
+    expect(f.recorder.events).toContainEqual(expect.objectContaining({ type: "runtime.notice", message: expect.stringContaining(`MCP server "${mountedName}" was skipped`) }));
+    expect(f.recorder.events.some((event) => event.type === "runtime.error")).toBe(false);
+    expect(JSON.stringify(f.recorder.events)).not.toContain("fixture-secret-canary");
+    expect(JSON.stringify(f.requests)).not.toContain("private.invalid");
+  });
+
+  it("still aborts before the model when required agents fail", async () => {
+    const f = await fixture((_body, response) => answer(response));
+    await f.start({ integrations: { ...f.integrations, agents: failingBridge(f.directory, "initialize") } });
+    expect(await f.completed()).toMatchObject({ ok: false });
+    expect(f.requests).toEqual([]);
+    expect(f.recorder.events.some((event) => event.type === "runtime.error")).toBe(true);
+  });
+
+  it("still aborts invalid tool policy before the model despite an optional outage", async () => {
+    const f = await fixture((_body, response) => answer(response));
+    await f.start({ integrations: { ...f.integrations, composio: failingBridge(f.directory, "initialize") }, toolScope: { allow: ["invalid-policy"] } });
+    expect(await f.completed()).toMatchObject({ ok: false });
+    expect(f.requests).toEqual([]);
+    expect(f.recorder.events.some((event) => event.type === "runtime.notice")).toBe(false);
+  });
+
+  it("cancels during optional startup without sending a model request", async () => {
+    const f = await fixture((_body, response) => answer(response));
+    const bridge = failingBridge(f.directory, "initialize", true);
+    bridge.args.push(f.origin);
+    const { turnId } = await f.start({ integrations: { ...f.integrations, composio: bridge } });
+    await f.rpcStarted.promise;
+    await f.instance.adapter.interruptTurn(f.threadId, turnId);
+    expect(await f.completed()).toMatchObject({ ok: false, stopReason: "interrupted" });
+    expect(f.requests).toEqual([]);
+    expect(f.recorder.events.filter((event) => event.type === "turn.completed")).toHaveLength(1);
+    expect(f.recorder.events.some((event) => event.type === "runtime.notice")).toBe(false);
   });
 });
 

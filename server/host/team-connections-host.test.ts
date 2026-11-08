@@ -87,6 +87,13 @@ function adaConnected(host: ReturnType<typeof setup>["host"], dataDir: string, o
 }
 
 describe("whose connection a turn may use", () => {
+  it("propagates preparation failures instead of silently bypassing connector policy", async () => {
+    const { host, composio } = setup();
+    const failure = new Error("synthetic policy preparation failure");
+    composio.mcpIntegration.mockRejectedValueOnce(failure);
+    await expect(host.appsIntegrations({ id: "policy-bot", name: "Policy", connectorTools: {} }, "main-chat", "g1")).rejects.toBe(failure);
+  });
+
   it("defaults every app and server to the team's", () => {
     const { host } = setup();
     expect(host.scopes.scope("app", "gmail")).toBe("team");
