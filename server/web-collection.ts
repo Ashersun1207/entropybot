@@ -114,7 +114,7 @@ export async function collectWeb(options: CollectionOptions): Promise<Collection
   const content = `${JSON.stringify({ version: 1, binding, pages: plan.sources.length, sources: rows }, null, 2)}\n`;
   const report: CollectionReport = { path: join(root, `${key}.json`), hash: digest(content), pages: plan.sources.length, unique: rows.length };
   const verify = () => {
-    const fd = openSync(report.path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const fd = openSync(report.path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     try {
       const stat = fstatSync(fd);
       if (!stat.isFile() || stat.nlink !== 1 || stat.size !== Buffer.byteLength(content) || readFileSync(fd, "utf8") !== content) throw new Error("Collection artifact conflict");

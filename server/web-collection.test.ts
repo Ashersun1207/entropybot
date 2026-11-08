@@ -1,5 +1,6 @@
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -176,6 +177,88 @@ describe("manual web collection with real files and command SQLite receipts", ()
     expect(readerSignal?.aborted).toBe(true);
     f.reopen();
     await expect(collectWeb(f.options)).rejects.toThrow("unknown");
+  });
+
+  it("refuses a concurrent invocation while the original reader is pending", async () => {
+    const f = fixture();
+    f.options.plan.sources = [f.options.plan.sources[0]!];
+    let calls = 0;
+    let release!: (text: string) => void;
+    f.options.read = () => { calls++; return new Promise(resolve => { release = resolve; }); };
+    const pending = collectWeb(f.options);
+    try {
+      expect(calls).toBe(1);
+      await expect(collectWeb(f.options)).rejects.toThrow("outcome unknown");
+      expect(calls).toBe(1);
+    } finally { release("original reader result"); }
+    const report = await pending;
+    f.reopen();
+    expect(await collectWeb(f.options)).toEqual(report);
+    expect(calls).toBe(1);
+  });
+
+  it.skipIf(process.platform === "win32").each(["artifact", "completed"] as const)("rejects a FIFO on %s replay in a bounded isolated child", async phase => {
+    const f = fixture();
+    const home = join(f.root, "child-home");
+    mkdirSync(home, { mode: 0o700 });
+    const marker = join(home, "probe.json");
+    const script = `
+      import assert from "node:assert/strict";
+      import { execFileSync } from "node:child_process";
+      import { createHash } from "node:crypto";
+      import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+      import { join } from "node:path";
+      import { collectWeb } from ${JSON.stringify(new URL("./web-collection.ts", import.meta.url).href)};
+      import { closeMessageDb } from ${JSON.stringify(new URL("./message-db.ts", import.meta.url).href)};
+      const outputRoot = join(process.env.HOME, "output");
+      mkdirSync(outputRoot, { mode: 0o700 });
+      let reads = 0;
+      const options = {
+        run: { id: "fifo-run", routineId: "fifo-routine", manual: true }, requestId: "fifo-request",
+        plan: { version: "fifo-v1", sources: [{ url: "https://example.invalid/fifo", html: "synthetic original" }],
+          limits: { pages: 1, bytes: 100, pageBytes: 100, attempts: 1, durationMs: 60000 } },
+        outputRoot, signal: new AbortController().signal,
+        read: async source => { reads++; return source.html; },
+      };
+      if (${JSON.stringify(phase)} === "artifact") {
+        await assert.rejects(collectWeb({ ...options, fault: actual => { if (actual === "artifact") throw new Error("artifact window"); } }), /artifact window/);
+      } else { await collectWeb(options); }
+      closeMessageDb();
+      const path = join(outputRoot, readdirSync(outputRoot).find(name => name.endsWith(".json")));
+      const original = path + ".original";
+      const hash = createHash("sha256").update(readFileSync(path)).digest("hex");
+      renameSync(path, original);
+      execFileSync("mkfifo", [path], { timeout: 1000 });
+      const marker = join(process.env.HOME, "probe.json");
+      writeFileSync(marker, JSON.stringify({ stage: "replay", path, original, hash, reads }));
+      await assert.rejects(collectWeb(options), /Collection artifact conflict/);
+      assert.equal(reads, 1);
+      assert.ok(lstatSync(path).isFIFO());
+      assert.equal(createHash("sha256").update(readFileSync(original)).digest("hex"), hash);
+      closeMessageDb();
+      writeFileSync(marker, JSON.stringify({ stage: "rejected", path, original, hash, reads }));
+    `;
+    const result = await new Promise<{ code: number | null; timedOut: boolean; output: string }>((resolve, reject) => {
+      let timedOut = false;
+      let output = "";
+      const child = spawn(process.execPath, ["--experimental-strip-types", "--input-type=module", "--eval", script], {
+        env: { HOME: home, USERPROFILE: home, TMPDIR: tmpdir(), PATH: "/usr/bin:/bin", OMB_EVAL_LIVE: "0" },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, 4000);
+      child.stdout.on("data", data => { output += data; });
+      child.stderr.on("data", data => { output += data; });
+      child.once("error", error => { clearTimeout(timer); reject(error); });
+      child.once("close", code => { clearTimeout(timer); resolve({ code, timedOut, output }); });
+    });
+    const state = JSON.parse(readFileSync(marker, "utf8"));
+    expect(lstatSync(state.path).isFIFO()).toBe(true);
+    expect(createHash("sha256").update(readFileSync(state.original)).digest("hex")).toBe(state.hash);
+    expect(state.reads).toBe(1);
+    console.info("FIFO probe evidence", JSON.stringify({ ...state, originalContent: readFileSync(state.original, "utf8") }));
+    expect(result.timedOut, `FIFO child reached ${state.stage}; ${result.output}`).toBe(false);
+    expect(result.code, result.output).toBe(0);
+    expect(state.stage).toBe("rejected");
   });
 
   it("keeps meaningful queries, rejects userinfo and non-HTTP schemes and nonprivate roots", async () => {
