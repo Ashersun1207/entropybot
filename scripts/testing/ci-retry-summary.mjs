@@ -8,9 +8,9 @@ const cell = (text) => String(text ?? "").replace(/\|/g, "\\|").replace(/\n/g, "
 const escapeData = (text) => String(text).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
 const escapeProperty = (text) => escapeData(text).replace(/:/g, "%3A").replace(/,/g, "%2C");
 
-/** @param {string} logText @param {import('./ci-retry-list.mjs').RetryEntry[]} list @param {{runId?: string}} options */
+/** @param {string} logText @param {import('./ci-retry-list.mjs').RetryEntry[]} list @param {{runId?: string, batchPrefix?: string}} options */
 export function retrySummary(logText, list, options = {}) {
-  const parsed = parseObservation(logText, options.runId);
+  const parsed = parseObservation(logText, options.runId, options.batchPrefix);
   const { rows, listErrors, ...result } = parsed;
   const annotations = listErrors.map((message) => `::warning title=${escapeProperty("Flaky-test list unreadable")}::${escapeData(message)}`);
   let markdown = listErrors.length ? ["### The flaky-test list could not be read", "", ...listErrors.map((message) => `- ${cell(message)}`), "", "Observation totals are unknown.", ""].join("\n") : "";
@@ -47,7 +47,7 @@ export function collectRetryReport(directory, runId, outcomes, list) {
     else if (commandOutcome === "skipped" && !text?.trim()) result = { status: "not_run", counts: null, issues: [], markdown: "", annotations: [] };
     else if (text === undefined) result = unknown("log-unavailable");
     else {
-      result = retrySummary(text, list, { runId });
+      result = retrySummary(text, list, { runId, batchPrefix: check });
       if (commandOutcome === "skipped" || commandOutcome === "success" && result.counts && result.counts.retriedFailed + result.counts.failedWithoutRetry > 0) result = unknown("command-outcome-contradicts-observation");
     }
     return { check, commandOutcome: commandOutcome ?? "unknown", ...result };

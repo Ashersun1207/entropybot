@@ -5,9 +5,9 @@ import { CI_RETRIES } from "./ci-retry-list.mjs";
 export const RETRY_CHECKS = ["ci-contract", "patches", "guards"];
 const validId = (value) => typeof value === "string" && /^[A-Za-z0-9._-]{1,100}$/.test(value);
 const validText = (value) => typeof value === "string" && value.length > 0 && value.length <= 4096;
-const countKeys = ["firstPass", "retriedPass", "failed", "other"];
+const countKeys = ["firstPass", "retriedPass", "retriedFailed", "failedWithoutRetry", "other"];
 
-export function parseObservation(logText, expectedRunId) {
+export function parseObservation(logText, expectedRunId, batchPrefix) {
   const issues = new Set();
   const starts = new Map();
   const finishes = new Map();
@@ -28,6 +28,7 @@ export function parseObservation(logText, expectedRunId) {
     if (record.schemaVersion !== 1 || !validId(record.runId) || record.runId !== runId || !validId(record.batchId)) {
       issues.add("schema-or-run-mismatch"); continue;
     }
+    if (batchPrefix && !record.batchId.startsWith(`${batchPrefix}-`)) { issues.add("batch-prefix-mismatch"); continue; }
     const id = record.batchId;
     if (record.kind === "start") {
       if (starts.has(id) || !Array.isArray(record.files) || !record.files.length || !record.files.every(validText) || new Set(record.files).size !== record.files.length) {
@@ -56,10 +57,10 @@ export function parseObservation(logText, expectedRunId) {
     const attempts = rows.filter((row) => row.batchId === id);
     const passed = attempts.filter((row) => row.state === "pass").length;
     const failed = attempts.filter((row) => row.state === "fail").length;
-    if (counts.retriedPass !== passed || counts.failed < failed || counts.other > 0) issues.add("inconsistent-task-counts");
+    if (counts.retriedPass !== passed || counts.retriedFailed !== failed || counts.other > 0) issues.add("inconsistent-task-counts");
     totals.firstPass += counts.firstPass;
     totals.retriedPass += passed; totals.retriedFailed += failed;
-    totals.failedWithoutRetry += counts.failed - failed;
+    totals.failedWithoutRetry += counts.failedWithoutRetry;
     totals.observedTests += countKeys.reduce((sum, key) => sum + counts[key], 0);
   }
   if (!totals.observedTests) issues.add("no-executed-test-observation");

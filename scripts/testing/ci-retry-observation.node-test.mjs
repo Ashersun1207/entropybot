@@ -9,16 +9,16 @@ import { retrySummary, collectRetryReport } from "./ci-retry-summary.mjs";
 import { initializeRetryLogs, readObservation, RETRY_CHECKS } from "./ci-retry-observation.mjs";
 
 const runId = "fixture-run";
-const base = { schemaVersion: 1, runId, batchId: "batch-1" };
-const start = { ...base, kind: "start", files: ["fixture.test.ts"] };
-const finish = (counts) => ({ ...base, kind: "finish", counts });
-const counts = { firstPass: 1, retriedPass: 0, failed: 0, other: 0 };
-const retry = (state) => ({ ...base, kind: "retry", file: "fixture.test.ts", test: "case", retries: state === "pass" ? 1 : 2, state, platform: "fixture" });
-const text = (...records) => records.map((record) => JSON.stringify(record)).join("\n");
+const counts = { firstPass: 0, retriedPass: 0, retriedFailed: 0, failedWithoutRetry: 0, other: 0 };
+const record = (prefix, kind, extra = {}) => ({ schemaVersion: 1, runId, batchId: `${prefix}-1`, kind, ...extra });
+const start = (prefix) => record(prefix, "start", { files: ["fixture.test.ts"] });
+const finish = (prefix, overrides = {}) => record(prefix, "finish", { counts: { ...counts, ...overrides } });
+const retry = (prefix, state) => record(prefix, "retry", { file: "fixture.test.ts", test: "case", retries: state === "pass" ? 1 : 2, state, platform: "fixture" });
+const text = (...records) => records.map((item) => JSON.stringify(item)).join("\n");
 const summarize = (log) => retrySummary(log, [], { runId });
 
 test("complete first-pass observation is different from absent or empty evidence", () => {
-  const result = summarize(text(start, finish(counts)));
+  const result = summarize(text(start("batch"), finish("batch", { firstPass: 1 })));
   assert.equal(result.status, "observed-no-retries");
   assert.equal(result.counts.firstPass, 1);
   for (const log of ["", "{invalid", "null", "[]", "7"]) {
@@ -30,24 +30,32 @@ test("complete first-pass observation is different from absent or empty evidence
 });
 
 test("retried passes and failures remain separate from first-pass success", () => {
-  const passed = summarize(text(start, retry("pass"), finish({ ...counts, firstPass: 0, retriedPass: 1 })));
+  const passed = summarize(text(start("batch"), retry("batch", "pass"), finish("batch", { retriedPass: 1 })));
   assert.equal(passed.status, "observed-retries");
   assert.equal(passed.counts.retriedPass, 1);
-  const failed = summarize(text(start, retry("fail"), finish({ ...counts, firstPass: 0, failed: 1 })));
+  const failed = summarize(text(start("batch"), retry("batch", "fail"), finish("batch", { retriedFailed: 1 })));
   assert.equal(failed.counts.retriedFailed, 1);
   assert.equal(failed.counts.firstPass, 0);
 });
 
+test("a missing failed-retry record cannot be reported as observed", () => {
+  // An exhausted retry whose append fails but whose finish succeeds leaves a
+  // finish with retriedFailed>0 and no retry row; that must stay unknown.
+  const dropped = summarize(text(start("batch"), finish("batch", { retriedFailed: 1 })));
+  assert.equal(dropped.status, "incomplete");
+  assert.equal(dropped.counts, null);
+});
+
 test("partial, stale, duplicate, malformed and inconsistent observations stay unknown", () => {
   const logs = [
-    text(start), text(finish(counts)), text(start, start, finish(counts)),
-    text(start, { ...finish(counts), runId: "old-run" }),
-    `${text(start, finish(counts))}\n{bad`,
-    text(start, { ...finish(counts), schemaVersion: 99 }),
-    text(start, finish({ ...counts, retriedPass: 1 })),
-    text(start, retry("pass"), retry("pass"), finish({ ...counts, firstPass: 0, retriedPass: 2 })),
-    text(start, { ...retry("pass"), file: "other.test.ts" }, finish({ ...counts, firstPass: 0, retriedPass: 1 })),
-    text(start, finish({ ...counts, firstPass: -1 })),
+    text(start("batch")), text(finish("batch", { firstPass: 1 })), text(start("batch"), start("batch"), finish("batch", { firstPass: 1 })),
+    text(start("batch"), { ...finish("batch", { firstPass: 1 }), runId: "old-run" }),
+    `${text(start("batch"), finish("batch", { firstPass: 1 }))}\n{bad`,
+    text(start("batch"), { ...finish("batch", { firstPass: 1 }), schemaVersion: 99 }),
+    text(start("batch"), finish("batch", { retriedPass: 1 })),
+    text(start("batch"), retry("batch", "pass"), retry("batch", "pass"), finish("batch", { retriedPass: 2 })),
+    text(start("batch"), { ...retry("batch", "pass"), file: "other.test.ts" }, finish("batch", { retriedPass: 1 })),
+    text(start("batch"), finish("batch", { firstPass: -1 })),
   ];
   for (const log of logs) {
     const result = summarize(log);
@@ -56,12 +64,18 @@ test("partial, stale, duplicate, malformed and inconsistent observations stay un
   }
 });
 
+test("batch identity is bound to the expected step prefix", () => {
+  const swapped = retrySummary(text(start("guards"), retry("guards", "fail"), finish("guards", { retriedFailed: 1 })), [], { runId, batchPrefix: "patches" });
+  assert.equal(swapped.status, "incomplete");
+  assert.match(swapped.issues.join(","), /batch-prefix-mismatch/);
+});
+
 test("legacy retry details survive but do not establish complete observation", () => {
   const result = summarize(JSON.stringify({ file: "fixture.test.ts", test: "case", retries: 1, state: "pass" }));
   assert.equal(result.status, "incomplete");
   assert.match(result.markdown, /passed on a retry/);
   assert.equal(result.counts, null);
-  const listError = summarize(text(start, { listError: "synthetic list error" }, finish(counts)));
+  const listError = summarize(text(start("batch"), { listError: "synthetic list error" }, finish("batch", { firstPass: 1 })));
   assert.equal(listError.status, "incomplete");
 });
 
@@ -72,7 +86,7 @@ test("real CLI isolates run files, reports not-run and preserves failed command 
     const cli = fileURLToPath(new URL("./ci-retry-summary.mjs", import.meta.url));
     const invoke = (args = []) => spawnSync(process.execPath, [cli, ...args], { env, timeout: 5_000, encoding: "utf8" });
     assert.equal(invoke(["--init"]).status, 0);
-    writeFileSync(join(directory, "ci-contract.jsonl"), text(start, retry("fail"), finish({ ...counts, firstPass: 0, failed: 1 })));
+    writeFileSync(join(directory, "ci-contract.jsonl"), text(start("ci-contract"), retry("ci-contract", "fail"), finish("ci-contract", { retriedFailed: 1 })));
     env.OMB_VITEST_RETRY_OUTCOMES = JSON.stringify({ "ci-contract": "failure", patches: "skipped", guards: "skipped" });
     assert.equal(invoke().status, 0);
     let report = JSON.parse(readFileSync(join(directory, "summary.json"), "utf8"));
@@ -98,15 +112,15 @@ test("collector marks missing, mismatched and contradictory observations unknown
   try {
     assert.equal(collectRetryReport(directory, "missing", { "ci-contract": "success", patches: "success", guards: "success" }, []).status, "incomplete");
     initializeRetryLogs(directory, runId);
-    writeFileSync(join(directory, "ci-contract.jsonl"), text(start, finish(counts)));
-    writeFileSync(join(directory, "patches.jsonl"), text(start, finish({ ...counts, firstPass: 3 })));
-    writeFileSync(join(directory, "guards.jsonl"), text(start, finish({ ...counts, firstPass: 2 })));
-    const contradictory = collectRetryReport(directory, runId, { "ci-contract": "success", patches: "success", guards: "success" }, []);
-    assert.equal(contradictory.checks[0].status, "observed-no-retries");
-    writeFileSync(join(directory, "guards.jsonl"), text(start, retry("fail"), finish({ ...counts, firstPass: 1, failed: 1 })));
+    writeFileSync(join(directory, "ci-contract.jsonl"), text(start("ci-contract"), finish("ci-contract", { firstPass: 1 })));
+    writeFileSync(join(directory, "patches.jsonl"), text(start("patches"), finish("patches", { firstPass: 3 })));
+    writeFileSync(join(directory, "guards.jsonl"), text(start("guards"), finish("guards", { firstPass: 2 })));
+    const clean = collectRetryReport(directory, runId, { "ci-contract": "success", patches: "success", guards: "success" }, []);
+    assert.equal(clean.checks[0].status, "observed-no-retries");
+    writeFileSync(join(directory, "guards.jsonl"), text(start("ci-contract"), retry("ci-contract", "fail"), finish("ci-contract", { retriedFailed: 1 })));
     const failure = collectRetryReport(directory, runId, { "ci-contract": "success", patches: "success", guards: "success" }, []);
     assert.equal(failure.checks[2].status, "incomplete");
-    assert.match(failure.checks[2].issues.join(","), /command-outcome-contradicts-observation/);
+    assert.match(failure.checks[2].issues.join(","), /batch-prefix-mismatch|command-outcome-contradicts-observation/);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

@@ -30,11 +30,13 @@ function safeRetryList() {
 export default class CiRetryRunner extends VitestTestRunner {
   /** Files where a listed test failed every attempt: no more retries there. */
   private readonly exhausted = new Set<string>();
-  private readonly counts = { firstPass: 0, retriedPass: 0, failed: 0, other: 0 };
+  private readonly counts = { firstPass: 0, retriedPass: 0, retriedFailed: 0, failedWithoutRetry: 0, other: 0 };
   private readonly batchId = `${process.env.OMB_VITEST_RETRY_BATCH_ID ?? "batch"}-${randomUUID()}`;
   private readonly runId = process.env.OMB_VITEST_RETRY_RUN_ID;
 
-  override onBeforeRunFiles(files: RunnerTestFile[]) {
+  // The installed VitestTestRunner declares no onBeforeRunFiles member, so this
+  // must not be an override; the runtime calls it when present.
+  onBeforeRunFiles(files: RunnerTestFile[]) {
     const log = process.env.OMB_VITEST_RETRY_LOG;
     if (log) {
       const record = { schemaVersion: 1, runId: this.runId, batchId: this.batchId, kind: "start", files: files.map((file) => this.relPath(file.filepath)) };
@@ -42,13 +44,13 @@ export default class CiRetryRunner extends VitestTestRunner {
     }
   }
 
-  override onAfterRunFiles(files: RunnerTestFile[]) {
+  override onAfterRunFiles() {
     const log = process.env.OMB_VITEST_RETRY_LOG;
     if (log) {
       const record = { schemaVersion: 1, runId: this.runId, batchId: this.batchId, kind: "finish", counts: { ...this.counts } };
       try { appendFileSync(log, `${JSON.stringify(record)}\n`); } catch (error) { console.warn(`ci-retry-runner: could not record a finish: ${String(error)}`); }
     }
-    return super.onAfterRunFiles(files);
+    return super.onAfterRunFiles();
   }
 
   private relPath(filepath: string) {
@@ -67,14 +69,14 @@ export default class CiRetryRunner extends VitestTestRunner {
       const retries = test.result?.retryCount ?? 0;
       const state = test.result?.state;
       if (state === "pass") { if (retries > 0) this.counts.retriedPass += 1; else this.counts.firstPass += 1; }
-      else if (state === "fail") this.counts.failed += 1;
+      else if (state === "fail") { if (retries > 0) this.counts.retriedFailed += 1; else this.counts.failedWithoutRetry += 1; }
       else this.counts.other += 1;
       if (retries > 0 && state === "fail") this.exhausted.add(test.file.filepath);
     }
     const retries = test.type === "test" ? (test.result?.retryCount ?? 0) : 0;
     const log = process.env.OMB_VITEST_RETRY_LOG;
     if (retries === 0 || !log || test.type !== "test") return;
-    const line = { kind: "retry", ...testIdentity(this.config.root, test), retries, state: test.result?.state, platform: process.platform, runId: this.runId, batchId: this.batchId };
+    const line = { schemaVersion: 1, kind: "retry", ...testIdentity(this.config.root, test), retries, state: test.result?.state, platform: process.platform, runId: this.runId, batchId: this.batchId };
     try {
       appendFileSync(log, `${JSON.stringify(line)}\n`);
     } catch (error) {

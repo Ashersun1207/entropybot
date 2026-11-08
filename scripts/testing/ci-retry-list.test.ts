@@ -57,7 +57,7 @@ describe("the job summary", () => {
   const runId = "legacy-fixture-run";
   const start = { schemaVersion: 1, runId, batchId: "batch", kind: "start", files: ["server/boat-included.test.ts"] };
   const finish = (counts) => ({ schemaVersion: 1, runId, batchId: "batch", kind: "finish", counts });
-  const complete = (extra = []) => [JSON.stringify(start), ...extra, JSON.stringify(finish({ firstPass: 0, retriedPass: 1, failed: 1, other: 0 }))].join("\n");
+  const complete = (extra = []) => [JSON.stringify(start), ...extra, JSON.stringify(finish({ firstPass: 0, retriedPass: 1, retriedFailed: 1, failedWithoutRetry: 0, other: 0 }))].join("\n");
 
   it("lists each retried test with its owner, and warns about it", () => {
     const entry = list[0]!;
@@ -65,7 +65,7 @@ describe("the job summary", () => {
     const log = [JSON.stringify({ ...start, files: [entry.file, second] }),
       JSON.stringify({ schemaVersion: 1, runId, batchId: "batch", kind: "retry", file: entry.file, test: entry.test, retries: 1, state: "pass", platform: "win32" }),
       JSON.stringify({ schemaVersion: 1, runId, batchId: "batch", kind: "retry", file: second, test: "a > b", retries: 2, state: "fail", platform: "linux" }),
-      JSON.stringify(finish({ firstPass: 0, retriedPass: 1, failed: 1, other: 0 })),
+      JSON.stringify(finish({ firstPass: 0, retriedPass: 1, retriedFailed: 1, failedWithoutRetry: 0, other: 0 })),
     ].join("\n");
     const { markdown, annotations } = retrySummary(log, list, { runId });
     expect(markdown).toContain("### Flaky tests that needed a retry");
@@ -76,7 +76,7 @@ describe("the job summary", () => {
   });
 
   it("reports an unreadable list as a warning, apart from the retries", () => {
-    const log = `${JSON.stringify(start)}\n${JSON.stringify({ listError: "the flaky-test list could not be read, so no test is retried: boom" })}\n${JSON.stringify({ listError: "the flaky-test list could not be read, so no test is retried: boom" })}\n${JSON.stringify(finish({ firstPass: 1, retriedPass: 0, failed: 0, other: 0 }))}\n`;
+    const log = `${JSON.stringify(start)}\n${JSON.stringify({ listError: "the flaky-test list could not be read, so no test is retried: boom" })}\n${JSON.stringify({ listError: "the flaky-test list could not be read, so no test is retried: boom" })}\n${JSON.stringify(finish({ firstPass: 1, retriedPass: 0, retriedFailed: 0, failedWithoutRetry: 0, other: 0 }))}\n`;
     const { markdown, annotations } = retrySummary(log, list, { runId });
     expect(annotations).toHaveLength(1);
     expect(annotations[0]).toMatch(/^::warning title=Flaky-test list unreadable::/);
@@ -93,7 +93,7 @@ describe("the job summary", () => {
   });
 
   it("reports zero retries only when a complete observation covers executed tests", () => {
-    const log = `${JSON.stringify(start)}\n${JSON.stringify(finish({ firstPass: 1, retriedPass: 0, failed: 0, other: 0 }))}\n`;
+    const log = `${JSON.stringify(start)}\n${JSON.stringify(finish({ firstPass: 1, retriedPass: 0, retriedFailed: 0, failedWithoutRetry: 0, other: 0 }))}\n`;
     const { markdown, annotations, status, counts } = retrySummary(log, list, { runId });
     expect(status).toBe("observed-no-retries");
     expect(counts).toEqual({ firstPass: 1, retriedPass: 0, retriedFailed: 0, failedWithoutRetry: 0, observedTests: 1 });
@@ -149,6 +149,10 @@ describe("the runner", () => {
     const finishes = records(directory).filter((record) => record.kind === "finish");
     expect(starts.length).toBeGreaterThan(0);
     expect(finishes.length).toBe(starts.length);
+    const summary = retrySummary(readFileSync(join(directory, "retries.jsonl"), "utf8"), list, { runId: "runner-fixture-run", batchPrefix: "runner-fixture-batch" });
+    expect(summary.status).toBe("observed-retries");
+    expect(summary.counts.retriedPass).toBe(1);
+    expect(summary.markdown).toContain("flaky.test.mjs");
   }, 60_000);
 
   it("stops retrying a file's listed tests once one of them fails every attempt", async () => {
