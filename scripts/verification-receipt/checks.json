@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "checks": {
+    "release-signing-unit": {
+      "version": 1,
+      "argv": ["node", "--test", "--test-reporter=junit", "--test-reporter-destination={report}", "scripts/release-signing.node-test.mjs"],
+      "cwd": ".",
+      "timeoutSeconds": 60,
+      "adapter": "node-junit",
+      "allowSkipped": false,
+      "allowTodo": false
+    }
+  }
+}

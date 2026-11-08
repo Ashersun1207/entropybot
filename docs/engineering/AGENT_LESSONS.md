@@ -65,6 +65,10 @@
 - 只比较 `run` 字符串会漏掉 `shell: true {0}`、继承 defaults 或工作目录导致的空执行；只看顶层permissions会漏job覆盖；秘密引用还可能在env/action输入、括号访问或函数包装里。复审两轮补齐同一验证器的负例，禁止通过忽略失败/改基线凑绿。本回归用于约束已知配置退化，不是任意恶意workflow的形式证明。
 - `OMB_EVAL_LIVE=0` 与假引擎表示不主动调用真实模型，不等于OS网络沙箱。现有eval runner会吞close异常；评估通过不能单独证明子进程、后代与临时目录均已回收。保留这一限制，不拿CI job截止代替资源回执。
 
+## V1：本地验证回执
+
+- B1旧manifest记录前后hash但不自动拒绝，且缺untracked内容、执行位、symlink和artifact绑定；不是自动质量门。`scripts/verification-receipt/cli.py run/verify` 将命令执行与回执接受分开：source/定义/日志/报告失配均拒绝，只有HEAD变化且内容不变允许匹配。回归入口 `scripts/verification-receipt/test_receipts.py`；15类合成负例覆盖源码变更、旧/坏报告、超时/取消、篡改、skip/todo和未知定义。复用GateCommandRunner，不能将POSIX自有组退出等同全部内部资源回收；快照看不到修改后恢复，本地hash不替代F2权威producer，旧执行不得事后补hash追认。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
