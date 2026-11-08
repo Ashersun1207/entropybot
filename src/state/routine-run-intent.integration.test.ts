@@ -85,6 +85,39 @@ describe("actual StoreProvider and routine details consumer", () => {
     expect(posts).toHaveLength(1); expect(onError).toHaveBeenCalledWith(expect.objectContaining({ reason: "changed" }));
     release(json({ run })); await flush(); expect(oldStarted).toHaveBeenCalledTimes(1); expect(newStarted).not.toHaveBeenCalled();
   });
+  it.each(["Retry", "Start another run…"])("recovers confirmed-readback uncertainty through the real %s control", async (control) => {
+    mount(true);
+    const storage = localStorage;
+    let failNextRead = false, failures = 0;
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => {
+        if (key === MANUAL_RUN_STORAGE && failNextRead) { failNextRead = false; failures++; throw Error("readback denied"); }
+        return storage.getItem(key);
+      },
+      setItem: (key: string, value: string) => {
+        storage.setItem(key, value);
+        if (key === MANUAL_RUN_STORAGE && failures === 0 && JSON.parse(value).entries.some((entry: { phase: string }) => entry.phase === "confirmed")) failNextRead = true;
+      },
+    });
+    click("Run now"); await flush();
+    expect(failures).toBe(1); expect(posts).toHaveLength(1);
+    expect(JSON.parse(storage.getItem(MANUAL_RUN_STORAGE)!).entries[0].phase).toBe("confirmed");
+    expect(host.textContent).toContain("previous request may already have run");
+    if (control === "Start another run…") {
+      const confirm = vi.fn().mockReturnValue(false); window.confirm = confirm;
+      click(control); await flush(); expect(posts).toHaveLength(1);
+      confirm.mockReturnValue(true); click(control); await flush();
+      expect(confirm).toHaveBeenCalledWith(expect.stringContaining("will not be cancelled"));
+      expect(posts).toHaveLength(2); expect(key(1)).not.toBe(key(0));
+    } else {
+      answer = async () => { throw Error("lost replay response"); }; click(control); await flush();
+      expect(key(1)).toBe(key(0));
+      answer = async () => json({ run }); click(control); await flush(); expect(key(2)).toBe(key(0));
+      expect(host.textContent).not.toContain("Start another run…");
+      click("Run now"); await flush(); expect(key(3)).not.toBe(key(0));
+    }
+    expect(JSON.parse(storage.getItem(MANUAL_RUN_STORAGE)!).entries[0].phase).toBe("confirmed");
+  });
   it("renders unknown/retry/success/new-run through the real details button", async () => {
     mount(true); answer = async () => { throw Error("lost"); }; click("Run now"); await flush();
     expect(host.textContent).toContain("previous request may already have run");

@@ -22,6 +22,21 @@ const request = vi.fn<typeof fetch>(async (path, init) => {
 });
 const key = (i: number) => new Headers(posts[i].headers).get("Idempotency-Key");
 const settings = async () => {};
+function failConfirmedReadback() {
+  const storage = localStorage;
+  let failNextRead = false, failures = 0;
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => {
+      if (key === MANUAL_RUN_STORAGE && failNextRead) { failNextRead = false; failures++; throw Error("readback denied"); }
+      return storage.getItem(key);
+    },
+    setItem: (key: string, value: string) => {
+      storage.setItem(key, value);
+      if (key === MANUAL_RUN_STORAGE && failures === 0 && JSON.parse(value).entries.some((entry: { phase: string }) => entry.phase === "confirmed")) failNextRead = true;
+    },
+  });
+  return { storage, failures: () => failures };
+}
 beforeEach(() => {
   localStorage.clear(); posts = []; auth = structuredClone(session); env = structuredClone(environment);
   answer = async () => json({ run }); vi.stubGlobal("fetch", request); request.mockClear();
@@ -91,6 +106,43 @@ describe("protected manual intent", () => {
     const storage = localStorage;
     vi.stubGlobal("localStorage", { getItem: storage.getItem.bind(storage), setItem: () => { throw Error("quota"); } });
     await expect(createRoutineRunIntents().run("routine", settings)).rejects.toThrow(); expect(posts).toHaveLength(0);
+  });
+  it("retains key and context after confirmed write succeeds but immediate readback fails", async () => {
+    const owner = createRoutineRunIntents(); const fault = failConfirmedReadback();
+    await expect(owner.run("routine", settings)).rejects.toMatchObject({ reason: "unknown" });
+    expect(fault.failures()).toBe(1);
+    expect(JSON.parse(fault.storage.getItem(MANUAL_RUN_STORAGE)!).entries[0].phase).toBe("confirmed");
+    answer = async () => { throw Error("lost replay response"); };
+    await expect(owner.run("routine", settings)).rejects.toMatchObject({ reason: "unknown" });
+    expect(key(1)).toBe(key(0));
+    expect(new Headers(posts[1].headers).get("X-Entropybot-Manual-Context")).toBe(contextId);
+    expect(JSON.parse(fault.storage.getItem(MANUAL_RUN_STORAGE)!).entries[0].phase).toBe("pending");
+    answer = async () => json({ run });
+    await expect(owner.run("routine", settings)).resolves.toEqual(run); expect(key(2)).toBe(key(0));
+    expect(JSON.parse(fault.storage.getItem(MANUAL_RUN_STORAGE)!).entries[0].phase).toBe("confirmed");
+    await owner.run("routine", settings); expect(key(3)).not.toBe(key(0));
+  });
+  it("requires acknowledgement to replace a readback-unknown intent in a changed context", async () => {
+    const owner = createRoutineRunIntents(); const fault = failConfirmedReadback();
+    await expect(owner.run("routine", settings)).rejects.toMatchObject({ reason: "unknown" });
+    const stored = fault.storage.getItem(MANUAL_RUN_STORAGE);
+    const nextContext = `mr1_${"b".repeat(64)}`;
+    auth = { ...session, manualRoutineRequests: { version: 1, contextId: nextContext } };
+    await expect(owner.run("routine", settings)).rejects.toMatchObject({ reason: "changed" });
+    expect(posts).toHaveLength(1); expect(fault.storage.getItem(MANUAL_RUN_STORAGE)).toBe(stored);
+    await expect(owner.run("routine", settings, true)).resolves.toEqual(run);
+    expect(key(1)).not.toBe(key(0)); expect(new Headers(posts[1].headers).get("X-Entropybot-Manual-Context")).toBe(nextContext);
+  });
+  it.each(["unavailable", "corrupt", "replaced"])("keeps readback uncertainty blocked when storage is %s", async (failure) => {
+    const owner = createRoutineRunIntents(); const fault = failConfirmedReadback();
+    await expect(owner.run("routine", settings)).rejects.toMatchObject({ reason: "unknown" });
+    const stored = fault.storage.getItem(MANUAL_RUN_STORAGE)!;
+    if (failure === "unavailable") vi.stubGlobal("localStorage", { getItem: () => { throw Error("denied"); } });
+    else if (failure === "corrupt") fault.storage.setItem(MANUAL_RUN_STORAGE, "{");
+    else fault.storage.setItem(MANUAL_RUN_STORAGE, JSON.stringify({ ...JSON.parse(stored), entries: [{ ...JSON.parse(stored).entries[0], contextId: `mr1_${"b".repeat(64)}` }] }));
+    await expect(owner.run("routine", settings)).rejects.toMatchObject({ reason: "blocked" }); expect(posts).toHaveLength(1);
+    vi.stubGlobal("localStorage", fault.storage); fault.storage.setItem(MANUAL_RUN_STORAGE, stored);
+    await owner.run("routine", settings); expect(key(1)).toBe(key(0));
   });
   it("retains the same identity after confirmed-state persistence fails", async () => {
     const owner = createRoutineRunIntents(); const storage = localStorage; let writes = 0;

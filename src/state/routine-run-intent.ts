@@ -70,15 +70,17 @@ export function createRoutineRunIntents() {
       const storage = globalThis.localStorage;
       const previous = load(storage).entries.find((m) => m.routineId === routineId);
       const held = uncertain.get(routineId);
-      if (held && (!previous || previous.key !== held.key)) throw new ManualRunError("blocked");
-      if (previous?.phase === "pending" && !sameScope(previous, scope) && !acknowledgePriorRun) throw new ManualRunError("changed");
+      if (held && (!previous || previous.key !== held.key || !sameScope(previous, held))) throw new ManualRunError("blocked");
+      if (previous && (held || previous.phase === "pending") && !sameScope(previous, scope) && !acknowledgePriorRun) throw new ManualRunError("changed");
       await settings();
       const current = await authoritativeScope();
       if (!sameScope(scope, current)) throw new ManualRunError("changed");
       // Re-read after awaits so another mounted consumer's unknown request keeps its identity.
       const latest = load(storage).entries.find((m) => m.routineId === routineId);
-      if (latest?.phase === "pending" && !sameScope(latest, scope) && !acknowledgePriorRun) throw new ManualRunError("changed");
-      marker = latest?.phase === "pending" && !acknowledgePriorRun ? latest : {
+      if (held && (!latest || latest.key !== held.key || !sameScope(latest, held))) throw new ManualRunError("blocked");
+      const pending = held ?? (latest?.phase === "pending" ? latest : undefined);
+      if (pending && !sameScope(pending, scope) && !acknowledgePriorRun) throw new ManualRunError("changed");
+      marker = pending && !acknowledgePriorRun ? { ...pending, phase: "pending" } : {
         ...scope, routineId, key: crypto.randomUUID(), phase: "pending",
       };
       save(storage, marker);
