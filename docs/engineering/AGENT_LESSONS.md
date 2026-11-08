@@ -107,6 +107,7 @@
 - 新采集检查还曾额外调用一次 listRoutines，既有 context 回归实际得到 6 次而期望 3 次（`correction1-behavior`：370 通过/1 失败）。修复复用一次只读存在查询，保持原鉴权/context/mutation 顺序；`server/routine-manual-context.test.ts` 与原 manual HTTP e2e 共同回归。首轮另有测试查询消息使用错误路由的夹具失败，改用现有 threads/messages 路径；不将其称为产品红例。
 - 本轮还出现文档验证竞态：组合套件运行期间写新验证文档及其 README 链接，文档测试先缓存了旧 README，最后实际报新文档不可达（`correction2-behavior`：378 通过/1 失败）。根因是只冻结 TypeScript、证据脚本未 hash Markdown；以后文档/索引先一次完成，再冻结运行文档门，回执同时纳入 Markdown。最终 runner 已补 Markdown、Node binary hash 和依赖根记录，旧回执保留且不追认文档冻结。
 - 收尾取消边界补审：`removeForBot` 原本只打断模型回合，新增 collection 也必须中止自己的 AbortController；且 run 历史随 bot 删除后，报告队列不能把“找不到当前 run”当成可继续发布。新增回归在 removeForBot 后立即同步 flush，实际出现一条旧摘要（`followup-behavior`：9 通过/1 失败）。修复同时取消 collection，并拒绝缺失或 cancelled/failed 的当前 run；回归 `server/routine-collection-publication.test.ts`。该用例验证报告阶段的删除/取消边界，不冒充读取阶段的进程取消测试。
+- P2 独立复审退回：append 已提交后抛错，`confirmed()` 只认消息存在便成功，`write()` 没执行 posted 保存，finally 又删了等待项，导致 run.report 永久 pending、缺 thread/message ID，只有重启才偶然修复。旧回归只数消息和检查重启，不断言发布成功当时的状态，380 通过未覆盖此缺口。R1 红例 `p2-r1-red` 在 append 和首次 posted 保存异常两种注入下均实际得到 pending（2 失败，另 4 项按名称过滤）。修复在确认消息/文本后检查取消与当前 run，再调用现有 noteReport 持久保存精确 posted/threadId/messageId，保存失败不确认 host publication；不重发消息或读取。回归在完成后立即检查内存和 routines.json，额外 flush 后仍检查同一身份，并覆盖持续保存失败不得产生 host completed receipt。保持取消、删除和 stale 防线。修复与精确最终证据见单独 P2 R1 交接提交，原提交证据不外推到修复后。
 - 证据与精确命令见 `docs/verification/web-collection-production.md` 和本轮交接 SHA。仅有合成 DNS/loopback、进程重启与既有 SQLite 持久语义；真实站点/TLS、断电一致性、桌面 UI/安装未验证。报告等待每次派发独立限制为 60 秒，不能宣称无限繁忙恢复；持久采集读取预算和截止不因恢复清零。
 
 ## 不应合并的改动

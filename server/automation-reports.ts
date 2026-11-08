@@ -257,8 +257,16 @@ export function createAutomationReports(deps: AutomationReportDeps) {
       if (source.text !== text) throw new Error("Collection report summary conflicts with durable message");
       const confirmed = () => {
         const posted = store.messagesFor(target.threadId).find(message => message.automation?.runId === run.id && !message.automation.copyOf);
-        if (posted && posted.text !== text) throw new Error("Collection report publication conflicts with durable message");
-        return Boolean(posted);
+        if (!posted) return false;
+        if (posted.text !== text) throw new Error("Collection report publication conflicts with durable message");
+        signal.throwIfAborted();
+        const manager = deps.routines();
+        const current = manager?.listRuns().find(candidate => candidate.id === run.id);
+        if (!current || ["cancelled", "failed"].includes(current.status)) throw new Error("Collection report run unavailable");
+        if (!manager?.noteReport(run.id, { state: "posted", threadId: target.threadId, messageId: posted.id })) {
+          throw new Error("Collection report state could not be confirmed");
+        }
+        return true;
       };
       try {
         try { hold(run.id, { kind: "reply", run, messageId: source.id }); }

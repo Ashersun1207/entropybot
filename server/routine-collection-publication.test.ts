@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { BlockList } from "node:net";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { RoutineCollectionPlan } from "../shared/collection-plan.ts";
@@ -9,7 +10,7 @@ import { DATA_DIR } from "./config.ts";
 import { closeMessageDb } from "./message-db.ts";
 import { createRoutineCollectionDispatch } from "./routine-collection-dispatch.ts";
 import { manualRoutineFingerprint } from "./routine-manual-request.ts";
-import { RoutineManager } from "./routines.ts";
+import { RoutineManager, type RoutineRun } from "./routines.ts";
 import { Store } from "./store.ts";
 import { createCollectionHttpReader } from "./web-collection-http.ts";
 
@@ -93,22 +94,56 @@ it("does not confirm queued publication; resumes busy publication across repeate
   expect(f.provider).not.toHaveBeenCalled();
 });
 
-it("reconciles a committed report whose publication acknowledgement failed, with one durable message and no reread", async () => {
+it.each(["append", "report-state"] as const)("reconciles a committed report after %s acknowledgement failure, persisting its message identity without restart", async failure => {
   const f = fixture();
-  const store = f.store();
-  const append = store.appendMessage.bind(store);
   let failed = false;
-  vi.spyOn(store, "appendMessage").mockImplementation((threadId, message, command) => {
-    const result = append(threadId, message, command);
-    if (message.automation && !failed) { failed = true; throw new Error("Synthetic crash after durable report append"); }
-    return result;
-  });
+  if (failure === "append") {
+    const store = f.store();
+    const append = store.appendMessage.bind(store);
+    vi.spyOn(store, "appendMessage").mockImplementation((threadId, message, command) => {
+      const result = append(threadId, message, command);
+      if (message.automation && !failed) { failed = true; throw new Error("Synthetic crash after durable report append"); }
+      return result;
+    });
+  } else {
+    const manager = f.manager();
+    const note = manager.noteReport.bind(manager);
+    vi.spyOn(manager, "noteReport").mockImplementation((id, report) => {
+      if (report?.state === "posted" && !failed) { failed = true; throw new Error("Synthetic report-state acknowledgement failure"); }
+      return note(id, report);
+    });
+  }
   const run = f.start();
   await expect.poll(() => f.current(run.id).status).toBe("completed");
   expect(failed).toBe(true);
   expect(f.lines()).toHaveLength(1);
+  const posted = { state: "posted", threadId: f.bot.threadId, messageId: f.lines()[0]!.id };
+  const durableReport = () => JSON.parse(readFileSync(join(DATA_DIR, "routines.json"), "utf8")).runs.find((saved: RoutineRun) => saved.id === run.id).report;
+  expect(f.current(run.id).report).toEqual(posted);
+  expect(durableReport()).toEqual(posted);
+  f.flush(); f.flush();
+  expect(f.current(run.id).report).toEqual(posted);
+  expect(durableReport()).toEqual(posted);
   await f.restart();
+  expect(f.current(run.id).report).toEqual(posted);
   expect(f.lines()).toHaveLength(1);
+  expect(f.request).toHaveBeenCalledTimes(2);
+  expect(f.provider).not.toHaveBeenCalled();
+});
+
+it("does not acknowledge publication while report-state persistence keeps failing", async () => {
+  const f = fixture();
+  const manager = f.manager();
+  const note = manager.noteReport.bind(manager);
+  vi.spyOn(manager, "noteReport").mockImplementation((id, report) => {
+    if (report?.state === "posted") throw new Error("Synthetic persistent report-state save failure");
+    return note(id, report);
+  });
+  const run = f.start();
+  await expect.poll(() => f.current(run.id).status).toBe("failed");
+  expect(f.lines()).toHaveLength(1);
+  const key = createHash("sha256").update(JSON.stringify([run.routineId, run.id])).digest("hex");
+  expect(commandReceipt("web-collection.publish.v1", `${key}:completed`)).toBeNull();
   expect(f.request).toHaveBeenCalledTimes(2);
   expect(f.provider).not.toHaveBeenCalled();
 });
