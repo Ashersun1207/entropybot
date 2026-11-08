@@ -30,6 +30,8 @@ python3 -B scripts/verification-receipt/cli.py verify \
 
 工具不把日志解析失败视作0失败，不解析所有工具通用正则。bridge只从已知GateCommandError元数据格式提取退出码/信号，不用它判断测试计数。
 
+JSON输入（receipt、registry、counts与执行结果）通过共享loader非阻塞且不跟随叶symlink地打开，在fd上确认普通文件，拒绝目录/FIFO等类型；实际读取最多16MiB+1字节，超限拒绝，即使元数据低报也不能绕过。旧版只stat size后read_text会在无writer FIFO阻塞，原17项和96次比较不覆盖此场景；V1-R2新增公共CLI反例。该限制不等同远程/故障文件系统的内核操作墙钟截止；不支持所需POSIX flags时拒绝。
+
 ## 状态与限制
 
 状态：running/passed/failed/timed_out/cancelled/invalidated/error。运行前后源码变化不得passed；命令成功但必需报告缺失/损坏为error；源码、定义、工具、运行时、日志或报告事后变化时verify拒绝。父进程被SIGKILL、异常崩溃或写盘失败可能留下running/不完整回执，不能接受。

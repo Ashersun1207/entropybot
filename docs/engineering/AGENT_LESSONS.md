@@ -69,6 +69,7 @@
 
 - B1旧manifest记录前后hash但不自动拒绝，且缺untracked内容、执行位、symlink和artifact绑定；不是自动质量门。`scripts/verification-receipt/cli.py run/verify` 将命令执行与回执接受分开：source/定义/日志/报告失配均拒绝，只有HEAD变化且内容不变允许匹配。回归入口 `scripts/verification-receipt/test_receipts.py`；15类合成负例覆盖源码变更、旧/坏报告、超时/取消、篡改、skip/todo和未知定义。复用GateCommandRunner，不能将POSIX自有组退出等同全部内部资源回收；快照看不到修改后恢复，本地hash不替代F2权威producer，旧执行不得事后补hash追认。
 - 独立审查实际发现：只数JUnit testcase会忽略套件声明的缺项/skip；只从skipped文字猜TODO会漏Node原生 `type="todo"`。两个反例在原候选确实错误接受，新增公共CLI回归先红后绿；现在核对套件/root和Node summary计数，按结构化type分别执行skip/todo策略。不能只因原15类通过就省略真实报告格式的独立审查。
+- JSON路径先stat(size)再read_text仍会在无writer FIFO阻塞，命令runner截止覆盖不到加载阶段。V1-R2通过真实CLI分别复现receipt/registry阻塞，探针有界终止并reap根进程后清理。共享loader改为O_NONBLOCK|O_NOFOLLOW打开、对fd fstat确认regular，并只读上限+1字节，实际长度超限拒绝；不靠文件打开前size保证读取有界。公共回归还覆盖symlink/目录/坏/超限输入和元数据低报时实际字节超限。POSIX能力缺失拒绝，不宣称对远程/故障文件系统的内核I/O提供墙钟硬截止。
 
 ## 不应合并的改动
 

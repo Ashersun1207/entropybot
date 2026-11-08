@@ -223,6 +223,61 @@ print('fixture complete')
                 self.assertEqual(receipt['report']['counts']['skipped'],0)
                 self.verify(path,accepted)
 
+    def assert_quick_rejection(self, argv):
+        process=subprocess.Popen(argv,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        try:
+            stdout,stderr=process.communicate(timeout=1.5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate(timeout=3)
+            self.assertIsNotNone(process.returncode)
+            self.fail('JSON input blocked; probe root killed and reaped before fixture cleanup')
+        self.assertNotEqual(process.returncode,0,stdout+stderr)
+        self.assertFalse(json.loads(stdout).get('accepted',False))
+
+    def test_18_fifo_receipt_and_registry_rejected_without_writer(self):
+        fifo=self.base/'input.fifo';os.mkfifo(fifo)
+        with self.subTest(input='receipt'):
+            self.assert_quick_rejection(self.args('verify',fifo))
+        with self.subTest(input='registry'):
+            argv=self.args('run');argv[argv.index('--registry')+1]=str(fifo)
+            self.assert_quick_rejection(argv)
+
+    def test_19_nonregular_symlink_bad_and_oversize_json(self):
+        targets=[]
+        directory=self.base/'json-directory';directory.mkdir();targets.append(directory)
+        linked=self.base/'json-link';linked.symlink_to(self.registry);targets.append(linked)
+        broken=self.base/'broken.json';broken.write_text('{');targets.append(broken)
+        huge=self.base/'huge.json'
+        with huge.open('wb') as stream: stream.truncate(16*1024*1024+1)
+        targets.append(huge)
+        for target in targets:
+            with self.subTest(input=target.name):
+                argv=self.args('run');argv[argv.index('--registry')+1]=str(target)
+                self.assert_quick_rejection(argv)
+
+    def test_20_actual_read_limit_when_metadata_understates_size(self):
+        huge=self.base/'growing.json'
+        data=self.registry.read_bytes()
+        huge.write_bytes(data+b' '*(16*1024*1024+1-len(data)))
+        wrapper='''import json, os, pathlib, runpy, sys
+argv=json.loads(sys.argv[1]); target=sys.argv[2]; inode=os.stat(target).st_ino
+original_stat=os.stat; original_fstat=os.fstat
+def small(value):
+    fields=list(value);fields[6]=0;return os.stat_result(fields)
+def fake_stat(path,*args,**kwargs):
+    value=original_stat(path,*args,**kwargs)
+    return small(value) if str(path)==target else value
+def fake_fstat(fd):
+    value=original_fstat(fd)
+    return small(value) if value.st_ino==inode else value
+os.stat=fake_stat;os.fstat=fake_fstat
+sys.path.insert(0,str(pathlib.Path(argv[0]).parent));sys.argv=argv
+runpy.run_path(argv[0],run_name='__main__')
+'''
+        argv=self.args('run')[2:];argv[argv.index('--registry')+1]=str(huge)
+        self.assert_quick_rejection([sys.executable,'-B','-c',wrapper,json.dumps(argv),str(huge)])
+
 
 if __name__=='__main__':
     unittest.main()

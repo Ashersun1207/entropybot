@@ -1,5 +1,7 @@
 import json
 import math
+import os
+import stat
 from junit import junit_counts
 from source import digest
 
@@ -12,9 +14,21 @@ def load_json(path):
                 raise ValueError('duplicate JSON key')
             result[key] = value
         return result
-    if path.stat().st_size > 16 * 1024 * 1024:
-        raise ValueError('JSON exceeds local receipt limit')
-    return json.loads(path.read_text(), object_pairs_hook=pairs, parse_constant=lambda value: (_ for _ in ()).throw(ValueError('nonfinite JSON')))
+    if not hasattr(os, 'O_NONBLOCK') or not hasattr(os, 'O_NOFOLLOW'):
+        raise ValueError('nonblocking no-follow JSON reads unsupported')
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    try:
+        opened = os.fstat(descriptor)
+        limit = 16 * 1024 * 1024
+        if not stat.S_ISREG(opened.st_mode) or opened.st_size > limit:
+            raise ValueError('JSON must be a bounded regular file')
+        with os.fdopen(descriptor, 'rb', closefd=False) as stream:
+            data = stream.read(limit + 1)
+        if len(data) > limit:
+            raise ValueError('JSON grew beyond local receipt limit')
+    finally:
+        os.close(descriptor)
+    return json.loads(data.decode('utf-8'), object_pairs_hook=pairs, parse_constant=lambda value: (_ for _ in ()).throw(ValueError('nonfinite JSON')))
 
 
 def load_check(registry, name):
