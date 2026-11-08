@@ -23,6 +23,7 @@ export interface EnvironmentDescriptor {
   capabilities: {
     /** Pairing and sessions are available (this build). */
     remoteSessions: true;
+    manualRoutineRequests: 1;
     /** Only while the maintainer flag `features.sharedComputers` is on; otherwise absent, like a build without the feature. */
     sharedComputers?: true;
     lendingDetails?: true;
@@ -148,6 +149,7 @@ export function environmentDescriptor(input: { environmentId: string; desktopMan
     version: serverVersion(),
     capabilities: {
       remoteSessions: true,
+      manualRoutineRequests: 1,
       // Never advertise a protocol this server would refuse.
       // lendingDetails: a lent computer may say its platform, and this server remembers what was lent to it.
       ...(input.sharedComputers === true ? { sharedComputers: true as const, lendingDetails: true as const, commandTimeouts: true as const, longCommands: true as const, fileEdits: true as const } : {}),

@@ -32,16 +32,41 @@ function idempotencyKey(req: IncomingMessage): string | undefined {
   return key;
 }
 
-export function runManualRoutine(req: IncomingMessage, auth: RequestAuth, manager: RoutineManager, id: string, ownerStarted: boolean): RoutineRun | null {
+function manualAuthority(auth: RequestAuth, ownerStarted: boolean) {
+  return {
+    caller: auth.kind === "session" ? ["session", personKey(auth.session)] : ["owner", auth.companionDevice ?? "local"],
+    authority: hash({ scopes: [...auth.scopes].sort(), ownerStarted }),
+  };
+}
+
+export function manualRoutineContext(auth: RequestAuth, environmentId: string, ownerStarted: boolean): { version: 1; contextId: string } | undefined {
+  if ((auth.kind === "loopback" && auth.trust === "service") || !auth.scopes.includes("client")) return undefined;
+  return { version: 1, contextId: `mr1_${hash({ version: 1, environmentId, ...manualAuthority(auth, ownerStarted) })}` };
+}
+
+function expectedContext(req: IncomingMessage, key: string | undefined): string | undefined {
+  const count = req.rawHeaders.filter((_, index) => index % 2 === 0 && req.rawHeaders[index].toLowerCase() === "x-entropybot-manual-context").length;
+  const context = req.headers["x-entropybot-manual-context"];
+  if (count === 0 && context === undefined) return undefined;
+  if (key === undefined || count !== 1 || typeof context !== "string" || !/^mr1_[a-f0-9]{64}$/.test(context)) {
+    throw Object.assign(new Error("Manual context requires one valid context header and Idempotency-Key"), { status: 400, code: "manual_context_invalid" });
+  }
+  return context;
+}
+
+export function runManualRoutine(req: IncomingMessage, auth: RequestAuth, manager: RoutineManager, id: string, ownerStarted: boolean, environmentId?: string): RoutineRun | null {
   const key = idempotencyKey(req);
-  if (key === undefined) return manager.runNow(id);
-  if (auth.kind === "loopback" && auth.trust === "service") {
+  const expected = expectedContext(req, key);
+  if (key !== undefined && auth.kind === "loopback" && auth.trust === "service") {
     throw Object.assign(new Error("This caller cannot start a manual routine"), { status: 403 });
   }
+  if (expected !== undefined && (!environmentId || manualRoutineContext(auth, environmentId, ownerStarted)?.contextId !== expected)) {
+    throw Object.assign(new Error("Manual request context changed; reconcile the original intent before trying again"), { status: 409, code: "manual_context_mismatch" });
+  }
+  if (key === undefined) return manager.runNow(id);
   const routine = manager.listRoutines().find((candidate) => candidate.id === id);
   if (!routine) return null;
-  const caller = auth.kind === "session" ? ["session", personKey(auth.session)] : ["owner", auth.companionDevice ?? "local"];
-  const authority = hash({ scopes: [...auth.scopes].sort(), ownerStarted });
+  const { caller, authority } = manualAuthority(auth, ownerStarted);
   return manager.runNow(id, undefined, {
     origin: "http", requestId: `http:${hash([caller, id, key])}`, routineId: id,
     fingerprintVersion: 1, fingerprint: manualRoutineFingerprint(routine, authority), authority,

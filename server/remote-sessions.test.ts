@@ -187,6 +187,7 @@ describe("before pairing", () => {
     // Exact, so a new pre-pairing field has to be added here on purpose.
     expect(descriptor.body.capabilities).toEqual({
       remoteSessions: true,
+      manualRoutineRequests: 1,
       selfUpdate: "operator",
       emailSignIn: false,
       jobs: true,
@@ -207,7 +208,7 @@ describe("before pairing", () => {
   it("keeps the owner's loopback path untouched", async () => {
     expect((await call("/api/bots")).status).toBe(200);
     const me = await call("/api/auth/session");
-    expect(me.body).toMatchObject({ kind: "loopback", scopes: ["admin", "client"] });
+    expect(me.body).toMatchObject({ kind: "loopback", scopes: ["admin", "client"], manualRoutineRequests: { version: 1, contextId: expect.stringMatching(/^mr1_[a-f0-9]{64}$/) } });
     const ticket = await call("/api/auth/stream-ticket", { method: "POST" });
     expect(ticket.body.ticket).toBeNull();
   });

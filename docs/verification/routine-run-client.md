@@ -1,57 +1,43 @@
-# Manual routine client: bounded assessment
+# Manual routine request context protocol
 
-Status: **blocked before production implementation**. Baseline `6b1993a64204d3f26a5ada897746425653957dcb`, branch `codex/engineering-manual-run-client`, sole-writer checkout `/Users/sun/Desktop/Codex/gorkbot/.worktrees/engineering-manual-run-client`. The initial working tree was clean. This slice does not establish client idempotency, durable reload recovery, or a safe fallback for older servers.
+A1b4 adds the backend protocol needed by a future safe manual-run client. The frontend implementation, UI messages, explicit clear/reconcile action and reload persistence remain outside this slice. A1b3's four StoreProvider red cases were preserved and were not repeated.
 
-## Verified production path
+## Wire contract
 
-`src/state/store.tsx` dispatches `runRoutine` after `waitForExecutionSettings`, then sends an unkeyed POST and calls `onStarted` with the unvalidated response's `run`. Its callbacks settle once per dispatched action, but simultaneous actions issue separate requests. `src/state/api.ts` converts undecodable response JSON to `{}`. Thus HTTP success alone currently calls `onStarted(undefined)`.
+Public `GET /.well-known/entropybot/environment` includes `capabilities.manualRoutineRequests: 1`. This advertises protocol support; it grants no permission. A future protected client must fail closed if the capability or authenticated context is absent, rather than assume an older server honors unfamiliar headers.
 
-All inspected UI callers use that action:
+Authenticated `GET /api/auth/session` retains its existing fields and includes this additional field only for callers with the client scope who are not service-trust loopback callers:
 
-- `RoutineCalendarPage.tsx` guards duplicate local clicks with a ref, holds its busy state through settings flush and POST, and releases it in `onSettled`.
-- `components/automations/actions.ts` resolves its promise in `onStarted` and rejects in `onError`; a store-level coalescer must notify every subscribing caller.
-- `CloudSetup.tsx` uses `onStarted`/`onError` to update its ready panel. It has no independent durable request identity.
+```json
+{"manualRoutineRequests":{"version":1,"contextId":"mr1_<64 lowercase hexadecimal characters>"}}
+```
 
-No UI entrypoint was changed. Approval-card flows and the existing backend no-key contract were left intact.
+The example describes the shape; the angle-bracket placeholder is not a valid context ID. Exact validation is `^mr1_[a-f0-9]{64}$`.
 
-## Concrete blockers and proposed scope
+The context is deterministic and non-secret. It binds persisted `ENVIRONMENT_ID`, the exact canonical principal used by HTTP manual receipts, and effective authority (sorted scopes and the existing `ownerStarted` decision). Session principals use the existing `personKey`: verified email normalized by that helper, or session identity when no email exists. Owner principals use the existing local/verified-companion distinction. Service trust is ineligible; eligible loopback trust is implicitly owner. The common `manualAuthority` function supplies both context and receipt derivation, preserving the existing receipt request IDs, authority hashes and fingerprints.
 
-The task requires returning a blocker before adding backend/shared/locale fields or broader trusted identity plumbing. Three observed gaps require that decision:
+Context stability is conditional on those inputs remaining equal. New sessions with the same verified email retain the same person identity; independent non-email sessions do not. Workspace changes, principal changes, scope changes or owner-started changes produce different contexts. Tokens, cookies, stored credential hashes, transport selection and editable profile/label fields are not inputs. There is no new key, credential store, authentication bypass or grant.
 
-1. **No capability negotiation.** `server/environment.ts` advertises capabilities, but no manual-run idempotency capability exists. `server/index.ts`'s `/api/auth/session` response also lacks one. Optional headers are not proof that a server honors them. A successful run response on a legacy server cannot establish retry safety; a lost response gives even less evidence. Guessing from the product version or silently sending keys to older servers would violate the requested compatibility boundary.
-2. **Public identity does not describe every backend principal.** `server/routine-manual-request.ts:43` separates authenticated session `personKey`, local owner, and companion-device owner identities. The `/api/auth/session` loopback response exposes `kind`, scopes, environment ID and trust, but no companion identity. `readSessionState()` drops even the existing environment ID, and falls back to loopback for unrecognized successful JSON. It is not an adequate fail-closed context decoder for this operation. Neither configured profile/email nor a routine-ID map repairs that gap.
-3. **A preflight read cannot bind a later POST.** The existing run route derives the principal at request time. If cookies or the target change between preflight/settings flush and POST, reusing an old key under the newly derived principal can create a different receipt/run. A frontend comparison after the response cannot undo that mutation. No existing expected-context guard is present in this seam.
+A keyed `POST /api/routines/:id/run` may additionally send exactly one `X-Entropybot-Manual-Context` header with the context ID. The server validates both headers and compares the expected context against the request's actual authenticated environment/principal/authority before consulting the routine manager for allocation, admission or replay. The guard is synchronous with admission; the client preflight is not the enforcement boundary.
 
-Proposed minimal follow-up scope, subject to parent authorization and independent review:
+- A well-formed context that differs returns HTTP 409 with `code: "manual_context_mismatch"` and a fixed message. It creates no receipt or run and never rotates an identity or retries.
+- Malformed or duplicate context headers, or context without a valid `Idempotency-Key`, return HTTP 400. Context parser errors use `code: "manual_context_invalid"`; invalid key syntax retains the existing key-validation response. Neither error echoes supplied context/key values.
+- Authentication, scope, visibility, bot access, move freeze and target existence retain their existing gates and refusal precedence. Context never makes a hidden or denied routine accessible.
+- Matching context plus the same key preserves concurrent coalescing and replay, including after process restart.
+- No-context/no-key legacy requests retain intentional new-run semantics. Existing key-only requests retain their original replay semantics but do not protect against client context changes. Omitting the expected context is not a safe fallback for the future protected client.
 
-- Add a versioned manual-run capability and an opaque non-secret context identity to the authenticated session response. Bind the context to environment/workspace and exactly the principal used by manual receipts, including companion-device identity. Do not expose tokens or credential hashes, and do not use editable profile fields as authority.
-- Let an opt-in keyed run carry its expected context; reject a mismatch before allocation, receipt admission or replay. Keep no-key behavior and approval-card contracts unchanged. Exact field/header names and hash construction need backend ownership review; this document does not establish a wire contract.
-- Add strict client decoding and context lifecycle plumbing in `src/lib/session.ts` plus the appropriate startup/session owner. The store must capture scope before awaiting settings, validate it at dispatch, retain unresolved old intents across context changes, and refuse to send them to a new context. Missing capability/context must explicitly block this protected path.
-- Then add one small helper owned by StoreProvider: coalesce subscribers, keep one key through transport/timeout/invalid-response failures, validate native run association/manual provenance before confirming, and rotate only after confirmed success or an explicit clear-intent action. Preserve ApiError status/body for 409/429/401; never auto-requeue or rotate on those refusals.
+## Verification and source evidence
 
-Reload support remains **unverified**. The inspected session-ended marker stores only a sign-out flag, not a safely scoped unresolved manual intent. A provider-local map would lose an unknown effect on unmount/reload. Any follow-up must either use an explicitly reviewed safe pending-intent mechanism or block/reconcile before another manual start; no durable behavior is claimed here. New user-visible blocked/reconcile/explicit-clear behavior may also require locale strings, which were outside this slice's authorization.
+Baseline: `389c6bc4b66eaa507b711c4738c2a2a46b6e3bde`. Checkout: `/Users/sun/Desktop/Codex/gorkbot/.worktrees/engineering-manual-run-client`, branch `codex/engineering-manual-run-client`; initially clean, sole writer.
 
-## Executed red evidence
+Evidence: `/Users/sun/Desktop/Codex/gorkbot/private/engineering-foundation-evidence/a1b4/`. The reused source-receipt wrapper captures before/after HEAD/tree/dirty/content, wrapper/helper/dependency hashes, exact argv, selected sanitized environment, UTC clocks, elapsed time, exit, logs and JUnit artifacts. Each batch keeps source frozen. These are controlled regular JSON records, not V1 acceptance or an F2 producer; V1/its registry/original owner were untouched.
 
-Evidence directory: `/Users/sun/Desktop/Codex/gorkbot/private/engineering-foundation-evidence/a1b3/`.
+The baseline real HTTP red batch selected the two new protocol tests: 2 failed, 4 existing tests deselected, exit 1, 6.177 seconds. Missing advertised capability and missing authenticated context failed directly against production endpoints. The four earlier StoreProvider red cases were not run. The first corrected-source batch passed all 25 tests, server typecheck and lint, but its outer 60-second harness deadline interrupted the wrapper before the last diff check/summary. Those completed per-command records remain in `final/`. Receipt self-review also found that the inherited wrapper lacked runtime-binary hashes. `bound-final/` therefore repeats only the same targeted commands with Node/Python binary identities captured before and after; earlier records are not retrospectively claimed to contain runtime hashes. No product code correction was needed for this evidence repair.
 
-`blocked-red/` records a real production StoreProvider dispatch with synthetic fetch responses, using the repository's existing `renderToStaticMarkup` capture pattern from `task-write-recovery.test.ts`. It does not replace the action with a fake helper. Server rendering deliberately avoids live snapshot/event effects; this is not a mounted happy-dom UI lifecycle proof.
+The initial implementation batch had 24 passed / 1 failed (25 total); server typecheck and focused lint passed. The actual HTTP mismatch correctly returned 409, but the generic HTTP error-code allowlist dropped its fixed protocol code. One correction added only the two manual-context error codes to that allowlist. The failure and original logs are retained in `green/`; final results are recorded in the accompanying evidence handoff. Targeted coverage uses actual HTTP fixtures for native JSON, concurrent guarded replay, local and persisted-session process restart, preflight then principal switch, refusal without disk mutation, malformed/duplicate/missing-key headers, authorization and hidden/missing targets, and existing no-header/key-only compatibility. Unit coverage checks workspace, companion, principal and authority isolation, scope ordering, canonical verified-email identity, non-secret inputs, and guard rejection before manager access. Environment coverage retains durable environment identity tests. `bound-final/` passed 25 tests with runtime hashes, server typecheck, focused lint and the unchanged size guard (all exit 0). A final compatibility scan found the existing exact public-capability assertion in `remote-sessions.test.ts`; its expected protocol field and loopback session assertion were updated. `compat-final/` selects only those two affected tests and checks types/lint/diff after that test-only update. Counts from these separate commands are not a single suite total. The production code and all four previously passing test files are unchanged between these final batches.
 
-One targeted Vitest command ran under Node `24.22.2`: **4 tests failed, exit 1**, elapsed wrapper time **2.603 seconds**. The failures demonstrate:
+## Review and limits
 
-- Both explicit attempts after synthetic response loss send no `Idempotency-Key`.
-- An empty successful response calls the success callback with `undefined`.
-- A successful response naming another routine calls the success callback.
-- Two simultaneous dispatches issue two POSTs, although both settlement callbacks fire.
+Self-review preserved existing receipt derivation and upstream authorization gates. The new error codes are explicitly admitted by the existing HTTP error-code allowlist. `server/index.ts` grows by two lines, remaining below its unchanged size budget; there is no code compression or unrelated extraction. Context is an equality guard over current authority, not a secret capability. It does not bind the routine definition itself; the existing receipt fingerprint still enforces that on replay. It does not make an unknown effect safe to discard.
 
-The unchanged red test is archived as `routine-run-intent.integration.test.ts` in the evidence directory rather than committed as an always-failing product suite. To reproduce, copy that file into `src/state/` at the baseline and run the exact argv in `blocked-red/commands.json`. It uses fake responses only; no request reaches a real account or server.
-
-The reused `a1b1/batch.py` wrapper was copied with only its checkout root changed. It records before/after source content, HEAD/tree/status, wrapper/helper/dependency hashes, argv, selected sanitized environment, UTC clocks, exit, log and JUnit artifacts. The batch reports `sourceUnchanged: true`. These are controlled regular local JSON records, not V1 acceptance or an F2 producer. V1, its registry and its original owner were untouched. The inherited `/tmp` setting did not launch a server/socket fixture in this dispatch-only check.
-
-No green implementation claim is made. Settings-flush ordering, mounted UI callbacks, valid native response acceptance, 409/429/401 policy, context changes, unmount and reload still need implementation and final-source behavioral coverage after resolving the protocol scope. No full/backend/performance suites were rerun; production type/lint/size checks were not warranted for this documentation-only delivery.
-
-## Review and handoff
-
-Self-review checked the actual three callers, settings barrier, ApiError decoding, startup/session-ended lifecycle, environment advertisement, session response and backend receipt-principal derivation. No dependency, permission, network, persistence, backend, shared, locale, CI, release, engineering-document or size-budget changes were made. No real data, credentials, Keychain, package installation, build, push, application replacement or parent integration occurred.
-
-Execution UTC start/end and source identities are in the before/after records; end `2026-11-08T14:55:36.989601Z`. Implementation/model wait time is unknown. No correction rounds were used. The parent owns scope authorization, independent review and serial integration. This assessment should not be integrated or reported as completed client protection.
+Tests use isolated synthetic workspaces, fake engines and owned loopback endpoints. They are not an OS network sandbox. There is no frontend protection, reload recovery or installation claim. No real account, provider, user data, Keychain, dependency install, package/build, CI, push, publication or parent integration occurs. Model wait and inseparable implementation/model time remain unknown. The parent performs independent review and serial integration.

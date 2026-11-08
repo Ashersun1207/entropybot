@@ -20,10 +20,10 @@ afterEach(async () => {
 async function server() {
   fixture = await launchVerificationServer({ FAKE_CLAUDE_MODE: "happy" });
   const { url, dataDir } = fixture.info;
-  const api = async (method: string, path: string, body?: unknown, key?: string, token?: string) => {
+  const api = async (method: string, path: string, body?: unknown, key?: string, token?: string, context?: string) => {
     const response = await fetch(url + path, {
       method, headers: { origin: url, "content-type": "application/json", ...(key === undefined ? {} : { "Idempotency-Key": key }),
-        ...(token ? { authorization: `Bearer ${token}` } : {}) },
+        ...(token ? { authorization: `Bearer ${token}` } : {}), ...(context === undefined ? {} : { "X-Entropybot-Manual-Context": context }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(15_000),
     });
     return { status: response.status, body: await response.json() as any };
@@ -38,7 +38,7 @@ async function server() {
     return made.body.routine;
   };
   const runs = async () => (await api("GET", "/api/routines")).body.runs as any[];
-  const start = (id: string, key?: string, token?: string, body?: unknown) => api("POST", `/api/routines/${id}/run`, body, key, token);
+  const start = (id: string, key?: string, token?: string, body?: unknown, context?: string) => api("POST", `/api/routines/${id}/run`, body, key, token, context);
   const complete = async (id: string) => expect.poll(async () => (await runs()).find(run => run.id === id)?.status, { timeout: 20_000 }).toBe("completed");
   const restart = async () => {
     await waitForExit(restarted ?? fixture!.child, { signal: "SIGTERM" });
@@ -50,6 +50,54 @@ async function server() {
   };
   return { url, dataDir, api, bot, make, runs, start, complete, restart };
 }
+
+it("advertises manual context and preserves matching concurrent/restarted requests", async () => {
+  const s = await server(), routine = await s.make();
+  const descriptor = (await s.api("GET", "/.well-known/entropybot/environment")).body;
+  expect(descriptor.capabilities.manualRoutineRequests).toBe(1);
+  const before = (await s.api("GET", "/api/auth/session")).body;
+  expect(before.manualRoutineRequests).toEqual({ version: 1, contextId: expect.stringMatching(/^mr1_[a-f0-9]{64}$/) });
+  const context = before.manualRoutineRequests.contextId;
+  const [first, second] = await Promise.all([s.start(routine.id, "guarded", undefined, undefined, context), s.start(routine.id, "guarded", undefined, undefined, context)]);
+  expect(first.status).toBe(201); expect(second.body.run.id).toBe(first.body.run.id);
+  await s.complete(first.body.run.id);
+  await s.restart();
+  expect((await s.api("GET", "/api/auth/session")).body.manualRoutineRequests).toEqual(before.manualRoutineRequests);
+  expect((await s.start(routine.id, "guarded", undefined, undefined, context)).body.run.id).toBe(first.body.run.id);
+  expect(await s.runs()).toHaveLength(1);
+}, 60_000);
+
+it("rejects old manual context after authenticated principal switches without admitting a receipt", async () => {
+  const s = await server(), routine = await s.make();
+  const preflight = (await s.api("GET", "/api/auth/session")).body.manualRoutineRequests;
+  expect(preflight?.contextId).toMatch(/^mr1_[a-f0-9]{64}$/);
+  const opened = await s.api("POST", "/api/auth/pairing", { label: "Synthetic switched caller", scopes: ["client"] });
+  const paired = (await s.api("POST", "/api/auth/pair", { code: opened.body.code })).body;
+  const session = (await s.api("GET", "/api/auth/session", undefined, undefined, paired.token)).body;
+  expect(session.manualRoutineRequests.contextId).not.toBe(preflight.contextId);
+  const file = join(s.dataDir, "routines.json"), bytes = readFileSync(file);
+  const refused = await s.start(routine.id, "switch", paired.token, undefined, preflight.contextId);
+  expect(refused.status).toBe(409);
+  expect(refused.body.code).toBe("manual_context_mismatch");
+  expect(readFileSync(file)).toEqual(bytes); expect(await s.runs()).toHaveLength(0);
+  for (const [key, context] of [[undefined, session.manualRoutineRequests.contextId], ["valid", "mr1_BAD"], ["bad key", session.manualRoutineRequests.contextId]] as const) {
+    expect((await s.start(routine.id, key, paired.token, undefined, context)).status).toBe(400);
+  }
+  const duplicate = await new Promise<number>((resolve, reject) => {
+    const req = request(s.url + `/api/routines/${routine.id}/run`, { method: "POST", headers: ["Origin", s.url, "Idempotency-Key", "valid", "X-Entropybot-Manual-Context", session.manualRoutineRequests.contextId, "X-Entropybot-Manual-Context", session.manualRoutineRequests.contextId] }, response => { response.resume(); response.on("end", () => resolve(response.statusCode!)); });
+    req.on("error", reject); req.end();
+  });
+  expect(duplicate).toBe(400); expect(readFileSync(file)).toEqual(bytes);
+  const accepted = await s.start(routine.id, "switch", paired.token, undefined, session.manualRoutineRequests.contextId);
+  expect(accepted.status).toBe(201); await s.complete(accepted.body.run.id);
+  await s.restart();
+  expect((await s.api("GET", "/api/auth/session", undefined, undefined, paired.token)).body.manualRoutineRequests).toEqual(session.manualRoutineRequests);
+  expect((await s.start(routine.id, "switch", paired.token, undefined, session.manualRoutineRequests.contextId)).body.run.id).toBe(accepted.body.run.id);
+  expect((await s.start("missing-target", "missing", paired.token, undefined, session.manualRoutineRequests.contextId)).status).toBe(404);
+  expect((await s.start(routine.id, "switch", "omb_sess_invalid_synthetic", undefined, session.manualRoutineRequests.contextId)).status).toBe(401);
+  expect((await s.start(routine.id, "switch", paired.token)).body.run.id).toBe(accepted.body.run.id);
+  expect(await s.runs()).toHaveLength(1);
+}, 60_000);
 
 it("replays concurrent manual HTTP requests and completed runs across server restart, preserving metadata", async () => {
   const s = await server(), routine = await s.make();
@@ -165,8 +213,9 @@ it("refuses currently hidden or denied team targets before replaying a receipt",
     schedule: { type: "cron", expression: "0 0 1 1 *", timeZone: "UTC" } });
   expect(created.status).toBe(201);
   const path = `/api/routines/${created.body.routine.id}/run`;
+  const memberContext = (await team.as(member, "GET", "/api/auth/session")).body.manualRoutineRequests.contextId;
   const start = async (token: string) => {
-    const response = await fetch(team.base + path, { method: "POST", headers: { ...cloud!.edge, authorization: `Bearer ${token}`, "Idempotency-Key": "team-retry" } });
+    const response = await fetch(team.base + path, { method: "POST", headers: { ...cloud!.edge, authorization: `Bearer ${token}`, "Idempotency-Key": "team-retry", "X-Entropybot-Manual-Context": memberContext } });
     return { status: response.status, body: await response.json() as any };
   };
   expect((await start(member)).status).toBe(201);

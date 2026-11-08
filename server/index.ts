@@ -442,7 +442,7 @@ import { addHeldSecretScrubber, redactSecretsInText, scrubHeldSecrets } from "./
 import * as vps from "./vps-computer.ts";
 import { vpsConfigForBot, vpsSshAliasForBot } from "./vps-hosts.ts";
 import { ROUTINE_RESTARTED, RoutineManager, type RoutineRun, type RoutineRunOn, type RoutineRunTrigger } from "./routines.ts"; import { routineRunsFor } from "./routine-run-window.ts"; import { batchSaves } from "./save-batch.ts";
-import { runManualRoutine } from "./routine-manual-request.ts";
+import { manualRoutineContext, runManualRoutine } from "./routine-manual-request.ts";
 import { CalendarCallManager, type CalendarCall } from "./calendar-calls.ts";
 import { BROWSER_UPLOAD_TOOL, browserRuntimeEnv } from "./browser-runtime.ts";
 import { BrowserUploadRefusal, uploadableFiles } from "./browser-upload.ts";
@@ -12793,11 +12793,12 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     if (await dispatchRoutes(ROUTES, { req, res, url, path, method, auth, json, readBody })) return;
 
     if (method === "GET" && path === "/api/auth/session") {
+      const manualRoutineRequests = manualRoutineContext(auth, ENVIRONMENT_ID, CLOUD_HOME ? cloudOwnerSession(auth) : ownerOrAdmin(auth));
       return json(
         res,
         200,
         auth.kind === "loopback"
-          ? { kind: "loopback", scopes: auth.scopes, environmentId: ENVIRONMENT_ID, ...(auth.trust ? { trust: auth.trust } : {}) }
+          ? { kind: "loopback", scopes: auth.scopes, environmentId: ENVIRONMENT_ID, ...(auth.trust ? { trust: auth.trust } : {}), ...(manualRoutineRequests ? { manualRoutineRequests } : {}) }
           : {
               kind: "session",
               id: auth.session.id,
@@ -12806,6 +12807,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
               expiresAt: auth.session.expiresAt,
               via: auth.via,
               environmentId: ENVIRONMENT_ID,
+              ...(manualRoutineRequests ? { manualRoutineRequests } : {}),
               ...(auth.session.email ? { email: auth.session.email } : {}),
               ...(auth.session.owner ? { owner: auth.session.owner } : {}),
               ...(HOSTED_WORKSPACE ? { hosted: true } : {}),
@@ -14781,7 +14783,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     }
     let routineMatch = path.match(/^\/api\/routines\/([\w-]+)\/run$/);
     if (routineMatch && method === "POST") {
-      const run = runManualRoutine(req, auth, routines!, routineMatch[1], CLOUD_HOME ? cloudOwnerSession(auth) : ownerOrAdmin(auth));
+      const run = runManualRoutine(req, auth, routines!, routineMatch[1], CLOUD_HOME ? cloudOwnerSession(auth) : ownerOrAdmin(auth), ENVIRONMENT_ID);
       if (run && (CLOUD_HOME ? cloudOwnerSession(auth) : ownerOrAdmin(auth))) ownerStartedRoutineRuns.add(run.id);
       return run ? json(res, 201, { run }) : json(res, 404, { error: "no such routine" });
     }
@@ -15482,7 +15484,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
   } catch (e) {
     const status = (e as any)?.status ?? 500;
     const candidateCode = (e as { code?: unknown })?.code;
-    const code = typeof candidateCode === "string" && ["guarded_busy", "guarded_branch", "guarded_permissions", "guarded_request_changed", "guarded_request_untracked", "outside_workspace", "no_ai", BOT_LIMIT_CODE].includes(candidateCode)
+    const code = typeof candidateCode === "string" && ["guarded_busy", "guarded_branch", "guarded_permissions", "guarded_request_changed", "guarded_request_untracked", "outside_workspace", "no_ai", "manual_context_invalid", "manual_context_mismatch", BOT_LIMIT_CODE].includes(candidateCode)
       ? candidateCode : undefined;
     return json(res, status, { error: e instanceof Error ? e.message : String(e), ...(code ? { code } : {}), ...userErrorFields(e) });
   } finally {
