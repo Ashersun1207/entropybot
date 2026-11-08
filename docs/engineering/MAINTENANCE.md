@@ -33,7 +33,7 @@
 
 以下描述当前工程 worktree 的接线；是否已集成、远端是否实际通过，以主控 F1 交付记录为准，不能凭 workflow 文件存在判断已上线。
 
-- PR/开发分支快速门：active `.github/workflows/entropybot-ci.yml` 的 `check`，先执行 active workflow 契约与 lint，再执行发布身份、补丁 `--verify`、应用类型检查和源码/桌面边界守卫。契约不能只读归档的上游 workflow。
+- PR/开发分支快速门：active `.github/workflows/entropybot-ci.yml` 的 `check`，先执行 active workflow 契约、lint和发布身份，再执行工具类型门负例与类型检查，之后运行补丁 `--verify` 和源码/桌面边界守卫。`pnpm typecheck`先编译tsconfig.tools.json，再保留原应用/服务检查；关键工具独立入口为`pnpm typecheck:tools`。契约保护实际接线与顺序，不能只读归档workflow或把本地通过当远端CI已跑。
 - 离线行为门：`behavior-evals` 依赖 `check`，运行 eval 独立类型检查、eval Vitest、tier 1 场景及 tier 2 golden。显式 `OMB_EVAL_LIVE=0`，无秘密/真实账号输入，不更新 golden baseline；两个job各有20分钟截止。依赖安装可能联网，“离线”不等于OS网络沙箱。
 - 合并前检查：最终组合按变更范围执行关联回归，不能将这两个job称为全仓回归。新增依赖、协议、资源或跨平台变化需追加相应门槛和独立审查；实际耗时决定后续分片，不因慢而删断言。
 - 发布前门：必须核对最终提交的完整离线回归、跳过/todo及平台限制，并绑定可信构建来源。当前 release workflow 与 full gate 的自动绑定尚待F2；不得将F1接线或旧候选通过记录视作发布放行。

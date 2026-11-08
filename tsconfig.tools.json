@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.server.json",
+  "files": [
+    "scripts/patch-gate-process.ts",
+    "scripts/verification-receipt/bridge.ts",
+    "scripts/testing/verification-lifecycle.ts",
+    "scripts/testing/verification-external-stop.ts",
+    "scripts/testing/verification-server-preload.ts"
+  ],
+  "include": []
+}

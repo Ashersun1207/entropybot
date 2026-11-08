@@ -32,12 +32,14 @@ jobs:
         run: pnpm lint
       - id: identity
         run: node scripts/entropybot-release.mjs check
-      - id: patches
-        run: node scripts/check-patches.mjs --verify
+      - id: tools-contract
+        run: node --test scripts/testing/tooling-types.node-test.mjs
       - id: types
         run: pnpm typecheck
         env:
           NODE_OPTIONS: --max-old-space-size=6144
+      - id: patches
+        run: node scripts/check-patches.mjs --verify
       - id: guards
         run: pnpm exec vitest run scripts/testing/file-size-ratchet.test.ts scripts/testing/verification-docs.test.ts src/locales/vocabulary.test.ts electron/updater.test.mjs server/local-computer.test.ts
   behavior-evals:

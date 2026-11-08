@@ -11,6 +11,7 @@ const gates = [
   ["check", "ci-contract", "pnpm exec vitest run scripts/entropybot-ci-workflow.test.ts"],
   ["check", "lint", "pnpm lint"],
   ["check", "identity", "node scripts/entropybot-release.mjs check"],
+  ["check", "tools-contract", "node --test scripts/testing/tooling-types.node-test.mjs"],
   ["check", "patches", "node scripts/check-patches.mjs --verify"],
   ["check", "types", "pnpm typecheck"],
   ["check", "guards", "pnpm exec vitest run scripts/testing/file-size-ratchet.test.ts scripts/testing/verification-docs.test.ts src/locales/vocabulary.test.ts electron/updater.test.mjs server/local-computer.test.ts"],
@@ -34,6 +35,21 @@ function requireGate(candidate: Workflow, jobId: string, stepId: string, command
   expect(steps[0]!.shell).toBeUndefined();
   expect(steps[0]!["working-directory"]).toBeUndefined();
   expect(steps[0]!["continue-on-error"]).toBeUndefined();
+}
+
+function requireFastTypeChecks(candidate: Workflow) {
+  requireGate(candidate, "check", "tools-contract", "node --test scripts/testing/tooling-types.node-test.mjs");
+  requireGate(candidate, "check", "types", "pnpm typecheck");
+  requireGate(candidate, "check", "patches", "node scripts/check-patches.mjs --verify");
+  const steps = candidate.jobs.check.steps;
+  const index = (id: string) => steps.findIndex((step) => step.id === id);
+  expect(index("tools-contract")).toBeLessThan(index("types"));
+  expect(index("types")).toBeLessThan(index("patches"));
+}
+
+function requireToolEntry(scripts: Record<string, string>) {
+  expect(scripts["typecheck:tools"]).toBe("tsc -p tsconfig.tools.json");
+  expect(scripts.typecheck).toBe("tsc -p tsconfig.tools.json && tsc -b && tsc -p tsconfig.server.json");
 }
 
 function stringValues(value: unknown): string[] {
@@ -66,6 +82,22 @@ function requireOfflineReadOnly(candidate: Workflow) {
 }
 
 describe("active Entropybot CI", () => {
+  it("routes normal typechecking through tools and runs type gates before patch behavior", () => {
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    requireToolEntry(pkg.scripts);
+    requireFastTypeChecks(workflow);
+  });
+
+  it("rejects a disconnected tool compiler or reordered slow gate", () => {
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    expect(() => requireToolEntry({ ...pkg.scripts, typecheck: "tsc -b && tsc -p tsconfig.server.json" })).toThrow();
+    const lateTypes = structuredClone(workflow);
+    const steps = lateTypes.jobs.check.steps;
+    const types = steps.splice(steps.findIndex((step) => step.id === "types"), 1)[0]!;
+    steps.push(types);
+    expect(() => requireFastTypeChecks(lateTypes)).toThrow();
+  });
+
   it.each(gates)("requires %s / %s without a bypass", (job, step, command) => {
     requireGate(workflow, job, step, command);
   });
