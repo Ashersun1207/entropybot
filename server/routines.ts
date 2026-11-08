@@ -10,7 +10,8 @@ import { activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-d
 import { startDueTimer, type DueTimer } from "./due-timer.ts";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
 import type { RoutineRequestOperation } from "../shared/routine-request.ts";
-import { RoutineRequestReceipts, type RoutineRequestReceipt, type RoutineRequestCommit, type RoutineRequestOwner } from "./routine-request-receipts.ts";
+import { RoutineRequestReceipts, type RoutineRequestReceipt, type RoutineRequestCommit, type RoutineRequestOwner, type RoutineManualRequest, type StoredRoutineRequestReceipt } from "./routine-request-receipts.ts";
+import { manualRoutineFingerprint } from "./routine-manual-request.ts";
 import { intervalAllowsOccurrence, intervalHasRestrictions, isSameLocalDay, latestIntervalOccurrence } from "./routine-intervals.ts";
 import { cloneSchedule, limitResetOccurrence, mergeScheduleUpdate, nextOccurrence, RoutineScheduleError, type RoutineSchedule, type RoutineScheduleInput } from "./routine-schedules.ts";
 import { runsOnce } from "../shared/limit-reset.ts";
@@ -170,7 +171,7 @@ interface RoutineFile {
   frozenResultsCleared?: true;
   routines: Routine[];
   runs: RoutineRun[];
-  routineRequestReceipts?: RoutineRequestReceipt[];
+  routineRequestReceipts?: StoredRoutineRequestReceipt[];
   webhookRunReceipts?: EventRunReceipt[];
   startupLaunchId?: string;
   ownerNotices?: RoutineOwnerNotice[];
@@ -681,7 +682,7 @@ export class RoutineManager {
     if (changed) this.saveLater();
   }
 
-  runNow(id: string, request?: RoutineRequestCommitFor<"run_now">): RoutineRun | null {
+  runNow(id: string, request?: RoutineRequestCommitFor<"run_now">, manual?: RoutineManualRequest): RoutineRun | null {
     if (this.closing) return null;
     if (request) {
       const receipt = this.routineRequestReceipts.matching(request);
@@ -692,6 +693,19 @@ export class RoutineManager {
     }
     const routine = this.routines.find((r) => r.id === id);
     if (!routine) return null;
+    if (manual) {
+      this.assertWritable();
+      if (request || manual.routineId !== id || manual.fingerprint !== manualRoutineFingerprint(routine, manual.authority)) {
+        throw Object.assign(new Error("Manual request does not match the routine"), { status: 409 });
+      }
+      const receipt = this.routineRequestReceipts.matchingManual(manual);
+      if (receipt) {
+        const committed = this.runs.find((run) => run.id === receipt.resultId);
+        if (!committed) throw Object.assign(new Error("The original manual run is unavailable"), { status: 409 });
+        return cloneRun(committed);
+      }
+      this.routineRequestReceipts.assertManualCapacity();
+    }
     let run!: RoutineRun;
     const allocations: ResultsThreadAllocation[] = [];
     const previousDestination = routine.resultsThreadId;
@@ -699,6 +713,7 @@ export class RoutineManager {
       run = this.newRun(routine, this.now(), true, allocations, request?.threadId ?? routine.sourceThreadId);
       if (request) run.sourceThreadId = request.threadId;
       if (request) this.routineRequestReceipts.remember(request, run.id, this.now());
+      if (manual) this.routineRequestReceipts.rememberManual({ ...manual, fingerprint: manualRoutineFingerprint(routine, manual.authority) }, run.id, this.now());
     }, () => this.discardResultsThreads(allocations));
     if (routine.resultsThreadId !== previousDestination) this.emitRoutine(routine);
     this.emitRun(run);
@@ -1482,7 +1497,7 @@ export class RoutineManager {
     // Evict only terminal receipts: an active one owns cancellation, timeout and event routing.
     let excess = this.runs.length - MAX_RUNS;
     for (let index = 0; index < this.runs.length && excess > 0;) {
-      if (["queued", "running", "waiting"].includes(this.runs[index]!.status)) {
+      if (["queued", "running", "waiting"].includes(this.runs[index]!.status) || this.routineRequestReceipts.protectsRun(this.runs[index]!.id)) {
         index += 1;
         continue;
       }

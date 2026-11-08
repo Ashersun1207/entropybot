@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
 import { isRoutineProblemRun } from "../shared/routines.ts";
 import { ROUTINE_SKIPPED_WHILE_WAITING, ROUTINE_SUPERSEDED } from "./routine-execution.ts";
+import { manualRoutineFingerprint } from "./routine-manual-request.ts";
+import { loadRequestReceipts } from "./routine-load.ts";
+import { OwnedFile } from "./atomic.ts";
 import {
   nextOccurrence,
   RoutineManager,
@@ -4077,5 +4080,97 @@ describe("the scheduler wakes only when work is due", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("HTTP-origin durable manual receipts", () => {
+  const authority = "a".repeat(64);
+  const manual = (routine: ReturnType<RoutineManager["create"]>, key = "b") => ({
+    origin: "http" as const, authority, requestId: `http:${key.repeat(64)}`, routineId: routine.id,
+    fingerprintVersion: 1 as const, fingerprint: manualRoutineFingerprint(routine, authority),
+  });
+  const input = { name: "Manual provenance", prompt: "Synthetic only", botId: "maus-1",
+    schedule: { type: "daily" as const, time: "09:00", weekdays: [1] } };
+
+  it("keeps HTTP provenance and results allocation separate from card reachability through reopen", () => {
+    const h = harness();
+    const card = { requestId: "source-card", messageId: "source-message", botId: "maus-1", threadId: "trusted-source",
+      action: "create" as const, fingerprintVersion: 1 as const, fingerprint: "c".repeat(64) };
+    h.options.resolveResultsThread = () => ({ threadId: "allocated-results" });
+    const routine = h.manager.create(input, card);
+    const part = { r: "a".repeat(64), w: "b".repeat(64) };
+    expect(h.manager.stampInstalledPackage(routine.id, { installId: "a".repeat(32), key: "synthetic-package",
+      parts: { name: part, prompt: part, schedule: part, target: part } })).toBe(true);
+    expect(h.manager.listRoutines()[0]).not.toHaveProperty("installedPackage");
+    const run = h.manager.runNow(routine.id, undefined, manual(h.manager.listRoutines()[0]!))!;
+    expect(run).toMatchObject({ sourceThreadId: "trusted-source", resultsThreadId: "allocated-results" });
+    expect(h.manager.reconcileRoutineRequestReceipts([])).toBe(1);
+    expect(h.manager.forgetRoutineRequestReceiptsForThread("trusted-source")).toBe(0);
+    expect(h.manager.routineRequestReceiptOwners()).toEqual([]);
+    const reopened = new RoutineManager(h.options);
+    const current = reopened.listRoutines()[0]!;
+    expect(reopened.runNow(current.id, undefined, manual(current))?.id).toBe(run.id);
+    expect(reopened.listRuns()).toHaveLength(1);
+    const stored = JSON.parse(readFileSync(h.options.file!, "utf8")).routineRequestReceipts;
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ origin: "http", resultId: run.id });
+    expect(stored[0]).not.toHaveProperty("threadId");
+  });
+
+  it("rolls HTTP receipts, run admission and destination allocation back on write failure", async () => {
+    const h = harness(), discarded: string[] = [];
+    h.options.resolveResultsThread = () => ({ threadId: "new-results" });
+    h.options.discardResultsThread = (_botId, threadId) => { discarded.push(threadId); };
+    const routine = h.manager.create(input), request = manual(routine);
+    const diskBefore = readFileSync(h.options.file!, "utf8");
+    const failure = vi.spyOn(OwnedFile.prototype, "write").mockImplementationOnce(() => { throw new Error("synthetic durability failure"); });
+    try { expect(() => h.manager.runNow(routine.id, undefined, request)).toThrow("synthetic durability failure"); }
+    finally { failure.mockRestore(); }
+    expect(h.manager.listRuns()).toEqual([]);
+    expect(discarded).toEqual(["new-results"]);
+    expect(readFileSync(h.options.file!, "utf8")).toBe(diskBefore);
+    await Promise.resolve();
+    expect(h.started).toEqual([]);
+    const accepted = h.manager.runNow(routine.id, undefined, request)!;
+    const reopened = new RoutineManager(h.options), current = reopened.listRoutines()[0]!;
+    expect(reopened.runNow(current.id, undefined, manual(current))?.id).toBe(accepted.id);
+  });
+
+  it("loads legacy cards and explicit HTTP variants, rejecting malformed or unknown origins", () => {
+    const card = { requestId: "legacy", messageId: "message", botId: "maus-1", threadId: "thread", action: "run_now",
+      fingerprintVersion: 1, fingerprint: "c".repeat(64), resultId: "run", appliedAt: 1 };
+    const http = { origin: "http", authority, requestId: `http:${"b".repeat(64)}`, routineId: "routine",
+      fingerprintVersion: 1, fingerprint: "d".repeat(64), resultId: "run", appliedAt: 1 };
+    expect(loadRequestReceipts([card, http, { ...http, authority: undefined }, { ...card, origin: "unknown" },
+      { ...http, fingerprintVersion: 2 }, { ...http, requestId: "raw-client-key" }])).toEqual([card, http]);
+  });
+
+  it("refuses changed authority and never evicts a promised completed HTTP run", async () => {
+    const h = harness(), routine = h.manager.create(input);
+    const accepted = h.manager.runNow(routine.id, undefined, manual(routine))!;
+    const current = h.manager.listRoutines()[0]!;
+    expect(() => h.manager.runNow(current.id, undefined, {
+      ...manual(current), authority: "e".repeat(64), fingerprint: manualRoutineFingerprint(current, "e".repeat(64)),
+    })).toThrow(/conflicts/);
+    await h.manager.tick();
+    h.manager.handleRuntimeEvent({ eventId: "finish-http", provider: "fake", threadId: h.manager.listRuns()[0]!.threadId!,
+      createdAt: new Date().toISOString(), type: "turn.completed", ok: true });
+    h.manager.close();
+    const stored = JSON.parse(readFileSync(h.options.file!, "utf8"));
+    const completed = stored.runs.find((run: RoutineRun) => run.id === accepted.id);
+    expect(completed.status).toBe("completed");
+    stored.runs.push(...Array.from({ length: 1001 }, (_, index) => ({ ...completed, id: `terminal-${index}` })));
+    writeFileSync(h.options.file!, JSON.stringify(stored));
+    const reopened = new RoutineManager(h.options);
+    reopened.update(routine.id, { name: current.name });
+    expect(reopened.listRuns().some(run => run.id === accepted.id)).toBe(true);
+    expect(reopened.runNow(routine.id, undefined, manual(reopened.listRoutines()[0]!))?.id).toBe(accepted.id);
+    const atCapacity = JSON.parse(readFileSync(h.options.file!, "utf8"));
+    atCapacity.routineRequestReceipts = Array.from({ length: 1000 }, (_, index) => ({ ...atCapacity.routineRequestReceipts[0],
+      requestId: `http:${index.toString(16).padStart(64, "0")}` }));
+    writeFileSync(h.options.file!, JSON.stringify(atCapacity));
+    const full = new RoutineManager(h.options), before = full.listRuns().length;
+    expect(() => full.runNow(routine.id, undefined, manual(full.listRoutines()[0]!, "f"))).toThrow(/history is full/);
+    expect(full.listRuns()).toHaveLength(before);
   });
 });

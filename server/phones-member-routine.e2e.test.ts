@@ -27,9 +27,10 @@ let desk: { token: string; session: { id: string } };
 /** While this file exists every hanging fake turn ends normally (FAKE_CLAUDE_RELEASE). */
 let release: string;
 
-const api = async (method: string, path: string, body?: unknown, token?: string) => {
+let manualRequestCount = 0;
+const api = async (method: string, path: string, body?: unknown, token?: string, manualKey?: string) => {
   const response = await fetch(url + path, {
-    method, headers: { "content-type": "application/json", origin: url, ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    method, headers: { "content-type": "application/json", origin: url, ...(token ? { authorization: `Bearer ${token}` } : {}), ...(manualKey ? { "Idempotency-Key": manualKey } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(30_000),
   });
   return { status: response.status, body: await response.json() as any };
@@ -74,10 +75,14 @@ const launched = async (marker: string, start: () => Promise<void>) => {
 /** Starts a routine run with `token` (none: this machine): the launch's MCP servers and the run's thread. */
 const run = async (routineId: string, prompt: string, token?: string) => {
   let runId = "";
+  const manualKey = `phone-authority-${++manualRequestCount}`;
   const servers = await launched(prompt, async () => {
-    const started = await api("POST", `/api/routines/${routineId}/run`, undefined, token);
+    const started = await api("POST", `/api/routines/${routineId}/run`, undefined, token, manualKey);
     expect(started.status).toBe(201);
     runId = started.body.run.id;
+    const replay = await api("POST", `/api/routines/${routineId}/run`, undefined, token, manualKey);
+    expect(replay.status).toBe(201);
+    expect(replay.body.run.id).toBe(runId);
   });
   const threadId = (await api("GET", "/api/routines")).body.runs.find((one: { id: string }) => one.id === runId).threadId as string;
   return { servers, threadId };

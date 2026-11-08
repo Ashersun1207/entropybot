@@ -28,28 +28,45 @@ function ownerKey(owner: RoutineRequestOwner): string {
   return JSON.stringify([owner.requestId, owner.messageId, owner.botId, owner.threadId]);
 }
 
-export class RoutineRequestReceipts {
-  private entries: RoutineRequestReceipt[];
+export interface RoutineManualRequest {
+  origin: "http";
+  authority: string;
+  requestId: string;
+  routineId: string;
+  fingerprintVersion: 1;
+  fingerprint: string;
+}
 
-  constructor(entries: RoutineRequestReceipt[] = []) {
+export interface RoutineManualReceipt extends RoutineManualRequest {
+  resultId: string;
+  appliedAt: number;
+}
+
+export type StoredRoutineRequestReceipt = RoutineRequestReceipt | RoutineManualReceipt;
+const MAX_MANUAL_RECEIPTS = 1000;
+
+export class RoutineRequestReceipts {
+  private entries: StoredRoutineRequestReceipt[];
+
+  constructor(entries: StoredRoutineRequestReceipt[] = []) {
     this.entries = entries.map((receipt) => ({ ...receipt }));
   }
 
-  snapshot(): RoutineRequestReceipt[] {
+  snapshot(): StoredRoutineRequestReceipt[] {
     return this.entries.map((receipt) => ({ ...receipt }));
   }
 
   receipt(requestId: string): RoutineRequestReceipt | null {
-    const receipt = this.entries.find((candidate) => candidate.requestId === requestId);
+    const receipt = this.cards().find((candidate) => candidate.requestId === requestId);
     return receipt ? { ...receipt } : null;
   }
 
   owners(): RoutineRequestOwner[] {
-    return this.entries.map(({ requestId, messageId, botId, threadId }) => ({ requestId, messageId, botId, threadId }));
+    return this.cards().map(({ requestId, messageId, botId, threadId }) => ({ requestId, messageId, botId, threadId }));
   }
 
   matching(request: RoutineRequestCommit): RoutineRequestReceipt | null {
-    const receipt = this.entries.find((candidate) => candidate.requestId === request.requestId);
+    const receipt = this.cards().find((candidate) => candidate.requestId === request.requestId);
     if (!receipt) return null;
     if (receipt.action !== request.action || receipt.messageId !== request.messageId ||
       receipt.botId !== request.botId || receipt.threadId !== request.threadId ||
@@ -75,14 +92,47 @@ export class RoutineRequestReceipts {
     return true;
   }
 
-  withoutThread(threadId: string): RoutineRequestReceipt[] {
-    return this.entries.filter((receipt) => receipt.threadId !== threadId);
+  withoutThread(threadId: string): StoredRoutineRequestReceipt[] {
+    return this.entries.filter((receipt) => isManualReceipt(receipt) || receipt.threadId !== threadId);
   }
 
-  reachable(owners: readonly RoutineRequestOwner[]): RoutineRequestReceipt[] {
+  reachable(owners: readonly RoutineRequestOwner[]): StoredRoutineRequestReceipt[] {
     const keys = new Set(owners.map(ownerKey));
-    return this.entries.filter((receipt) => keys.has(ownerKey(receipt)));
+    return this.entries.filter((receipt) => isManualReceipt(receipt) || keys.has(ownerKey(receipt)));
+  }
+
+  matchingManual(request: RoutineManualRequest): RoutineManualReceipt | null {
+    const receipt = this.entries.find((candidate): candidate is RoutineManualReceipt =>
+      isManualReceipt(candidate) && candidate.requestId === request.requestId);
+    if (receipt && (receipt.routineId !== request.routineId || receipt.fingerprintVersion !== request.fingerprintVersion ||
+      receipt.fingerprint !== request.fingerprint)) {
+      throw Object.assign(new Error("Idempotency key conflicts with the current routine definition"), { status: 409 });
+    }
+    return receipt ?? null;
+  }
+
+  assertManualCapacity(): void {
+    if (this.entries.filter(isManualReceipt).length >= MAX_MANUAL_RECEIPTS) {
+      throw Object.assign(new Error("Manual retry history is full"), { status: 429 });
+    }
+  }
+
+  rememberManual(request: RoutineManualRequest, resultId: string, appliedAt: number): void {
+    this.assertManualCapacity();
+    this.entries.unshift({ ...request, resultId, appliedAt });
+  }
+
+  protectsRun(runId: string): boolean {
+    return this.entries.some((receipt) => isManualReceipt(receipt) && receipt.resultId === runId);
+  }
+
+  private cards(): RoutineRequestReceipt[] {
+    return this.entries.filter((receipt): receipt is RoutineRequestReceipt => !isManualReceipt(receipt));
   }
 
   get size(): number { return this.entries.length; }
+}
+
+export function isManualReceipt(receipt: StoredRoutineRequestReceipt): receipt is RoutineManualReceipt {
+  return "origin" in receipt && receipt.origin === "http";
 }

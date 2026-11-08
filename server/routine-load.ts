@@ -10,6 +10,7 @@ import { isRoutineHoldCause } from "./routine-holds.ts";
 import { MAX_DATE_MS } from "./routine-intervals.ts";
 import { loadSchedule } from "./routine-schedules.ts";
 import type { Routine, RoutineGoalStatus, RoutinePackageStamp, RoutineRequestReceipt, RoutineRun, RoutineTarget } from "./routines.ts";
+import type { RoutineManualReceipt, StoredRoutineRequestReceipt } from "./routine-request-receipts.ts";
 
 const persistedSourceThreadId = z.string().trim().min(1).optional().catch(undefined);
 
@@ -127,16 +128,19 @@ export function loadRun(run: RoutineRun): RoutineRun {
 const REQUEST_ACTIONS = new Set<RoutineRequestOperation["action"]>(["create", "update", "pause", "resume", "run_now", "delete"]);
 
 /** The applied routine-request receipts routines.json holds, each whole: one with a field out of shape is dropped. */
-export function loadRequestReceipts(value: unknown): RoutineRequestReceipt[] {
+export function loadRequestReceipts(value: unknown): StoredRoutineRequestReceipt[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((receipt): receipt is RoutineRequestReceipt =>
-    typeof receipt?.requestId === "string" &&
-    typeof receipt?.messageId === "string" &&
-    typeof receipt?.botId === "string" &&
-    typeof receipt?.threadId === "string" &&
-    REQUEST_ACTIONS.has(receipt?.action) &&
-    receipt?.fingerprintVersion === 1 &&
-    typeof receipt?.fingerprint === "string" && /^[a-f0-9]{64}$/.test(receipt.fingerprint) &&
-    typeof receipt?.resultId === "string" &&
-    Number.isFinite(receipt?.appliedAt));
+  return value.filter((receipt): receipt is RoutineRequestReceipt | RoutineManualReceipt => {
+    if (!receipt || typeof receipt !== "object" || receipt.fingerprintVersion !== 1 ||
+      typeof receipt.fingerprint !== "string" || !HASH.test(receipt.fingerprint) ||
+      typeof receipt.resultId !== "string" || !Number.isFinite(receipt.appliedAt)) return false;
+    if (receipt.origin === "http") {
+      return typeof receipt.requestId === "string" && /^http:[a-f0-9]{64}$/.test(receipt.requestId) &&
+        typeof receipt.routineId === "string" && receipt.routineId.length > 0 &&
+        typeof receipt.authority === "string" && HASH.test(receipt.authority);
+    }
+    return receipt.origin === undefined && typeof receipt.requestId === "string" &&
+      typeof receipt.messageId === "string" && typeof receipt.botId === "string" &&
+      typeof receipt.threadId === "string" && REQUEST_ACTIONS.has(receipt.action);
+  });
 }
