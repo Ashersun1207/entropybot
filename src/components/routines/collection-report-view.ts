@@ -1,3 +1,4 @@
+import type { CollectionReportResponse } from "../../../shared/collection-report";
 import { collectionSources } from "./collection-input";
 
 export function collectionSummary(output?: string) {
@@ -10,7 +11,7 @@ export function collectionSummary(output?: string) {
   return result.pages >= 1 && result.pages <= 100 && result.unique >= 1 && result.unique <= result.pages ? result : null;
 }
 
-export function collectionReportView(value: unknown) {
+export function collectionReportView(value: unknown): CollectionReportResponse | null {
   if (!value || typeof value !== "object") return null;
   const report = value as Record<string, unknown>;
   if (report.version !== 1 || !Number.isInteger(report.pages) || !Number.isInteger(report.unique)
@@ -19,7 +20,7 @@ export function collectionReportView(value: unknown) {
     || typeof report.hash !== "string" || !/^[a-f0-9]{64}$/.test(report.hash)
     || !Array.isArray(report.sources) || report.sources.length !== report.unique) return null;
   let total = 0;
-  const sources: Array<{ url: string; text: string }> = [];
+  const sources: CollectionReportResponse["sources"] = [];
   for (const source of report.sources) {
     if (!source || typeof source !== "object" || typeof source.url !== "string" || typeof source.text !== "string"
       || collectionSources(source.url)?.length !== 1 || source.text.length > 1_000_000) return null;

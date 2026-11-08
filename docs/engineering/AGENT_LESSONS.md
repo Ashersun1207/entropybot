@@ -132,7 +132,7 @@
 
 - 新类型接入原编辑器时，包装原 EventEditor 会改变既有直接捕获控件的测试边界；本轮实际 3 项失败、77 项通过。修复在真实调用入口分流采集编辑，保留原普通编辑器导出/行为，不改既有断言。新增采集组件通过实际 DOM 挂载测试输入、payload 和错误。回归入口 `src/components/routines/CollectionUI.test.ts` 与完整 `RoutineCalendarPage.simple.test.ts`。
 - 真实 App 同时有 sidebar 和 Routine details 两个 aside。浏览器测试必须按 `aria-label="Routine details"` 精确选择；泛选第一个 aside 得到侧栏预览，不能当运行详情或报告正文。新浏览器夹具还修正了旧导航位置和把 SVG 加号当文本的选择器错误，这些不算产品红例。
-- 后端 durable summary 的 `Path:` 行是私有元数据。采集详情只显示验证过的计数/hash 对应状态，报告正文只在显式动作后从受权路由读取并以有界、折叠 pre 显示。详情脱敏不能证明原聊天/侧栏预览也脱敏；本轮真实浏览器已看到该共享显示缺口，完整接受须由主控分配共享投影修复和报告接口集成，不以合成 report fetch 单测冒充端到端。当前检查点与限制见 [验证说明](../verification/web-collection-ui.md)。
+- 后端 durable summary 的 `Path:` 行是私有元数据。采集详情只显示验证过的计数/hash 对应状态，报告正文只在显式动作后从受权路由读取并以有界、折叠 pre 显示。详情脱敏不能证明原聊天/侧栏预览也脱敏；本轮真实浏览器已看到该共享显示缺口，完整接受须由主控分配共享投影修复；报告接口获批后，本 owner 已导入共享类型，并用真实 route 的403/404/完整性409/200验证前端，不以合成 report fetch 单测冒充端到端。集成证据与限制见 [验证说明](../verification/web-collection-ui.md)。
 
 ## 不应合并的改动
 

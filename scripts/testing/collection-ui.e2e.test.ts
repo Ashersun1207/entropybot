@@ -17,6 +17,8 @@ it.runIf(process.env.OMB_UI_E2E === "1")("creates and runs a manual collection f
   let chrome: ChildProcess | undefined, server: ChildProcess | undefined, connection: CdpConnection | undefined;
   const reads: string[] = [], posts: Array<{ key: string; context: string; runId: string }> = [];
   let legacyPosts = 0, passed = false;
+  let reportMode: "normal" | "denied" | "missing" = "normal";
+  const reportRequests: Array<{ requested: string; forwarded: string; status: number; mode: string }> = [];
   const closed = { browser: false, server: false, pages: false, fixture: false, directoryRemoved: false };
   const pages = createServer((req, res) => { reads.push(req.url!); res.setHeader("content-type", "text/html"); res.end('<p>Literal adversarial &lt;img src="https://adversary.invalid/pixel"&gt; [open](file:///secret) &lt;script&gt;alert(1)&lt;/script&gt;</p>'); });
   try {
@@ -36,7 +38,12 @@ it.runIf(process.env.OMB_UI_E2E === "1")("creates and runs a manual collection f
     await api("PATCH", `/api/bots/${bots[0].id}`, { chiefOfStaff: false });
     await api("PATCH", "/api/config", { language: "en" });
     preview = await mountPreview(fixture, { entry: "/scripts/testing/threads-preview.tsx", route: "/__collection.html", title: "Synthetic collection", logLevel: "error",
-      extraRoutes: [{ path: /^\/api\/routines\/[^/]+\/run-protected$/, method: "POST", handler: async (req, res) => {
+      extraRoutes: [{ path: /^\/api\/routines\/[^/]+\/runs\/[^/]+\/collection-report$/, method: "GET", handler: async (req, res) => {
+        const requested = req.url!, forwarded = reportMode === "missing" ? requested.replace(/\/runs\/[^/]+\//, "/runs/missing-fixture-run/") : requested;
+        const response = await fetch(url + forwarded, { headers: { origin: reportMode === "denied" ? "https://unpaired.invalid" : url }, signal: AbortSignal.timeout(15_000) });
+        reportRequests.push({requested,forwarded,status:response.status,mode:reportMode});
+        res.statusCode=response.status; res.setHeader("content-type","application/json"); res.end(await response.text());
+      } }, { path: /^\/api\/routines\/[^/]+\/run-protected$/, method: "POST", handler: async (req, res) => {
         const key = String(req.headers["idempotency-key"]), context = String(req.headers["x-entropybot-manual-context"]);
         const response = await fetch(url + req.url, { method: "POST", headers: { origin: url, "Idempotency-Key": key, "X-Entropybot-Manual-Context": context }, signal: AbortSignal.timeout(15_000) });
         const body = await response.text(); posts.push({ key, context, runId: JSON.parse(body).run?.id });
@@ -98,10 +105,34 @@ it.runIf(process.env.OMB_UI_E2E === "1")("creates and runs a manual collection f
     await click('Retry','aside[aria-label="Routine details"]'); await expect.poll(() => posts.length).toBe(2); expect(posts[1]).toEqual(posts[0]);
     await expect.poll(() => text('aside[aria-label="Routine details"]')).toContain('Pages: 2 · Unique sources: 1'); expect(await text('aside[aria-label="Routine details"]')).toContain('View report');
     expect((await api('GET','/api/routines')).runs).toHaveLength(1); expect(reads).toEqual(['/page','/page']); expect(legacyPosts).toBe(0);
-    expect(readFileSync(join(dataDir,'collection-reports',artifactFiles[0]),'utf8')).toBe(artifact);
+    const reportScope = 'aside[aria-label="Routine details"] section[aria-label="Collection report"]';
+    expect(reportRequests).toHaveLength(0);
+    reportMode='denied'; await click('View report', reportScope);
+    await expect.poll(() => text(reportScope)).toContain('You do not have access to this report.');
+    reportMode='missing'; await click('View report', reportScope);
+    await expect.poll(() => text(reportScope)).toContain('This report is missing or no longer available.');
+    reportMode='normal';
+    const artifactPath=join(dataDir,'collection-reports',artifactFiles[0]);
+    writeFileSync(artifactPath,artifact.replace('Literal','Changed'));
+    await click('View report', reportScope); await expect.poll(() => text(reportScope)).toContain('This report could not be verified. Its contents are hidden.');
+    expect(await evaluate(`document.querySelector(${JSON.stringify(reportScope)})?.querySelector('pre')===null`)).toBe(true);
+    writeFileSync(artifactPath,artifact);
+    await click('View report', reportScope); await expect.poll(() => text(reportScope)).toContain('Source 1');
+    expect(reportRequests.map(request=>request.status)).toEqual([403,404,409,200]);
+    expect(reportRequests.every(request=>request.requested===`/api/routines/${saved.id}/runs/${first.id}/collection-report`)).toBe(true);
+    expect(await evaluate(`document.querySelector(${JSON.stringify(reportScope)})?.querySelectorAll('a,img,script,iframe').length`)).toBe(0);
+    expect(await evaluate(`document.querySelector(${JSON.stringify(reportScope)})?.querySelector('details').open`)).toBe(false);
+    await evaluate(`document.querySelector(${JSON.stringify(reportScope)})?.querySelector('summary').click(); true`);
+    const displayed=await text(reportScope);
+    expect(displayed).toContain(JSON.parse(artifact).sources[0].text); expect(displayed).not.toContain(dataDir);
+    expect(await evaluate(`document.querySelector(${JSON.stringify(reportScope)})?.querySelector('pre').getBoundingClientRect().height>0`)).toBe(true);
+    expect(reads).toEqual(['/page','/page']);
+    expect(readFileSync(artifactPath,'utf8')).toBe(artifact);
     expect(existsSync(fixture.fixtureDumpPath), 'No fake provider launched').toBe(false);
     const messages=(await api('GET',`/api/threads/${first.resultsThreadId}/messages?limit=200`)).messages;
     expect(messages.filter((m:any)=>m.automation?.runId===first.id)).toHaveLength(1);
+    const screenshot=await page.send<{data:string}>('Page.captureScreenshot',{format:'png'});
+    writeFileSync(`${fixture.info.logPath}.collection-ui.png`,Buffer.from(screenshot.data,'base64'));
     passed=true;
   } finally {
     connection?.close();
@@ -115,7 +146,7 @@ it.runIf(process.env.OMB_UI_E2E === "1")("creates and runs a manual collection f
           if(closed.browser && closed.server && closed.pages) { await fixture?.close(); closed.fixture=true; }
           if(fixture) {
             closed.directoryRemoved=!existsSync(fixture.info.dataDir);
-            writeFileSync(`${fixture.info.logPath}.collection-ui.json`,JSON.stringify({passed,posts,legacyPosts,reads,closed,fixture:fixture.info,reportAccess:'pending reviewed dependency; no endpoint rendering qualification'},null,2));
+            writeFileSync(`${fixture.info.logPath}.collection-ui.json`,JSON.stringify({passed,posts,legacyPosts,reads,reportRequests,closed,fixture:fixture.info,reportAccess:'real authorized endpoint; actual denial, missing identity and tampered artifact responses'},null,2));
             if(closed.fixture) expect(closed.directoryRemoved).toBe(true);
           }
         }

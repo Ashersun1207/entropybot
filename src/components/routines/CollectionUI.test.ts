@@ -75,8 +75,8 @@ describe("collection report renderer (synthetic transport only)", () => {
     expect(host.querySelectorAll('a,img,script,iframe')).toHaveLength(0); expect(host.querySelector('pre')?.textContent).toContain(content.sources[0].text);
     expect(host.querySelector('pre')!.textContent!.length).toBeLessThan(20_100); expect(host.textContent).toContain('first 20,000'); expect(host.querySelector('details')?.open).toBe(false);
   });
-  it.each([[404, 'missing'], [403, 'do not have access'], [409, 'could not be verified'], [500, 'could not be loaded']] as const)("shows a distinct fixed failure for HTTP %s", async (status, text) => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({error:'/private/secret <img>'}), {status})));
+  it.each([[404, 'missing', null], [403, 'do not have access', null], [409, 'could not be verified', 'collection_report_invalid'], [409, 'missing', 'collection_report_unavailable'], [500, 'could not be loaded', null]] as const)("shows a distinct fixed failure for HTTP %s (%s)", async (status, text, code) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({error:'/private/secret <img>',code}), {status})));
     await render(createElement(CollectionRunReport, { run })); await click('View report'); expect(host.querySelector('[role=alert]')?.textContent).toContain(text); expect(host.textContent).not.toContain('/private/secret'); expect(host.querySelector('pre')).toBeNull();
   });
   it.each([{...content, pages:3}, {...content, hash:'b'.repeat(64)}, {...content, sources:[{url:content.sources[0].url,text:42}]}])("rejects malformed and mismatched report data %#", async value => {

@@ -29,7 +29,7 @@ function Report({ run }: { run: RoutineRun }) {
     } catch (cause) {
       if (!controller.signal.aborted) setError(cause instanceof ApiError
         ? cause.status === 401 || cause.status === 403 ? "collection.reportDenied"
-          : cause.status === 404 ? "collection.reportMissing"
+          : cause.status === 404 || (cause.status === 409 && cause.body?.code === "collection_report_unavailable") ? "collection.reportMissing"
             : cause.status === 409 || cause.status === 422 ? "collection.reportInvalid" : "collection.reportFailed"
         : "collection.reportFailed");
     } finally {
