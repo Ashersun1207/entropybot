@@ -57,7 +57,6 @@ describe("the job summary", () => {
   const runId = "legacy-fixture-run";
   const start = { schemaVersion: 1, runId, batchId: "batch", kind: "start", files: ["server/boat-included.test.ts"] };
   const finish = (counts) => ({ schemaVersion: 1, runId, batchId: "batch", kind: "finish", counts });
-  const complete = (extra = []) => [JSON.stringify(start), ...extra, JSON.stringify(finish({ firstPass: 0, retriedPass: 1, retriedFailed: 1, failedWithoutRetry: 0, other: 0 }))].join("\n");
 
   it("lists each retried test with its owner, and warns about it", () => {
     const entry = list[0]!;
