@@ -13,6 +13,8 @@ import { BrowserRuntime, TransportError, attachesToChrome, browserRuntimeEnv, fo
 import { RelayTimeout, relay, relayCommand, relayInput } from "../browser-relay.ts";
 import { browserSteps } from "../browser-steps.ts";
 import { BrowserLive } from "../browser-live.ts";
+import { localDevToolsUrl } from "../browser-dialogs.ts";
+import { prepareNavigationStop } from "../browser-navigation-cancel.ts";
 import { browserEgress, type EgressSetup } from "../browser/egress/registry.ts";
 import {
   agentBrowserIntegration,
@@ -109,6 +111,12 @@ export function createBrowserHost(deps: BrowserHostDeps) {
       throw error instanceof RelayTimeout ? new TransportError(error.message) : error;
     }),
     steps: browserSteps,
+    prepareNavigation: async (session, spec, pageUrl) => {
+      const env = browserRuntimeEnv({ ...spec.env, AGENT_BROWSER_SESSION: session });
+      const answer = await inRunningBrowser(spec.command, env, ["get", "cdp-url"], 1500);
+      const url = localDevToolsUrl(answer?.cdpUrl);
+      return url ? prepareNavigationStop(url, pageUrl) : null;
+    },
     onTiming: process.env.OMB_BROWSER_TIMING === "1" ? (timing) => console.info(formatBrowserTiming(timing)) : undefined,
   });
   const browserBox = deps.browserBox;

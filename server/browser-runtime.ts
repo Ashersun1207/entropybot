@@ -7,6 +7,7 @@ import { SECRET_ON_PAGE, SecretHolds, type SecretHold } from "./browser-secret-h
 import type { BrowserSteps, StepCall, StepContext } from "./browser-steps.ts";
 import { HARNESS_CALL_BUDGET_MS } from "./harness-budget.ts";
 import { launchSettingsKey } from "./browser-launch-key.ts";
+import { withNavigationCancellation, type NavigationStop } from "./browser-navigation-cancel.ts";
 
 export interface BrowserSpawnSpec {
   command: string;
@@ -352,8 +353,9 @@ export class BrowserRuntime {
   /** Strips held secrets (a filled password, a one-time code) from every tool result before the bot reads it. */
   private scrub: (text: string) => string;
   private onTiming?: (timing: BrowserTiming) => void;
+  private prepareNavigation?: (session: string, spec: BrowserSpawnSpec, pageUrl: string) => Promise<NavigationStop | null>;
 
-  constructor({ closeBrowser, applyViewport, launch, relayCommand, steps, scrub, onTiming, ...options }: Partial<BrowserRuntime["options"]> & { closeBrowser?: CloseBrowser; applyViewport?: ApplyViewport; launch?: BrowserLaunch; relayCommand?: RelayCommand; steps?: BrowserRuntime["steps"]; scrub?: (text: string) => string; onTiming?: (timing: BrowserTiming) => void } = {}) {
+  constructor({ closeBrowser, applyViewport, launch, relayCommand, steps, scrub, onTiming, prepareNavigation, ...options }: Partial<BrowserRuntime["options"]> & { closeBrowser?: CloseBrowser; applyViewport?: ApplyViewport; launch?: BrowserLaunch; relayCommand?: RelayCommand; steps?: BrowserRuntime["steps"]; scrub?: (text: string) => string; onTiming?: (timing: BrowserTiming) => void; prepareNavigation?: (session: string, spec: BrowserSpawnSpec, pageUrl: string) => Promise<NavigationStop | null> } = {}) {
     this.options = { ...BROWSER_CALL_DEFAULTS, takeoverTimeoutMs: 15_000, idleMs: 60_000, maxPending: 16, resultBudget: DEFAULT_BROWSER_RESULT_BUDGET, recoveryCheckMs: 30_000, ...options };
     this.closeBrowser = closeBrowser ?? (async () => false);
     this.applyViewport = applyViewport;
@@ -362,6 +364,7 @@ export class BrowserRuntime {
     this.steps = steps;
     this.scrub = scrub ?? scrubHeldSecrets;
     this.onTiming = onTiming;
+    this.prepareNavigation = prepareNavigation;
   }
 
   private timed<T>(session: string, tool: string, phases: Partial<BrowserTiming>, fn: () => Promise<T>): Promise<T> {
@@ -448,7 +451,8 @@ export class BrowserRuntime {
   }
 
   /** Every tool result, recovery notes included, is scrubbed of held secrets. */
-  async agentRpc(session: string, spec: BrowserSpawnSpec, method: "tools/list" | "tools/call", params: unknown, beforeDispatch?: () => void, ctx?: StepContext): Promise<unknown> {
+  async agentRpc(session: string, spec: BrowserSpawnSpec, method: "tools/list" | "tools/call", params: unknown, beforeDispatch?: () => void, ctx?: StepContext, signal?: AbortSignal): Promise<unknown> {
+    signal?.throwIfAborted();
     if (method === "tools/call" && readsAroundBrowser(params)) return { isError: true, content: [{ type: "text", text: READ_OPEN_PAGE_ONLY }] };
     // Counted in the same event-loop turn, so no idle close can start under a call.
     for (let closing = this.gates.get(session)?.idleClose; closing; closing = this.gates.get(session)?.idleClose) await closing;
@@ -458,7 +462,7 @@ export class BrowserRuntime {
     const deadline = Date.now() + this.options.callBudgetMs;
     let result: unknown;
     try {
-      const request = () => this.agentRequest(session, spec, method, params, deadline, beforeDispatch, ctx);
+      const request = () => this.agentRequest(session, spec, method, params, deadline, beforeDispatch, ctx, signal);
       const work = method !== "tools/call" || toolNameOf(params) === BROWSER_RESTART_TOOL || gate.uncertain ? request() : this.lanes.run(session, request, this.options.laneWaitMs);
       result = await this.withinBudget(session, method, toolNameOf(params) ?? "browser", work, deadline);
     } finally { gate.calls--; gate.lastUsed = Date.now(); }
@@ -483,7 +487,8 @@ export class BrowserRuntime {
     return this.gate(session).lostCall === null ? stuckBrowserToolError() : lostCallToolError(call);
   }
 
-  private async agentRequest(session: string, spec: BrowserSpawnSpec, method: "tools/list" | "tools/call", params: unknown, deadline: number, beforeDispatch?: () => void, ctx?: StepContext): Promise<unknown> {
+  private async agentRequest(session: string, spec: BrowserSpawnSpec, method: "tools/list" | "tools/call", params: unknown, deadline: number, beforeDispatch?: () => void, ctx?: StepContext, signal?: AbortSignal): Promise<unknown> {
+    signal?.throwIfAborted();
     if (method !== "tools/list" && method !== "tools/call") throw new Error("Unsupported browser method.");
     // tools/list skips withAgentAction, so it must refuse the closing window itself or its client outlives restart().
     if (method !== "tools/call" && this.gate(session).closing) throw new Error("The browser is closing. Try again shortly.");
@@ -511,6 +516,7 @@ export class BrowserRuntime {
     const followUpMs = () => Math.min(this.options.requestTimeoutMs, deadline - Date.now());
     const phases: Partial<BrowserTiming> = {};
     const invoke = async () => {
+      signal?.throwIfAborted();
       const launchStarted = performance.now();
       let dispatched = false;
       if (method === "tools/call") await this.launchReady(spec);
@@ -566,12 +572,27 @@ export class BrowserRuntime {
           if (this.gate(session).owner !== null) throw new Error(BROWSER_CONTROL_REFUSAL);
         }
         const engineStarted = performance.now();
-        if (method === "tools/call") { dispatched = true; gate.dispatched++; }
         const engineTimeoutMs = Math.max(1, Math.min(this.options.requestTimeoutMs, deadline - Date.now() - this.options.followUpReserveMs));
         const relayed = method === "tools/call" && toolName !== undefined ? RELAYED_TOOLS.get(toolName) : undefined;
-        let result = relayed
-          ? await this.relayTool(session, spec, relayed, args, engineTimeoutMs)
-          : await entry.client.rpc(method, request, engineTimeoutMs);
+        const dispatch = () => {
+          signal?.throwIfAborted();
+          if (method === "tools/call") { dispatched = true; gate.dispatched++; }
+          return relayed ? this.relayTool(session, spec, relayed, args, engineTimeoutMs) : entry.client.rpc(method, request, engineTimeoutMs);
+        };
+        const prepare = this.prepareNavigation;
+        let result: unknown;
+        if (toolName === "agent_browser_open" && signal && prepare && !attachesToChrome(spec.env)) {
+          result = await withNavigationCancellation(signal, async () => {
+            const currentUrl = firstText(await entry.client.rpc("tools/call", { name: "agent_browser_get_url", arguments: {} }, Math.max(1, Math.min(followUpMs(), 1500)))).trim();
+            beforeDispatch?.();
+            const target = await prepare(session, spec, currentUrl);
+            return target ? { close: () => target.close(), stop: () => gate.owner === null && !gate.closing ? target.stop() : Promise.resolve(false) } : null;
+          }, () => {
+            beforeDispatch?.();
+            if (gate.owner !== null) throw new Error(BROWSER_CONTROL_REFUSAL);
+            return dispatch();
+          }, () => this.latchLostCall(session, toolName));
+        } else result = await dispatch();
         phases.engineMs = performance.now() - engineStarted;
         beforeDispatch?.();
         if (method === "tools/list") {
