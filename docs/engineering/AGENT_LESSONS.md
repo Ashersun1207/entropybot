@@ -87,6 +87,7 @@
 
 - 旧retry-summary对空/坏/缺日志都输出空摘要，缺环境和outcome时仍能输出“0重试”，且坏JSON行被静默丢弃。现在只读producer开始/结束标记、run/batch身份和结构化retry记录，缺任一必要证据即incomplete，不把无日志当零重试。回归入口 `scripts/testing/ci-retry-observation.node-test.mjs` 与 `scripts/testing/ci-retry-list.test.ts`；runner新增start/finish/counts，retry行带runId/batchId，CI契约保护`--init`、per-step日志和`if: always()`汇总。
 - 测试失败或取消不能因汇总成功被冲淡；原退出码由检查步骤决定，汇总只报告。补丁门环境白名单需显式透传重试日志/run/batch，否则内部Vitest拿不到，记录不完整。retrySummary不再宣称零重试；旧“legacy行”可见但不构成完整观测。缺少命令outcome、manifest或某个step日志均为unknown。
+- CI契约测试不能断言 GitHub 不支持的 context：job级`env:`里 `${{ runner.temp }}` 被 GitHub 判为 “Unrecognized named-value: 'runner'”，整条 workflow 解析失败、0 个 job、0 个 check-run，而契约测试却因断言了同一错误值而“通过”。远端 run 42549674304 因此 failure。修复：目录改用 github 上下文 `/tmp/entropybot-retry-${{ github.run_id }}-${{ github.run_attempt }}`；契约测试补“所有 env 值里的 `${{ }}` 表达式不得含 `runner.` 前缀”的负例（runner 上下文在 env 位置不可用），防止再次盲区。回归 `scripts/entropybot-ci-workflow.test.ts`。
 
 ## 可选 Connected Apps 故障隔离
 

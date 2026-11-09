@@ -74,6 +74,13 @@ function requireOfflineReadOnly(candidate: Workflow) {
     for (const env of [candidate.env, job.env, ...job.steps.map((step) => step.env)]) {
       expect(env?.OMB_EVAL_LIVE === undefined || env.OMB_EVAL_LIVE === "0").toBe(true);
       expect(Object.keys(env ?? {}).filter((key) => key.startsWith("OMB_EVAL_LIVE_"))).toEqual([]);
+      // GitHub rejects the `runner` context inside `env:` values ("Unrecognized named-value: 'runner'"),
+      // which fails the whole workflow before any job runs. Reference only env/github/inputs/vars/matrix/needs here.
+      for (const value of stringValues(env)) {
+        for (const expression of value.matchAll(/\$\{\{([\s\S]*?)\}\}/g)) {
+          expect(expression[1]).not.toMatch(/\brunner\./i);
+        }
+      }
     }
     for (const step of job.steps) {
       expect(step.run ?? "").not.toMatch(/--live|--update-baseline|OMB_EVAL_LIVE\s*=\s*1/);
