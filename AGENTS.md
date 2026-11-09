@@ -4,6 +4,10 @@ Before claiming a server or conversation change works, follow
 [`docs/verification/README.md`](docs/verification/README.md). Always launch an
 isolated fixture; never verify mutations against the user's live app or data.
 
+For website changes in `site/` or `scripts/testing/site-*`, read
+[`site/EXPERIENCE.md`](site/EXPERIENCE.md) for the confirmed UI, bilingual,
+playback, mascot and verification requirements.
+
 ## Comments
 
 Write a comment only for what the code cannot say:

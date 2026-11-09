@@ -2,9 +2,9 @@
 
 本机优先的 AI 机器人团队，面向 macOS。在桌面上与不同职责的机器人对话，按你的选择连接模型，并管理各自的记忆与任务。
 
-[下载 macOS 版](https://github.com/Ashersun1207/entropybot/releases/latest) · [版本记录](https://github.com/Ashersun1207/entropybot/releases) · [更新与迁移说明](docs/ENTROPYBOT_UPDATES.md)
+[官网 · 在线体验](https://bot.cloudentropy.ai/) · [English](README.en.md) · [下载 macOS 版](https://github.com/Ashersun1207/entropybot/releases/latest) · [版本记录](https://github.com/Ashersun1207/entropybot/releases) · [更新与迁移说明](docs/ENTROPYBOT_UPDATES.md)
 
-![Entropybot 桌面应用的浅色主题界面，使用合成演示数据](site/assets/app-light.webp)
+![Entropybot 桌面工作区，使用合成示例数据](site/assets/product-ui-light.webp)
 
 ## 从对话开始
 
@@ -23,17 +23,15 @@
 
 更新前退出应用并备份工作区与桌面配置；详细步骤见[更新与迁移说明](docs/ENTROPYBOT_UPDATES.md)。合成数据回归和局部测试不能替代真实安装、迁移与恢复验收。
 
-## 界面演示
+## 官网交互体验
 
-网站首页和独立演示位于 [`site/`](site/README.md)。演示提供聊天、记忆与设置界面，使用合成数据，不连接模型、后端或真实账号。
+打开 [bot.cloudentropy.ai](https://bot.cloudentropy.ai/)，即可在首页操作真实产品工作区：切换助手、输入文字、发送并收到流式示例回复。中文 / EN 覆盖页面、产品 UI 和示例，切换时保留会话与草稿。
 
-在仓库根目录运行：
+首屏对话自动循环，支持暂停和继续；四项功能展示工具使用、步骤复用、偏好纠正和助手协作。标题使用原生 SVG 角色，保持自然眨眼、视线变化与克制的眼睛比例。
 
-```sh
-python3 -m http.server 5187 --bind 127.0.0.1 --directory site
-```
+这些内容使用合成数据与预设回复，在访客标签页内隔离运行，不连接真实模型、账号或个人记忆。官网展示不代表相应桌面候选已发布。旧 `/demo/` 兼容路径保留。
 
-打开 <http://127.0.0.1:5187/>，或直接进入 <http://127.0.0.1:5187/demo/>。本地静态预览不处理 Google 授权；该入口需要部署环境提供后端。演示界面不代表对应版本已经发布。
+本地构建与预览见 [`site/README.md`](site/README.md)，持续设计约定见 [`site/EXPERIENCE.md`](site/EXPERIENCE.md)。
 
 ## 开发
 

@@ -11,7 +11,7 @@ import "../../src/styles.css";
 setAnalyticsEnabled(false);
 setEmailGateDone("skipped");
 setAdvancedMode(false);
-setLanguageChoice("zh-CN");
+setLanguageChoice(new URLSearchParams(location.search).get("lang") === "en" ? "en" : "zh-CN");
 await loadPageLanguage();
 markSimpleModePromptSeen();
 for (const notice of [...NOTICES, GROK_MOVE_NOTICE]) localStorage.setItem(notice, "1");

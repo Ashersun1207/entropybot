@@ -1,0 +1,33 @@
+import { siteEnglish } from "./site-locale";
+
+const translations: Record<string, string> = {
+  "资料助手": "Research assistant", "项目助手": "Project assistant", "个人助理": "Personal assistant", "助手协作": "Assistant collaboration",
+  "合成示例资料": "Synthetic sample documents",
+  "收到核对任务": "Comparison requested", "发现日期差异": "Date conflict found", "确认后继续": "Continue after confirmation", "返回清单与草稿": "Checklist and draft ready",
+  "第一次：说明方法": "First: explain the method", "留下可复用步骤": "Keep reusable steps", "第二次：复用方法": "Next: reuse the method", "返回新的整理结果": "Updated results ready",
+  "已有阅读偏好": "Existing reading preference", "收到新的纠正": "New correction received", "修订当前偏好": "Update the preference", "按新偏好整理": "Use the new preference",
+  "资料助手核对": "Research assistant checks", "交给项目助手": "Hand off to project assistant", "个人助理补充": "Personal assistant adds context", "汇总待确认项": "Summarize open questions",
+  "先保留待确认": "Keep the date unconfirmed", "按周五晚整理": "Use Friday evening",
+  "你的任务": "Your task", "核对两份读书会资料，列准备清单；邀请先留作草稿。": "Compare two book club documents and make a checklist. Keep the invitation as a draft.",
+  "核对活动说明与场地备注": "Compare event brief and venue notes", "活动说明：周五晚。场地备注：周六晚。需要确认日期。": "Event brief: Friday evening. Venue notes: Saturday evening. The date needs confirmation.",
+  "核对日期的示例确认": "Example date confirmation", "两份资料的日期不一致": "The documents disagree on the date", "日期保留为待确认": "The date remains unconfirmed", "以周五晚为准继续整理": "Continue with Friday evening",
+  "资料助手需要你确认": "Research assistant needs your confirmation", "资料助手 · 已收到你的选择": "Research assistant · Choice received", "活动说明写周五，场地备注写周六。以哪份为准？": "The event brief says Friday; the venue notes say Saturday. Which should I use?", "示例活动日期": "Sample event date",
+  "整理不依赖日期的准备项": "Prepare items that do not depend on the date", "按周五整理准备项": "Prepare for Friday", "整理书目、讨论问题与邀请草稿，不发送邀请。": "Prepare the book, discussion questions and invitation draft. Do not send it.",
+  "准备清单已整理，日期待确认": "Checklist ready, date pending", "准备清单已整理，按周五安排": "Checklist ready for Friday", "书目摘要、三个讨论问题、人数确认。邀请保留为草稿，等你决定。": "Book summary, three discussion questions and attendee confirmation. The invitation stays a draft for your review.",
+  "再次整理 · 新增场地备注": "Review again · New venue notes", "复用已确认的方法：对照、标差异、给摘要。": "Reuse the confirmed method: compare, highlight differences, summarize.", "发现人数从12人调整为16人，已列入新摘要。邀请仍保留为草稿。": "The attendee count changed from 12 to 16. The new summary includes it; the invitation remains a draft.",
+  "可复用步骤示例": "Reusable steps example", "第一次，把方法说清楚": "First, explain your method", "项目助手 · 跟着你的方法": "Project assistant · Following your method",
+  "1. 对照活动说明与场地备注\n2. 列出差异与待确认项\n3. 整理一页摘要，邀请留作草稿": "1. Compare the event brief and venue notes\n2. List differences and open questions\n3. Write a one-page summary; keep the invitation as a draft",
+  "三个步骤已整理，下次沿用": "Three steps saved for next time", "先对照，再列差异，最后给摘要。这是合成步骤记录。": "Compare, list differences, then summarize. This is a synthetic steps record.", "第二次任务": "Next task", "又补了一份场地备注，按刚才的方法再整理一次。": "Here are more venue notes. Review them using the same method.",
+  "原来的偏好": "Previous preference", "原偏好：先展开细节，再给结论。": "Previous preference: details first, then conclusions.", "纠正偏好的示例": "Preference correction example", "以后先给摘要，再展开细节": "From now on, summary first, then details", "你更新了阅读偏好": "You updated your reading preference",
+  "当前偏好 · 已修订": "Current preference · Updated", "先给摘要，需要时再展开细节。": "Summary first, details when needed.", "下一次回答，先看结论": "Next answer: conclusions first", "活动日期待确认；书目、讨论问题和人数可以先准备。需要时再展开依据。": "The date needs confirmation. Prepare the book, discussion questions and attendee list first. Expand the supporting details when needed.",
+  "共同目标": "Shared goal", "核对日期、安排准备工作，最后给我一页摘要。": "Check the date, plan the preparation and give me a one-page summary.",
+  "资料助手 → 项目助手：日期差异": "Research → Project: date conflict", "项目助手 → 个人助理：准备清单": "Project → Personal: preparation checklist", "个人助理 → 汇总：一页摘要": "Personal → Summary: one page", "查看下一步合成协作状态": "View the next synthetic collaboration step",
+  "一页摘要已汇总": "One-page summary ready", "资料助手找出日期差异，项目助手列好准备项；个人助理按新偏好汇总。日期仍等你确认。": "Research found the date conflict, Project prepared the checklist, and Personal summarized it using your new preference. The date still needs your confirmation.",
+  "在你的工具里，把事情做完。": "Get things done with your tools.", "按授权使用工具、核对资料。遇到需要你决定的地方，先停下来确认。": "Use authorized tools to check your documents. Pause for confirmation when a decision needs you.",
+  "示范一次，把步骤留给下次。": "Show it once. Keep the steps for next time.", "把操作方法整理成可复用步骤。启用步骤复用后，让重复工作沿着已确认的方法继续。": "Turn your method into reusable steps. With step reuse enabled, repeat tasks can follow the method you confirmed.",
+  "记住你的偏好，也接受纠正。": "Remember your preferences. Accept corrections.", "保留必要背景，按新的偏好调整下一次回答。记忆可以查看、修订与维护。": "Keep useful context and adapt the next answer to your latest preference. View, edit and maintain memories.",
+  "让助手之间，接着把事做下去。": "Let assistants pick up where others leave off.", "给不同助手明确分工，交接资料、补充背景，再把结果和待确认项汇总给你。": "Give each assistant a clear role. Hand off documents, add context, and bring results and open questions back to you.",
+  "用这个示例继续聊 ↑": "Continue with this example ↑", "合成状态演示": "Synthetic example", "重播": "Replay", "重播：": "Replay: ", "播放": "Play", "暂停": "Pause",
+  "原生产品组件 · 合成数据与预设状态，不连接账号或执行外部任务。": "Native product components · Synthetic data and preset states. No accounts connected or external tasks executed.",
+};
+export const featureText = (text: string): string => siteEnglish ? translations[text] ?? text : text;
