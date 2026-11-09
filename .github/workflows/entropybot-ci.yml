@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 20
     env:
       NODE_OPTIONS: --max-old-space-size=6144
-      OMB_VITEST_RETRY_DIRECTORY: ${{ runner.temp }}/retry-observations
+      OMB_VITEST_RETRY_DIRECTORY: /tmp/entropybot-retry-${{ github.run_id }}-${{ github.run_attempt }}
       OMB_VITEST_RETRY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4

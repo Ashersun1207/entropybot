@@ -98,7 +98,7 @@ describe("active Entropybot CI", () => {
       expect(id(check)?.env?.OMB_VITEST_RETRY_LOG).toBe("${{ env.OMB_VITEST_RETRY_DIRECTORY }}/" + check + ".jsonl");
       expect(id(check)?.env?.OMB_VITEST_RETRY_BATCH_ID).toBe(check);
     }
-    expect(workflow.jobs.check.env).toMatchObject({ OMB_VITEST_RETRY_DIRECTORY: "${{ runner.temp }}/retry-observations" });
+    expect(workflow.jobs.check.env).toMatchObject({ OMB_VITEST_RETRY_DIRECTORY: "/tmp/entropybot-retry-${{ github.run_id }}-${{ github.run_attempt }}" });
     expect(workflow.jobs.check.env?.OMB_VITEST_RETRY_RUN_ID).toBe("${{ github.run_id }}-${{ github.run_attempt }}");
   });
 
