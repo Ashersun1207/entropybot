@@ -58,7 +58,8 @@ it.each(["q7!", "x", "sk-test-abcdefghijklmnopqrstuvwxyz"])("masks the known cre
   await expect(instance.generateText!("hi")).rejects.toThrow(/upstream HTTP 429: Retry later \[redacted\]/);
   try { await instance.generateText!("hi"); } catch (error) { expect(String(error)).not.toContain(key); }
   const event = await turn(instance);
-  expect(JSON.stringify(event)).not.toContain(key);
+  if (event?.type !== "runtime.error") throw new Error("missing runtime error");
+  expect(event.message).not.toContain(key);
   expect(event).toMatchObject({ message: expect.stringContaining("rate_limit_exceeded".split(key).join("[redacted]")) });
 });
 

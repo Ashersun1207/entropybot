@@ -183,6 +183,7 @@
 - 根因一：completion/HTTP 构造安全 message 却在 RejectedToolCallError 留 raw refusal，后续 fallback 重读 message 并先截200字；认证 body 可绕回显未知 `sk-LEAK`，完整已知长 key 在195字后变为 `fixtu`，实际持久化。修复在共享构造入口保留脱敏后的 metadata，所有投影先遮蔽再截断/抽 tool 名；auth 不进入 tool-refusal 重试展示，普通 non-auth 保留3次与原完整、安全日志字段。full-key→截断泄漏不是“未知部分 key”限制。
 - 根因二：key=`a` 重写固定认证文案及 `[redacted]`，旧 retry 分类依赖文案，从1次请求变2次。修复用 error 上只含分类结果的 provenance，将原始状态/分类与呈现分开；固定 safe message 不再被后续完整 key scrub 改写。局部精确匹配转义、最长优先一次替换，保护完整本地及共享 redaction marker 的幂等性；不注册全局 secret，不改全局精度门槛。回归必须同时保留 `q7!` 与 `a` 的1次请求断言。
 - R1 首轮修复又引入两个真实回归（249通过/2失败）：丢失普通 refusal log metadata、抢先 auth 分支阻断既有 Responses missing-scope route fallback。保留原断言，恢复已脱敏字段与显式 route 优先级后251通过；扩展截断/code/metadata/cause/marker 用例两文件35通过，最终同21文件选择见R1交接，不累计重复用例。原证据 runner 漏 hash tracked server e2e，保留旧回执，private新runner覆盖server/scripts/依赖entry；重跑红例而非事后补hash追认。修复身份以本条所属提交为准，仍需独立复审。
+- 首次提交R1最终门槛499通过/1失败是独立夹具断言错误：旧单字符 `x` 用例检查整段 event JSON，随机生成 eventId 含 `x`，而 message 已正确遮蔽。改为必须得到真实 runtime.error 并只检查其用户可见 message，保留同一 `x` 输入及 code suffix 断言；不换无冲突字符、不改产品源码。生成元数据的偶然字符命中与真正上游值回显/重遮蔽行为须分别判断。
 
 ## 不应合并的改动
 

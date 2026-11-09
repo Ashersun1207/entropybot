@@ -134,6 +134,14 @@ metadata, cause and idempotence checks then yielded 35 passed in the two focused
 suites. Final committed-source receipts and counts are in the private R1 handoff;
 these overlapping focused runs must not be added to the final selection.
 
+The first committed R1 final run had 499 passed / 1 failed: the old one-character
+`x` test checked the entire event JSON, and a generated event ID happened to
+contain `x`. The diagnostic was correctly masked. The test now requires an
+actual runtime error and checks its message, retaining key `x` and the existing
+suffix assertion. No product source changed for this fixture correction; this
+is a metadata-coincidence assertion error, separate from the genuine remasking
+and fallback regressions above.
+
 ## Maintenance and limits
 
 The scope is the shared chat refusal helper, chat transport/runtime and Responses
