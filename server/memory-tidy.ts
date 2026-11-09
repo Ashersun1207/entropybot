@@ -21,6 +21,7 @@ export interface TidyPlan {
 function duplicatesOf(live: readonly MemoryEntryLine[]): MemoryEntryLine[] {
   const byKey = new Map<string, MemoryEntryLine[]>();
   for (const entry of live) {
+    if (entry.end > entry.line + 1) continue;
     const key = factIdentity(entry.body);
     if (!key) continue;
     byKey.set(key, [...(byKey.get(key) ?? []), entry]);
@@ -77,12 +78,18 @@ export function planChanges(plan: TidyPlan): number {
 
 export function applyTidy(text: string, plan: TidyPlan, today: string): { text: string; archived: string[] } {
   const lines = text.split("\n");
-  const drop = new Set<number>([...plan.expired, ...plan.duplicates].map((e) => e.line));
+  const drop = new Set<number>();
+  for (const entry of [...plan.expired, ...plan.duplicates]) {
+    for (let line = entry.line; line < entry.end; line += 1) drop.add(line);
+  }
   for (const { loser, remainder } of plan.superseded) {
     const struck = `${loser.prefix}~~${loser.body}~~ · superseded ${today}`;
     lines[loser.line] = remainder ? `${struck}\n- ${today} · from tidy-up · ${remainder}` : struck;
   }
-  const archived = plan.expired.map((e) => `${e.raw} · expired ${today}`);
+  const archived = plan.expired.map((entry) => [
+    `${entry.raw} · expired ${today}`,
+    ...lines.slice(entry.line + 1, entry.end),
+  ].join("\n"));
   return { text: lines.filter((_, index) => !drop.has(index)).join("\n"), archived };
 }
 

@@ -182,3 +182,9 @@
 
 - 触发：带 `until` 的主题条目含缩进续文/闭合代码围栏。`withoutExpired` 只删 `entry.line`，续文失去首行身份后仍进入 SQLite 索引、召回和 embedding 请求；prompt/capture 已正确并不证明检索路径正确。修复按既有 `[line, end)` 整段过滤，`hidden` 仍按条目计数，不改原始 Markdown、解析语法或历史/日志/备份。修复提交见 M1b 交付 SHA；回归入口 `server/memory-entries.test.ts`、`server/memory-expiry-retrieval.test.ts`，先保留 4 个断言失败的红例，再验证实际索引、file search、`buildRecall(threadIds: [])` 与无 FTS 命中的主题别名、假 embedding 输入、无文件编辑的跨日重投影及 await 后 stale hash 拒绝。真实模型质量、provider 副本删除、跨聊天遗忘和物理擦除未验证。
 - 本轮验证再次触发 L17：证据 runner 显式使用深层 `TMPDIR`，fake-engine workflow 在 memory 验证前因 permission socket `listen EINVAL` 失败。保留原 suite/server 日志，移除 runner 的 TMPDIR 覆写后仅重跑受影响 workflow；不修改产品、不降低断言。此环境失误与本轮产品修复分别记录，详见 `docs/verification/memory-expiry-retrieval.md`。
+
+## M1：tidy 必须归档和删除完整条目
+
+- 触发：过期条目带缩进续文和闭合代码围栏。`applyTidy` 只删 `entry.line`、只归档 `entry.raw`，续文失去过期首行后进入实际 prompt、SQLite 索引与 file search；旧投影过滤正确也挡不住身份已被 tidy 删除的孤立内容。修复使用解析器 `[line, end)` 整段删除并完整归档，来源、until、续文与围栏保留，过期标记仍在首行。修复身份以本条所属提交为准，证据见 [验证说明](../verification/memory-tidy-spans.md)。
+- 仅凭首行 `factIdentity(entry.body)` 不能判定多行重复：同标题不同续文会被合并。此修复保守保留所有多行条目（完全相同者也保留），单行归一化、日期优先和正负数区分保持原样。回归 `server/memory-tidy.test.ts` 覆盖真实 plan/apply 后的投影以及 core/topic 的生产 upkeep 持久归档与第二次 no-op；修正夹具后的基线为 7 失败/1 通过，修复后定向 8 项通过，相关套件计数见交接，不能叠加重复用例。
+- 首轮夹具误把 `readMemoryTopic` 的 string 当 `{text}`，且误以为 parser 支持 CRLF 日期首行；保留原失败并在修改产品前修正。CRLF 控制仅证明未识别文本不被修改；单 token recall 基线本已因准入返回 null，不冒充 recall 泄漏红例。archive 仍按既有政策可检索，不称彻底遗忘。多行 contradiction/remainder 的续文归属是另一个范围，本轮未改；真实数据、模型、Keychain、安装与跨平台未验证。
