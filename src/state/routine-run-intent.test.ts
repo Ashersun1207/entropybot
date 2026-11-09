@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoutineRunIntents, MANUAL_RUN_STORAGE } from "./routine-run-intent";
 import { decodeManualRoutineScope, readSessionState } from "../lib/session";
+import { testManualRunLocks } from "../testing/manual-run-locks";
 
 const contextId = `mr1_${"a".repeat(64)}`;
 const environment = { environmentId: "11111111-1111-4111-8111-111111111111", capabilities: { manualRoutineRequests: 1 } };
@@ -38,12 +39,74 @@ function failConfirmedReadback() {
   return { storage, failures: () => failures };
 }
 beforeEach(() => {
+  vi.spyOn(navigator, "locks", "get").mockReturnValue(testManualRunLocks());
   localStorage.clear(); posts = []; auth = structuredClone(session); env = structuredClone(environment);
   answer = async () => json({ run }); vi.stubGlobal("fetch", request); request.mockClear();
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); });
 
 describe("protected manual intent", () => {
+  it("allows overlapping owners to dispatch the same reserved key while responses are pending", async () => {
+    const releases: (() => void)[] = [];
+    answer = () => new Promise<Response>((resolve) => releases.push(() => resolve(json({ run }))));
+    const first = createRoutineRunIntents().run("routine", settings);
+    const second = createRoutineRunIntents().run("routine", settings);
+    await vi.waitFor(() => expect(posts).toHaveLength(2));
+    expect(key(0)).toBe(key(1)); releases.forEach((release) => release());
+    await expect(Promise.all([first, second])).resolves.toEqual([run, run]);
+  });
+  it.each([0, 31])("preserves all pending markers with %i prior rows and different routines", async (prior) => {
+    const entries = Array.from({ length: prior }, (_, i) => ({ environmentId: environment.environmentId, contextId, routineId: `prior-${i}`, key: crypto.randomUUID(), phase: "pending" }));
+    localStorage.setItem(MANUAL_RUN_STORAGE, JSON.stringify({ version: 1, entries }));
+    const originalFetch = fetch; const releases: (() => void)[] = [];
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (path, init) => {
+      if (String(path).endsWith("/run-protected")) {
+        posts.push(init!); const routineId = String(path).split("/")[3];
+        return new Promise<Response>((resolve) => releases.push(() => resolve(json({ run: { ...run, routineId } }))));
+      }
+      return originalFetch(path, init);
+    }));
+    const first = createRoutineRunIntents().run("routine", settings);
+    const second = createRoutineRunIntents().run("other", settings);
+    const results = Promise.allSettled([first, second]);
+    await vi.waitFor(() => expect(posts).toHaveLength(prior ? 1 : 2));
+    const ledger = JSON.parse(localStorage.getItem(MANUAL_RUN_STORAGE)!);
+    expect(ledger.entries.slice(0, prior)).toEqual(entries);
+    expect(ledger.entries).toHaveLength(prior ? 32 : 2);
+    releases.forEach((release) => release()); const settled = await results;
+    expect(settled.filter((result) => result.status === "fulfilled")).toHaveLength(prior ? 1 : 2);
+    expect(JSON.parse(localStorage.getItem(MANUAL_RUN_STORAGE)!).entries).toHaveLength(prior ? 32 : 2);
+  });
+  it("retains the reserved identity when confirmation cannot acquire coordination", async () => {
+    const owner = createRoutineRunIntents();
+    answer = async () => {
+      vi.spyOn(navigator, "locks", "get").mockReturnValue({ request: () => Promise.reject(Error("denied")) } as unknown as LockManager);
+      return json({ run });
+    };
+    await expect(owner.run("routine", settings)).rejects.toMatchObject({ reason: "unknown" });
+    expect(JSON.parse(localStorage.getItem(MANUAL_RUN_STORAGE)!).entries[0].phase).toBe("pending");
+    vi.spyOn(navigator, "locks", "get").mockReturnValue(testManualRunLocks()); answer = async () => json({ run });
+    await expect(owner.run("routine", settings, false)).resolves.toEqual(run); expect(key(1)).toBe(key(0));
+  });
+  it("refuses explicit Retry without an original marker", async () => {
+    await expect(createRoutineRunIntents().run("routine", settings, false)).rejects.toMatchObject({ reason: "blocked" });
+    expect(posts).toHaveLength(0); expect(localStorage.getItem(MANUAL_RUN_STORAGE)).toBeNull();
+  });
+  it("refuses a fresh owner's Retry when its captured marker changes during settings", async () => {
+    await createRoutineRunIntents().run("routine", settings);
+    const owner = createRoutineRunIntents();
+    await expect(owner.run("routine", async () => {
+      const ledger = JSON.parse(localStorage.getItem(MANUAL_RUN_STORAGE)!);
+      ledger.entries[0].key = crypto.randomUUID();
+      localStorage.setItem(MANUAL_RUN_STORAGE, JSON.stringify(ledger));
+    }, false)).rejects.toMatchObject({ reason: "blocked" });
+    expect(posts).toHaveLength(1);
+  });
+  it("refuses missing native coordination before writing or POST", async () => {
+    vi.spyOn(navigator, "locks", "get").mockReturnValue(null as unknown as LockManager);
+    await expect(createRoutineRunIntents().run("routine", settings)).rejects.toMatchObject({ reason: "coordination" });
+    expect(posts).toHaveLength(0); expect(localStorage.getItem(MANUAL_RUN_STORAGE)).toBeNull();
+  });
   it("coalesces concurrent subscribers even when one preflight completes after the response", async () => {
     const owner = createRoutineRunIntents(); const first = owner.run("routine", settings);
     let release!: (response: Response) => void;

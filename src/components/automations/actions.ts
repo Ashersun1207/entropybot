@@ -27,7 +27,7 @@ export function useManualRoutineRun(routineId: string | undefined, options: {
     options.onStarting();
     dispatch({ type: "runRoutine", routineId, acknowledgePriorRun: acknowledgePriorRun ? true : manualUncertain ? false : undefined,
       onStarted: (run) => { setManualUncertain(false); options.onStarted(run); },
-      onError: (error) => { setManualUncertain(hasStoredManualRunIntent(routineId) || error instanceof ManualRunError && error.reason !== "blocked"); options.onError(error); },
+      onError: (error) => { setManualUncertain(hasStoredManualRunIntent(routineId) || error instanceof ManualRunError && (error.reason === "unknown" || error.reason === "changed")); options.onError(error); },
       onSettled: () => { pending.current = false; setStarting(false); options.onSettled(); },
     });
   };

@@ -20,6 +20,7 @@
   "collection.inertHelp": "O conteúdo coletado aparece como texto simples. Links e instruções ficam inativos.",
   "collection.source": "Fonte {number}",
   "collection.previewBound": "A prévia mostra apenas os primeiros 20.000 caracteres desta fonte.",
+  "routines.manual.coordination": "Este navegador não conseguiu coordenar as execuções da tarefa com segurança. Use o app para computador ou um navegador compatível com HTTPS e tente novamente. As solicitações anteriores foram mantidas.",
   "routines.manual.blocked": "Não foi possível confirmar se o app pode iniciar esta tarefa com segurança. Verifique o armazenamento do navegador e seu login e tente novamente. As solicitações pendentes foram mantidas.",
   "routines.manual.unknown": "A solicitação anterior pode já ter sido executada. Tente novamente para verificar a mesma solicitação ou consulte as execuções antes de iniciar outra.",
   "routines.manual.changed": "Esta tarefa ou seu login mudou. A solicitação anterior foi mantida. Volte para onde você a fez para tentar novamente ou consulte as execuções antes de iniciar outra.",

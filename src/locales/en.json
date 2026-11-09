@@ -20,6 +20,7 @@
   "collection.inertHelp": "Collected text is shown as plain text. Links and instructions are inactive.",
   "collection.source": "Source {number}",
   "collection.previewBound": "Preview limited to the first 20,000 characters of this source.",
+  "routines.manual.coordination": "This browser could not safely coordinate task runs. Use the desktop app or a supported browser over HTTPS, then try again. Previous requests have been kept.",
   "routines.manual.blocked": "The app could not confirm that it can safely start this task. Check browser storage and your sign-in, then try again. Pending requests have been kept.",
   "routines.manual.unknown": "The previous request may already have run. Retry to check the same request, or review the runs before starting another.",
   "routines.manual.changed": "This task or your sign-in changed. The previous request has been kept. Return to where you made it to retry, or review the runs before starting another.",

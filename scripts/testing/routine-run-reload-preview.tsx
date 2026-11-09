@@ -9,7 +9,8 @@ const [bots, routines] = await Promise.all([
 ]);
 initialState.bots = bots.bots;
 initialState.routines = routines.routines;
-const routine = routines.routines[0];
+const selected = new URL(location.href).searchParams.get("routine");
+const routine = routines.routines.find((candidate: { id: string }) => candidate.id === selected) ?? routines.routines[0];
 createRoot(document.getElementById("root")!).render(
   <StoreProvider>
     <EventDetails item={{ kind: "routine", id: "synthetic", at: Date.now(), durationMinutes: 30, routine, run: null }}

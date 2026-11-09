@@ -6,6 +6,7 @@ import { StoreProvider, useStore, initialState, type Action, type Bot } from "./
 import { EventDetails } from "../components/RoutineCalendarPage";
 import type { Routine } from "../lib/routines";
 import { MANUAL_RUN_STORAGE } from "./routine-run-intent";
+import { testManualRunLocks } from "../testing/manual-run-locks";
 
 vi.mock("@/lib/live-events", async (original) => ({ ...await original<typeof import("@/lib/live-events")>(), openLiveEvents: () => () => {} }));
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
@@ -35,6 +36,7 @@ function click(label: string) {
   expect(button, host.textContent ?? "").toBeTruthy(); act(() => button!.click());
 }
 beforeEach(() => {
+  vi.spyOn(navigator, "locks", "get").mockReturnValue(testManualRunLocks());
   vi.useFakeTimers(); vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); localStorage.clear();
   initialState.bots = [bot]; initialState.routines = [routine]; posts = []; currentContext = contextId;
   answer = async () => json({ run }); profile = Promise.resolve(json({ bot }));
@@ -86,6 +88,41 @@ const preflightCases = (["initial", "post-settings"] as const).flatMap((phase) =
   (["environment", "session"] as const).flatMap((endpoint) => [false, true].map((priorPending) => [phase, endpoint, priorPending] as const)));
 
 describe("actual StoreProvider and routine details consumer", () => {
+  it.each(["null", "getter", "method", "rejection"])("shows explicit %s coordination feedback without dispatching", async (failure) => {
+    const getter = vi.spyOn(navigator, "locks", "get");
+    if (failure === "getter") getter.mockImplementation(() => { throw Error("denied"); });
+    else getter.mockReturnValue((failure === "null" ? null : { request: () => {
+      if (failure === "method") throw Error("denied");
+      return Promise.reject(Error("denied"));
+    } }) as unknown as LockManager);
+    mount(true); click("Run now"); await flush();
+    expect(host.textContent).toContain("This browser could not safely coordinate task runs.");
+    expect(host.textContent).toContain("HTTPS"); expect(posts).toHaveLength(0);
+    expect(host.textContent).toContain("Run now"); expect(host.textContent).not.toContain("Start another run…");
+    expect(localStorage.getItem(MANUAL_RUN_STORAGE)).toBeNull();
+  });
+  it("settles all subscribers at the lock deadline, permits cancellation, and cannot dispatch a late grant", async () => {
+    let grant!: LockGrantedCallback<unknown>;
+    vi.spyOn(navigator, "locks", "get").mockReturnValue({ request: (_name: string, _options: LockOptions, callback: LockGrantedCallback<unknown>) => {
+      grant = callback; return new Promise(() => {});
+    } } as unknown as LockManager);
+    const original = fetch; const cancelled = vi.fn();
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>((path, init) => {
+      if (path === `/api/routine-runs/${run.id}/cancel`) { cancelled(); return Promise.resolve(json({})); }
+      return original(path, init);
+    }));
+    mount(); const subscribers = [0, 1].map(() => ({ onError: vi.fn(), onSettled: vi.fn() }));
+    act(() => subscribers.forEach((subscriber) => dispatch({ type: "runRoutine", routineId: routine.id, ...subscriber })));
+    await flush(); expect(grant).toBeTypeOf("function");
+    act(() => dispatch({ type: "cancelRoutineRun", runId: run.id })); await flush();
+    expect(cancelled).toHaveBeenCalledOnce(); expect(posts).toHaveLength(0);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); }); await flush();
+    for (const subscriber of subscribers) {
+      expect(subscriber.onError).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ reason: "coordination" }));
+      expect(subscriber.onSettled).toHaveBeenCalledOnce();
+    }
+    expect(() => grant({} as Lock)).toThrow(); await flush(); expect(posts).toHaveLength(0);
+  });
   it.each(preflightCases)("settles subscribers after a stalled %s %s preflight (prior pending: %s)", async (phase, endpoint, priorPending) => {
     mount();
     if (priorPending) {

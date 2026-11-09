@@ -100,6 +100,12 @@
 - 触发：confirmed setItem 成功而紧随的 getItem 抛错。旧 provider 的 uncertain map 保留原 key，但 reload/更换 provider 丢失该 map；原有同 provider 重试通过并不能证明 reload 安全。基线 `a92388449` 的新增红例实际发出两个不同 key，真实 Chrome 夹具在故障、原服务器同 dataDir 重启及 Page.reload 后缺少 Retry。修复身份见本条所属提交：新 owner 对任何既有 marker 先以原 key/context 对账，confirmed phase 不单独授权旋转或驱逐；本 owner 的成功回执有界保存，显式 Retry 即使在同 provider 重开详情后也强制复用原操作，提前替换仍须原确认。回归入口 `src/state/routine-run-intent.test.ts`、`src/state/routine-run-intent.integration.test.ts`、`scripts/testing/routine-run-reload-ui.e2e.test.ts`；含实际 browser reload、同目录 server restart、真实合成认证 context 变更前置拒绝、unmount 后迟到响应和替换身份 fence、32 条容量保留/可确认驱逐。边界：reload 后即使先前成功也保守要求再对账；32 条未对账会阻止新 routine；无多 tab 仲裁、真实账号/模型/Keychain 或安装包验收。证据与测试入口见 [验证说明](../verification/routine-run-reload-recovery.md)。
 - 本轮测试入口失败分别保留：默认 server setup 在 happy-dom 引入 node:sqlite、Vitest it.each 脱离 receiver、外部配置 .ts 被按 CJS 载入、EventDetails 实为 aside 而不是 dialog。另一个 browser 探针在 Page.reload 返回后读到旧文档控件；修正为先观察新文档标记消失与 readyState，再断言 Retry。fixture-only 类型配置首版还漏带既有 app/Vite 声明与 DOM.AsyncIterable，补齐外部检查配置后通过，没有改产品类型或 strict。只有修正后的真实断言红例才算产品复现，setup 失败、provider remount 与旧文档 DOM 都不能替代 browser reload 证据。
 
+## A1：多标签页手动运行协调
+
+- 触发：真实同源双页同时 Run now，单 provider maps 和 await 后重读不能提供跨进程原子性。修复前真实回归分别得到同 routine 两个 key/两个服务端 run、不同 routine 丢一个 marker、31 条 pending 加两个新任务实际派发两次但仅留一个新 marker；readback 相等也不是 localStorage CAS。修复以本条所属提交为准：一个 native Web Lock 保护全 ledger 的同步选身份/容量/保存/读回/map 更新，响应身份核对与 confirmed 保存也在同一短事务；settings/metadata/HTTP 不持锁，重叠同 key 请求由原服务回执归并。
+- 显式 Retry 要在动作开始捕获原 key/context，等待期间缺失或替换就拒绝，不因驱逐或另一页写入生成新 key。锁获取独立五秒截止、abort 与回调入口单调时间/已结束 fence；缺/null/抛错/拒绝的 native API 明确提示并零写入/零 POST，无锁降级。新错误 reason 不能沿用“非 blocked 就未知”的旧 UI 判断：首轮 browser 9 通过/1 失败实际看到无 marker 的锁超时显示 Retry；修复仅 unknown/changed 或真实存储 marker 进入恢复态。类型首轮仅测试 LockGrantedCallback 缺泛型参数，补 unknown，不放松 strict。
+- 回归入口：`src/state/manual-run-coordination.test.ts`、两份 routine-run-intent unit/provider suite、`scripts/testing/routine-run-multitab-ui.e2e.test.ts`，并保留原三项真实 reload/server restart 兼容回归。happy-dom 的 locks 是 null，测试显式注入共享 fake，但不把 fake 当多进程证明；真实 Chrome 仍用原生锁、原组件/Store/settings/preflight 与隔离服务。证据、失败及限制见 [跨页验证](../verification/routine-run-multitab.md)。不同 origin/端口/别名/profile/旧客户端、真实安装主进程与公开 TLS 不在保证内；无 native Web Locks 的普通 HTTP 页面拒绝受保护运行，查看/编辑/取消继续可用。无依赖/server/schema/安装/发布变更；pt-BR 人审仍待完成。
+
 ## A1：生产采集派发与报告确认
 
 - `report.state: pending` 只表示报告排队，不能让采集 host 的发布回调成功。生产接线必须保留每个 run 的版本化计划和原 HTTP request receipt；重启只恢复同一手动身份，未知读取 reservation 不重发，不能读取后来修改的 routine 计划。报告使用现有 Store/commands SQLite 的稳定消息命令，在目标聊天实际消息存在后才确认；繁忙时保持未确认，取消后不得靠后续 flush 发布旧摘要。

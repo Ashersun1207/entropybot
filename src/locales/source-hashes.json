@@ -31074,7 +31074,8 @@
       "collection.source": "d593ff5d9bc95ebc35eea422af9761817c1395841e88cec74720e4046fe6c3c0",
       "collection.previewBound": "feb0c829d4929b12447f9dab75c1fc40bd25a8a6d82004d7fdb2ceb153e562d5",
       "routines.manual.blocked": "6430e5d2e4b9fee4f548b1c1a2c8a6dcb5a91378b9a5ba1a4eb25362a942d23d",
-      "routines.manual.changed": "2ac73bd75d66ad7c3c570515e52703e6a3d9da09b2695d6360212523bc18173b"
+      "routines.manual.changed": "2ac73bd75d66ad7c3c570515e52703e6a3d9da09b2695d6360212523bc18173b",
+      "routines.manual.coordination": "f4b49cce2a579514d2d44891d92e85c55fce23d6578d6aae37111e862e304336"
     },
     "zh": {
       "highlevel.unavailable": "87b8ac7f7610e6dd69f520bc59058fd92f307b9f4bcf804075f25d08bcaa7533",
@@ -38552,7 +38553,8 @@
       "collection.previewBound": "feb0c829d4929b12447f9dab75c1fc40bd25a8a6d82004d7fdb2ceb153e562d5",
       "routines.manual.blocked": "6430e5d2e4b9fee4f548b1c1a2c8a6dcb5a91378b9a5ba1a4eb25362a942d23d",
       "routines.manual.changed": "2ac73bd75d66ad7c3c570515e52703e6a3d9da09b2695d6360212523bc18173b",
-      "native.startup.opening": "c259b83fa93ed914d87d597418e9f664c96f482a460ffb36345c84d46e90dc58"
+      "native.startup.opening": "c259b83fa93ed914d87d597418e9f664c96f482a460ffb36345c84d46e90dc58",
+      "routines.manual.coordination": "f4b49cce2a579514d2d44891d92e85c55fce23d6578d6aae37111e862e304336"
     },
     "zh-tw": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
