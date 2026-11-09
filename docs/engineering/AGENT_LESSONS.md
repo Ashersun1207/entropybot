@@ -170,6 +170,12 @@
 - R1 独立复审退回 `568b71e83` 两处 provenance 漏洞，旧 631 通过不代表已覆盖：start 从真实 pending 文件恢复 turn 时直接入 buffer，flush 才取 revision，能把同进程更正前的旧 turn 重新盖成新工作；null person fence 又恒真，将 unresolved 与明确 room/team 混为一类。修改产品前复现 3 失败/71 通过（八个失败断言），保留红例源码/patch/回执。修复是在恢复加载时采样并保留 restored 标记，不在 flush 重采样；无中途更正仍可按既有策略运行，但报告标明先前进程 provenance unverified。有更正或 scope 不可信时零写入并在 lastCapture 报 deferral。不能将 prior-process 未验证当作 same-process 恢复后更正也无需保护。
 - R1 内部 scope 区分 person(key)/no-person/unresolved，来源只用既有服务端 layer/audience；unknown 样本立即无效，后续解析为 Ada 也不能转正。检查 fence 时复核 person key，明确无个人目标的 room 笔记仍可运行且不受 Ada 更正影响；不能用 null 恒真或全局暂停掩盖范围混淆。首版 74/74，补全恢复/排队/缓冲/await/dream/真实 room 控制后定向 83/83；原 selector/partial-save 断言保留。新的 NEW-source 重学、先前进程修订历史、持久语义纠正仍未覆盖，原 P1 OPEN，修复候选须重新独立复审。
 
+## P2：provider 错误在共享边界脱敏
+
+- 原体验夹具配置 `fixture-only`、401 文案却回显未知短值 `sk-LEAK`；不能把它误诊为已知 key 的 turn-final scrub 失效。合成生产 driver 红例 13 失败/36 通过，真实隔离 server 的持久 activity 红例确认：已知 `q7!` 已脱敏，未知短值仍出现；helper 的已知 key 则确实未被既有 turn scrub 覆盖。修复身份以本条所属提交为准，详细证据/限制见 [验证说明](../verification/provider-error-redaction.md)。
+- 在共享 HTTP/JSON/SSE 错误入口使用 owner-local 精确值遮蔽（无长度/前缀门槛），401/403 及识别的 auth/permission 错误改固定文案，保留状态；不要降低普通文本全局 regex 的精度或注册无 owner 生命周期的全局 secret。先遮蔽再截断，保留安全 machine-code suffix；原始 body 仍供分类。Responses 两类失败事件、chat completion errors、helper 与实际持久化/restart 必须一并覆盖，不能只验 helper。未知、编码或部分回显不承诺通用识别。
+- 首轮修复五项失败：DOMException 的 message 是只读 getter，不能无条件赋值；组合后统一截断吞掉 machine code；旧 auth 文案断言需明确更新契约而保留 key-rejected/取消检查。修改后 focused 50 项通过；后续相关组合另发现一处旧401文案断言，保留334通过/1失败记录再更新。最初测试还把非流 helper 当 SSE 消费者，产品修改前已纠正并保留两次红例。HTTP200 的 JSON.parse 源码预览可能只回显长 key 的前缀，因此 malformed JSON 必须固定错误而非事后匹配完整 key。最终门槛见交接，不把中间通过冒充最终验收。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

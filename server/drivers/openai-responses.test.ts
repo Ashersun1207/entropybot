@@ -152,6 +152,20 @@ async function fixture(script: Script, apiUrl = OPENAI) {
   };
 }
 
+it.each(["error", "response.failed"])("redacts Responses %s authentication diagnostics through the real driver", async type => {
+  const error = { code: "invalid_api_key", message: `invalid api key sk-LEAK and ${KEY}` };
+  const f = await fixture((call, response) => {
+    if (call.path.endsWith("/chat/completions")) reject(response, 400, refusalOf(MODEL));
+    else events(response, [type === "error" ? { type, ...error } : { type, response: { status: "failed", error } }]);
+  });
+  const result = await f.turn();
+  expect(result.end).toMatchObject({ ok: false });
+  expect(f.paths()).toEqual(["/v1/chat/completions", "/v1/responses"]);
+  expect(failureOf(result.events)).toContain("Authentication or permission denied");
+  expect(JSON.stringify(result.events)).not.toContain("sk-LEAK");
+  expect(JSON.stringify(result.events)).not.toContain(KEY);
+});
+
 const failureOf = (events: Array<{ type: string; message?: string }>) => events.find((event) => event.type === "runtime.error")?.message ?? "";
 const textOf = (events: Array<Record<string, any>>, kind: string) => events.filter((event) => event.type === "content.delta" && event.streamKind === kind).map((event) => event.delta).join("");
 
@@ -460,7 +474,7 @@ describe("what Responses can answer", () => {
     const { end, events: seen } = await f.turn();
     expect(end).toMatchObject({ ok: false });
     expect(f.paths()).toEqual(["/v1/chat/completions", "/v1/responses"]);
-    expect(failureOf(seen)).toContain("Incorrect API key");
+    expect(failureOf(seen)).toContain("HTTP 401: Authentication or permission denied. Check the provider credentials and access.");
     expect(keyRejected(OPENAI, KEY)).toBe(true);
     expect(await f.instance.snapshot()).toMatchObject({ authenticated: false });
   });

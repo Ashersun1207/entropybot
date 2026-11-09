@@ -901,9 +901,9 @@ describe("createOpenAIChatRuntime HTTP error text", () => {
     expect(events.find((event) => event.type === "runtime.error")).toMatchObject({ message: "upstream HTTP 402: Insufficient credits (trial_credit_used_up)" });
   });
 
-  it("reads an OpenAI-style error envelope's message", async () => {
+  it("uses fixed authentication content for an OpenAI-style error envelope", async () => {
     const { message } = await failure(401, JSON.stringify({ error: { message: "Incorrect API key provided", code: "invalid_api_key" } }));
-    expect(message).toBe("xAI HTTP 401: Incorrect API key provided (invalid_api_key)");
+    expect(message).toBe("xAI HTTP 401: Authentication or permission denied. Check the provider credentials and access.");
   });
 
   it("keeps a body that is not a JSON error envelope as it was sent", async () => {

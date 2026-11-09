@@ -13,7 +13,6 @@ import type {
 import { newEventId, newId } from "../contracts.ts";
 import { ASK_USER_TOOL, ASK_USER_TOOL_DEFINITION, askQuestionSummary, parseAskQuestions, questionChoices } from "../../shared/ask-question.ts";
 import { allowsTool, parseToolScope } from "../../shared/tool-scope.ts";
-import { redactSecretsInText } from "../redact.ts";
 import { toolDetailPreview } from "../tool-summary.ts";
 import { ChatToolSessionError, chatToolNotices, mountChatTools, type ChatToolDefinition, type ChatToolSession, type ChatToolResult } from "./chat-mcp-tools.ts";
 import { noteToolBudget } from "../tool-budgets.ts";
@@ -21,7 +20,7 @@ import { assertImageTransport, chatImageBudget, chatToolImages, chatUserContent,
 import { promptHalves, volatileContextNote, withContextNote } from "./prompt-split.ts";
 import { createChatToolApproval, refusal } from "./chat-tool-approval.ts";
 import { ChatProtocolError, ChatReasoningDetails, ChatToolCalls, object, type ChatToolCall } from "./openai-chat-protocol.ts";
-import { completionError, httpErrorDetail, refusedToolCall, refusedToolCallFailure, rejectsReasoningReplay, rejectsToolsParameter, RejectedToolCallError, UnsupportedChatToolsError, UnsupportedReasoningReplayError, type ProviderBody } from "./openai-chat-refusals.ts";
+import { completionError, redactProviderDiagnostic, redactProviderException, safeHttpErrorDetail, refusedToolCall, refusedToolCallFailure, rejectsReasoningReplay, rejectsToolsParameter, RejectedToolCallError, UnsupportedChatToolsError, UnsupportedReasoningReplayError, type ProviderBody } from "./openai-chat-refusals.ts";
 import { ChatRepeatGuard } from "./chat-repeat-guard.ts";
 import { TextCallHoldback, textToolCalls } from "./chat-text-tool-calls.ts";
 import { createModelRoutes, ModelRouteRefused, noRouteLeft, readResponsesStream, responsesRequest, routeRefusal, type ModelRoute, type ResponseItem } from "./openai-responses.ts";
@@ -272,7 +271,8 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         signal: activeSignal,
       });
       const failure = (status: number, body: string): Error => {
-        const message = `${options.httpErrorLabel} HTTP ${status}${body ? `: ${httpErrorDetail(body)}` : ""}`;
+        const detail = safeHttpErrorDetail(body, status, options.apiKey);
+        const message = `${options.httpErrorLabel} HTTP ${status}${detail ? `: ${detail}` : ""}`;
         const refused = tools.length ? routeRefusal(route, status, body) : null;
         if (refused) return new ModelRouteRefused(refused, message);
         if (rejectsKey(status, body)) noteKeyRejected(options.apiUrl, options.apiKey);
@@ -294,7 +294,10 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
       }
 
       if (!stream || response.headers.get("content-type")?.includes("application/json")) {
-        const json = await response.json() as CompletionJson;
+        const json = await response.json().catch((error: unknown) => {
+          if (error instanceof SyntaxError) throw new ChatProtocolError("provider returned invalid completion JSON");
+          throw error;
+        }) as CompletionJson;
         const tokenUsage = completionUsage(json);
         if (onUsage) {
           activeSignal.throwIfAborted();
@@ -307,7 +310,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
             costUsd: count(tokenUsage?.cost),
           });
         }
-        const bodyError = completionError(json, "completion error");
+        const bodyError = completionError(json, "completion error", options.apiKey);
         if (bodyError) throw bodyError;
         const message = json.choices?.[0]?.message;
         if (!message || !object(message) || !["content", "reasoning_content", "reasoning", "reasoning_details", "tool_calls", "function_call"].some((key) => key in message)) {
@@ -361,7 +364,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           if (!atEof) malformedFrame = true;
           return false;
         }
-        const chunkError = completionError(chunk, "streaming completion error");
+        const chunkError = completionError(chunk, "streaming completion error", options.apiKey);
         if (chunkError) throw chunkError;
         const choice = chunk.choices?.find((row) => row.index === undefined || row.index === 0);
         const delta = choice?.delta;
@@ -401,7 +404,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
             if (!sawChoice) {
               let body: CompletionJson | undefined;
               try { body = JSON.parse(buffer) as CompletionJson; } catch { body = undefined; }
-              const bodyError = body ? completionError(body, "completion error") : null;
+              const bodyError = body ? completionError(body, "completion error", options.apiKey) : null;
               if (bodyError) throw bodyError;
               // A gateway that ignores stream:true and answers with one JSON object, often under the wrong
               // content type: read it as the whole completion instead of losing the answer.
@@ -457,7 +460,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
       return { text, reasoning, usage, toolCalls: calls.finish(finishReason, malformedFrame), finishReason, protocolReasoning, protocolReasoningDetails: details.blocks };
     } catch (error) {
       if (timeoutController.signal.reason instanceof RuntimeNoticeError) throw timeoutController.signal.reason;
-      throw error;
+      throw redactProviderException(error, options.apiKey);
     } finally {
       if (idleTimer) clearTimeout(idleTimer);
       if (liveness) clearInterval(liveness);
@@ -544,11 +547,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         }
       }
     }
-    const safeText = (text: string) => {
-      let safe = text;
-      for (const secret of secrets) if (secret) safe = safe.split(secret).join("[redacted]");
-      return redactSecretsInText(safe);
-    };
+    const safeText = (text: string) => redactProviderDiagnostic(text, secrets);
     const preview = (value: unknown) => toolDetailPreview(JSON.parse(JSON.stringify(value, (_key, part) =>
       typeof part === "string" ? safeText(part) : part)));
     const native = (dir: "out" | "in", msg: unknown) => appendNative(turn.threadId, {
@@ -983,6 +982,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
       },
     },
     generateText: async (prompt, { signal, onUsage, model: named } = {}) => {
+      if (!options.apiKey) throw new Error(options.missingKeyError);
       const model = named ?? options.generateModel?.() ?? options.models().default;
       const { text, reasoning, toolCalls } = await complete([{ role: "user", content: prompt }], model, false, signal, undefined, [], onUsage);
       if (toolCalls.length) throw new ChatProtocolError("provider returned tool calls to a text-only helper");

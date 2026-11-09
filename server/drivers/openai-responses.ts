@@ -128,7 +128,10 @@ export function responsesRequest(input: {
   };
 }
 
-const FAILURE_STATUS: Record<string, number> = { rate_limit_exceeded: 429, server_error: 500 };
+const FAILURE_STATUS: Record<string, number> = {
+  rate_limit_exceeded: 429, server_error: 500, invalid_api_key: 401,
+  authentication_error: 401, permission_denied: 403, insufficient_permissions: 403,
+};
 /** `response.created` and `response.completed` echo the request's instructions and tools. */
 const MAX_FRAME_CHARS = 16_000_000;
 

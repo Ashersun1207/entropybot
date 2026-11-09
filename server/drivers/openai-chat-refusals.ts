@@ -1,4 +1,6 @@
 // How a chat-completions provider says no to a request, and what that means for the turn.
+import { redactSecretsInText } from "../../shared/redact.ts";
+import { rejectsKey } from "../key-rejections.ts";
 import { ChatProtocolError, object } from "./openai-chat-protocol.ts";
 
 export interface ProviderBody {
@@ -22,14 +24,46 @@ function providerError(json: ProviderBody): string | null {
 const MACHINE_CODE = /^[a-z][a-z0-9_]*$/;
 
 /** A failed response's own error message, then its machine code (trial-credit.ts parses it), else the raw body. */
-export function httpErrorDetail(body: string, limit = 500): string {
+export function httpErrorDetail(body: string, limit = 500, scrub: (text: string) => string = text => text): string {
   let json: ProviderBody | undefined;
   try { json = object(JSON.parse(body)); } catch { json = undefined; }
   const message = json ? providerError(json) : null;
-  if (!message || message === "unknown error") return body.slice(0, limit);
+  if (!message || message === "unknown error") return scrub(body).slice(0, limit);
   const code = object(json?.error)?.code;
   const suffix = typeof code === "string" && MACHINE_CODE.test(code) ? ` (${code})` : "";
-  return message.slice(0, limit) + suffix;
+  return scrub(message).slice(0, limit) + scrub(suffix);
+}
+
+/** Known credentials have no minimum length or shape; masking belongs to the request's owner, never global state. */
+export function redactProviderDiagnostic(text: string, credentials: string | readonly string[]): string {
+  let safe = text;
+  for (const value of typeof credentials === "string" ? [credentials] : credentials) {
+    if (value) safe = safe.split(value).join("[redacted]");
+  }
+  return redactSecretsInText(safe);
+}
+
+export function redactProviderException(error: unknown, apiKey: string): unknown {
+  if (error instanceof Error) {
+    const message = redactProviderDiagnostic(error.message, apiKey);
+    if (message !== error.message) Object.defineProperty(error, "message", { value: message, configurable: true, writable: true });
+    if (error.stack) error.stack = redactProviderDiagnostic(error.stack, apiKey);
+  }
+  return typeof error === "string" ? redactProviderDiagnostic(error, apiKey) : error;
+}
+
+function safeErrorDetail(body: string, detail: string, apiKey: string, status?: number): string {
+  if (status === 401 || status === 403 || rejectsKey(400, body)
+    || /\b(?:authentication_error|permission_denied|insufficient_permissions)\b/.test(body)) {
+    return "Authentication or permission denied. Check the provider credentials and access.";
+  }
+  return redactProviderDiagnostic(detail, apiKey);
+}
+
+/** Authentication bodies are untrusted credential echoes; other errors keep their safe reason and machine code. */
+export function safeHttpErrorDetail(body: string, status: number, apiKey: string): string {
+  return safeErrorDetail(body, "", apiKey, status)
+    || httpErrorDetail(body, 500, text => redactProviderDiagnostic(text, apiKey));
 }
 
 export class UnsupportedChatToolsError extends Error {}
@@ -90,10 +124,11 @@ export function refusedToolCallFailure(error: RejectedToolCallError, earlierStep
   return `The model ${what}. ${next} Provider: ${words.slice(0, 200)}`;
 }
 
-export function completionError(json: ProviderBody, label: string): ChatProtocolError | null {
+export function completionError(json: ProviderBody, label: string, apiKey = ""): ChatProtocolError | null {
   const message = providerError(json);
   if (!message) return null;
-  const text = `provider returned a ${label}: ${message.slice(0, 200)}`;
+  const detail = safeErrorDetail(JSON.stringify(json), message, apiKey).slice(0, 200);
+  const text = `provider returned a ${label}: ${detail}`;
   const refusal = toolCallRefusal(json.error);
   return refusal ? new RejectedToolCallError(text, refusal) : new ChatProtocolError(text);
 }

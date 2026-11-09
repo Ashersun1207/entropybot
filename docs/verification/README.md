@@ -358,6 +358,7 @@ desktop routing, cancellation, and computer authority cleanup.
 - [C1 deep chat preparation stage attribution](chat-prep-stage-attribution.md)
 - [L1 core and on-demand capability boundary research](capability-boundary.md)
 - [Optional Connected Apps outage isolation](optional-connectors-isolation.md)
+- [OpenAI-compatible provider error redaction](provider-error-redaction.md)
 
 ## Evidence
 
