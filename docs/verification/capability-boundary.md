@@ -147,6 +147,22 @@ No compressed installer was measured. Native arm64/x64 package totals must **not
 
 Largest currently bundled contributors supported by evidence are Electron's shell distribution and the optional browser/native resource classes; exact rank among expanded browser, thinned DuckDB and CUA CLI+SDK is **unverified**. Largest numerically documented deferred payloads are Antigravity and full Chrome, followed by standalone OpenCode; VM layers and provider-specific npm content cannot be ranked without additional local assets. cloudflared's “40 MB” and Caddy's “15 MB” are source estimates only. There is no defensible total installer savings percentage from this study.
 
+## ADB pin follow-up (2026-11-09)
+
+The inventory and recommendations above describe the research baseline. The build-time downloader in `scripts/prepare-android-tools.mjs` now pins Google Platform Tools **37.0.2** and verifies SHA-256 before writing or extracting the downloaded archive. The operator-supplied `OMB_ANDROID_PLATFORM_TOOLS_SOURCE` directory retains its existing adb-presence check without a hash requirement. Extraction, layout and cleanup are unchanged; no runtime downloader or automatic update is added.
+
+All three fixed archives were downloaded directly from `https://dl.google.com/android/repository/`. Each archive's `platform-tools/source.properties` reports `Pkg.Revision=37.0.2`; measured sizes and SHA-1 values also match the official repository entries supplied by the controller. SHA-256 values below were independently computed from the downloaded bytes:
+
+| Fixed archive (relative to the Google repository URL above) | Bytes | SHA-256 |
+|---|---:|---|
+| `platform-tools_r37.0.2-darwin.zip` | 16,516,152 | `de86d62321ad38049d488fb1854c7b9a29f7e1b17e8dfb597c304b038cc37ae7` |
+| `platform-tools_r37.0.2-linux.zip` | 9,541,228 | `dfc80a84a6710e5674415d4b55ae599c01aa4961822f53097d747472f410f157` |
+| `platform-tools_r37.0.2-win.zip` | 8,239,125 | `6d93a5e63bc1654b70b7b94bec5c6ab46db113df0265beb314055dd253772b58` |
+
+Google's fixed URLs do not advance with new releases. Future updates require manually selecting the official version and archive names (Windows uses `-win.zip`), downloading all three fixed archives, checking their metadata and remeasuring every SHA-256 before updating the pin. Mutable latest aliases are not authoritative version discovery: the observed latest macOS and Windows aliases still reported 37.0.1 while the official fixed 37.0.2 archives were available.
+
+Validation evidence is retained in the controller's private `private/engineering-foundation-evidence/l1-pin-adb/` directory: download receipts and HTTP headers, an actual macOS fixed-URL staging run, and an isolated script run with a one-byte-corrupted copied zip substituted for fetch. The negative run exited 1 with a checksum mismatch; an instrumented extractor was never called and no stage was created. The actual macOS run staged an executable adb successfully, and its build output was removed afterward. Linux/Windows staging and executable provenance/signatures remain unverified. Recommendation 4's broader executable-integrity, bounded-extraction and verified-offline-input work remains open.
+
 ## Read record, review and limits
 
 Focused source reads (full files or relevant slices/line-filtered excerpts, not a claim that each file received a full security audit):

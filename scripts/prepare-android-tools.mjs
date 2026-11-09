@@ -1,5 +1,8 @@
 // Stage Google's official Android Platform Tools beside the packaged app so
 // USB phone support works on a clean machine without Homebrew or an SDK.
+// Google's fixed 37.0.2 release URLs do not track new releases; updates require
+// a manual version bump and fresh SHA-256 measurements for all three archives.
+import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -8,7 +11,13 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const platformNames = { darwin: "darwin", linux: "linux", win32: "win32" };
-const archiveNames = { darwin: "darwin", linux: "linux", win32: "windows" };
+const archiveNames = { darwin: "darwin", linux: "linux", win32: "win" };
+const version = "37.0.2";
+const archiveSha256 = {
+  darwin: "de86d62321ad38049d488fb1854c7b9a29f7e1b17e8dfb597c304b038cc37ae7",
+  linux: "dfc80a84a6710e5674415d4b55ae599c01aa4961822f53097d747472f410f157",
+  win: "6d93a5e63bc1654b70b7b94bec5c6ab46db113df0265beb314055dd253772b58",
+};
 const platform = platformNames[process.platform];
 const archive = archiveNames[process.platform];
 if (!platform || !archive) throw new Error(`Android Platform Tools are unsupported on ${process.platform}`);
@@ -25,11 +34,16 @@ try {
     }
     cpSync(override, staged, { recursive: true });
   } else {
-    const url = `https://dl.google.com/android/repository/platform-tools-latest-${archive}.zip`;
+    const url = `https://dl.google.com/android/repository/platform-tools_r${version}-${archive}.zip`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`could not download Android Platform Tools: HTTP ${response.status}`);
     const zip = join(temporary, basename(new URL(url).pathname));
-    writeFileSync(zip, Buffer.from(await response.arrayBuffer()));
+    const bytes = Buffer.from(await response.arrayBuffer());
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    if (digest !== archiveSha256[archive]) {
+      throw new Error(`Android Platform Tools checksum mismatch: expected ${archiveSha256[archive]}, got ${digest}`);
+    }
+    writeFileSync(zip, bytes);
     const extraction = join(temporary, "extracted");
     mkdirSync(extraction);
     // A bare "tar" is Windows' bundled bsdtar (zip-capable) in cmd/PowerShell
