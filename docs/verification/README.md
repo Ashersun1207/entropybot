@@ -336,6 +336,7 @@ desktop routing, cancellation, and computer authority cleanup.
 
 - [F2 release full-regression gate (blocked state)](release-full-gate.md)
 - [B1 source-server performance baseline](perf-baseline.md)
+- [B1 active cancellation and retained-engine measurements](perf-cancel-retained.md)
 - [Manual routine request identity and context protocol](routine-manual-request.md)
 - [Manual routine client context protocol](routine-run-client.md)
 - [Protected manual-run frontend consumer](protected-routine-client.md)
