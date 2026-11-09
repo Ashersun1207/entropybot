@@ -23,6 +23,8 @@ Active Stop reached the client's matching interrupted terminal event in **24.2 m
 
 Only this agent's measurement jobs ran serially; unrelated host activity was not controlled. Load was material and differs from the previous B1 batch. Hashing all sources/dependencies before timing warms caches. This is not a cache-cold or isolated-host benchmark. No package build, install, dependency installation, real provider, real model, browser, user profile/data or Keychain operation was requested. The fixture is not an OS network sandbox; no packet capture was performed.
 
+Packaged Electron startup, renderer/input readiness, and application memory/RSS were not measured in this follow-up and remain unqualified by these results.
+
 ## Supported fake modes and deterministic precondition
 
 Read `server/testing/fake-claude-cli.ts`, particularly its environment contract, `playTurn`, `hang` branch, `slow` branch and stdin handler. Relevant existing capabilities are:
