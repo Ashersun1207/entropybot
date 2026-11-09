@@ -4,14 +4,17 @@ import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
 
-it("persists safe upstream diagnostics through the isolated production server and reloads them", async () => {
+it.each(["standard", "refusal-auth", "refusal-boundary"])("persists safe %s diagnostics through the isolated production server and reloads them", async scenario => {
+  const key = scenario === "refusal-boundary" ? "fixtureCredentialABCDEFGHIJKLMNOPQRSTUVWXYZ" : "q7!";
   let status = 401;
   let stream = false;
   const provider = createServer(async (req, res) => {
     if (req.method !== "POST") { res.setHeader("content-type", "application/json"); res.end('{"data":[{"id":"fixture-model"}]}'); return; }
     for await (const _part of req) { /* drain synthetic request */ }
-    expect(req.headers.authorization).toBe("Bearer q7!");
-    const error = { message: status === 401 ? "invalid api key sk-LEAK and q7!" : "Rate limit reached for q7!; retry later", code: status === 401 ? "invalid_api_key" : "rate_limit_exceeded" };
+    expect(req.headers.authorization).toBe(`Bearer ${key}`);
+    const error = scenario === "refusal-boundary" ? { code: "tool_use_failed", message: "a".repeat(195) + key }
+      : scenario === "refusal-auth" ? { code: "tool_use_failed", type: "authentication_error", message: "invalid api key sk-LEAK and q7!" }
+      : { message: status === 401 ? "invalid api key sk-LEAK and q7!" : "Rate limit reached for q7!; retry later", code: status === 401 ? "invalid_api_key" : "rate_limit_exceeded" };
     res.writeHead(stream ? 200 : status, { "content-type": stream ? "text/event-stream" : "application/json" });
     res.end(stream ? `data: ${JSON.stringify({ error })}\n\n` : JSON.stringify({ error }));
   });
@@ -23,7 +26,7 @@ it("persists safe upstream diagnostics through the isolated production server an
     fixture = await launchVerificationServer({}, undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, dataDir => {
       const path = join(dataDir, "config.json");
       const config = JSON.parse(readFileSync(path, "utf8"));
-      config.instances = { synthetic: { driver: "openai-compat", displayName: "Synthetic", config: { url: `http://127.0.0.1:${address.port}/v1`, apiKeyEnv: "SYNTHETIC_KEY", model: "fixture-model", tools: false }, environment: { SYNTHETIC_KEY: "q7!" } } };
+      config.instances = { synthetic: { driver: "openai-compat", displayName: "Synthetic", config: { url: `http://127.0.0.1:${address.port}/v1`, apiKeyEnv: "SYNTHETIC_KEY", model: "fixture-model", tools: false }, environment: { SYNTHETIC_KEY: key } } };
       writeFileSync(path, JSON.stringify(config), { mode: 0o600 });
     });
     const url = fixture.info.url;
@@ -33,8 +36,8 @@ it("persists safe upstream diagnostics through the isolated production server an
       return response.json();
     };
     const threads: string[] = [];
-    for (const mode of ["http-auth", "stream-auth", "rate-limit"]) {
-      status = mode === "rate-limit" ? 429 : 401;
+    for (const mode of scenario === "standard" ? ["http-auth", "stream-auth", "rate-limit"] : ["http-auth", "stream-auth"]) {
+      status = scenario !== "standard" ? 400 : mode === "rate-limit" ? 429 : 401;
       stream = mode === "stream-auth";
       const { bot } = await api("POST", "/api/bots", { name: mode, chiefOfStaff: false, helperModel: false, computer: "off", modelSelection: { instanceId: "synthetic", model: "fixture-model" } });
       const thread = bot.threadId ?? bot.activeTaskId;
@@ -49,14 +52,16 @@ it("persists safe upstream diagnostics through the isolated production server an
         return errors;
       }, { timeout: 20_000, interval: 100 });
       expect(JSON.stringify(rows)).not.toContain("sk-LEAK");
-      expect(JSON.stringify(rows)).not.toContain("q7!");
-      expect(JSON.stringify(rows)).toContain(mode === "rate-limit" ? "retry later" : "Authentication required or permission denied");
+      expect(JSON.stringify(rows)).not.toContain(key);
+      if (scenario === "refusal-boundary") expect(JSON.stringify(rows)).not.toContain("fixtu");
+      expect(JSON.stringify(rows)).toContain(scenario === "refusal-boundary" ? "Provider:" : mode === "rate-limit" ? "retry later" : "Authentication required or permission denied");
     }
     await fixture.restart();
     for (const thread of threads) {
       const rows = await api("GET", `/api/threads/${thread}/messages?limit=100`);
       expect(JSON.stringify(rows)).not.toContain("sk-LEAK");
-      expect(JSON.stringify(rows)).not.toContain("q7!");
+      expect(JSON.stringify(rows)).not.toContain(key);
+      if (scenario === "refusal-boundary") expect(JSON.stringify(rows)).not.toContain("fixtu");
       expect(rows.messages.some((row: any) => row.tool?.name?.startsWith("error:"))).toBe(true);
     }
   } finally {

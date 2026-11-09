@@ -21,12 +21,15 @@ size, tool-refusal and reasoning-replay classification before presentation.
 
 Other diagnostics mask the request owner's exact configured credential without
 a length/prefix floor, then apply the existing high-precision text redactor.
-Masking occurs before truncation, including safe machine-code suffixes. Existing
-402 trial-credit and 429 rate/retry reasons remain. A one-character credential
-can also mask coincidental occurrences in prose or codes: confidentiality takes
-precedence over retaining those characters. No globally held secret or new
-registration lifetime is introduced. The existing turn-owned integration-secret
-list now uses the same local helper; its ownership and contents are unchanged.
+Masking occurs before truncation and tool-name extraction, including safe
+machine-code suffixes and retained refusal metadata. Existing 402 trial-credit
+and 429 rate/retry reasons remain. A one-character credential can mask
+coincidental occurrences in upstream prose or codes; generated labels, statuses
+and fixed content remain intact. Classification is captured separately before
+presentation and carried on the error, so it does not depend on the sanitized
+sentence. No globally held secret or new registration lifetime is introduced.
+The existing turn-owned integration-secret list is passed into this boundary;
+its ownership and contents are unchanged.
 
 The shared HTTP/error path covers chat and Responses and both `sendTurn` and
 `generateText`. Malformed HTTP-200 completion JSON gets a fixed protocol error,
@@ -76,6 +79,60 @@ fixed content includes `Authentication required`; the original one-request
 assertion is preserved. Final receipts and
 the handoff bind the corrected source, exact commands and counts; intermediate
 results are not substituted for final checks.
+
+## Independent review R1: refusal provenance and classification
+
+Independent security review `ses_e3d5e0593ffeDzKVrErItYReAo` returned
+NEEDS-CHANGES on `1c42bc68f`; the earlier 482-test result remains historical
+and did not cover these paths. Integration is held pending independent re-review.
+
+The R1 red tests use the actual OpenAI-compatible driver and owned loopback HTTP.
+An auth-shaped `tool_use_failed` bypassed fixed content through the retained raw
+refusal object. A full configured `fixtureCredentialABCDEFGHIJKLMNOPQRSTUVWXYZ`
+after 195 `a` characters was truncated to `fixtu` by the fallback before it could
+be masked. Actual server activity rows persisted both leaks. These are missed
+production readouts, not the unknown/partial-secret limitation. Separately,
+configured key `a` remasked generated auth text and markers, causing the
+mixed invalid-key/tools-unsupported HTTP400 response to make two requests;
+configured `q7!` made one. Both must now make one request.
+
+The shared error factory retains only sanitized refusal fields, including nested
+metadata keys/values, before tool extraction or shortening. Recognized auth
+failures do not enter tool-refusal retry/fallback presentation. Ordinary non-auth
+refusals keep their existing three-attempt behavior and useful sanitized native
+log fields. Existing Responses missing-scope negotiation still takes its explicit
+route fallback; any emitted auth diagnostic keeps fixed content. Error provenance
+contains only a frozen classification, never the raw body or credentials. Safe
+messages pass through exception/final presentation without another key-based
+rewrite. The original error classes, numeric size data and finite route-refusal
+enums remain; nested exception causes are scrubbed. Local matching escapes
+literal credentials, replaces overlapping values longest-first in one pass and
+preserves complete local/shared redaction markers on repeated passes.
+
+Audit covered HTTP and completion constructors; refusal message/type/code and
+nested metadata; tool-name extraction and the 200-character fallback; HTTP
+500-character message/suffix; route exhaustion's 300-character projection;
+exception message/stack/cause; final 2,000-character runtime errors; native logs
+and persisted activities. Raw bodies remain transient classification inputs;
+only safe data reaches retained error payloads and presentation wrappers.
+
+New receipts use the private `run-review-r1.py`, hashing all server sources,
+called scripts, lock/package files, dependency entry points and Node binary
+before and after the command. The earlier private runner omitted tracked server
+e2e files from its source hash list. Original receipts are retained; the frozen
+R1 red tests were repeated on `1c42bc68f` product bytes with the corrected runner
+as `review-r1-red-bound`: **10 failed / 18 passed** across the two suites. All
+in-progress files were restored byte-for-byte afterward, with a restoration
+receipt. This is an overlapping repeat of the earlier separate driver
+8-failed/17-passed and server 2-failed/1-passed runs, not additional cases.
+
+The first R1 repair run, `review-r1-green-focused`, had 249 passed / 2 failed:
+it omitted useful non-auth refusal log fields and blocked established Responses
+missing-scope fallback. Both original assertions remain; restoring sanitized
+metadata and explicit route precedence yielded 251 passed. Expanded boundary,
+metadata, cause and idempotence checks then yielded 35 passed in the two focused
+suites. Final committed-source receipts and counts are in the private R1 handoff;
+these overlapping focused runs must not be added to the final selection.
 
 ## Maintenance and limits
 

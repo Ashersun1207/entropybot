@@ -2,6 +2,9 @@
 import { redactSecretsInText } from "../../shared/redact.ts";
 import { rejectsKey } from "../key-rejections.ts";
 import { ChatProtocolError, object } from "./openai-chat-protocol.ts";
+import { classifyError, type ErrorClassification } from "./retry.ts";
+import { ModelRouteRefused, routeRefusal, type ModelRoute } from "./openai-responses.ts";
+import { refusesRequestSize, RequestTooLargeError } from "./chat-size-limit.ts";
 
 export interface ProviderBody {
   error?: unknown;
@@ -36,34 +39,92 @@ export function httpErrorDetail(body: string, limit = 500, scrub: (text: string)
 
 /** Known credentials have no minimum length or shape; masking belongs to the request's owner, never global state. */
 export function redactProviderDiagnostic(text: string, credentials: string | readonly string[]): string {
-  let safe = text;
-  for (const value of typeof credentials === "string" ? [credentials] : credentials) {
-    if (value) safe = safe.split(value).join("[redacted]");
-  }
+  const values = (typeof credentials === "string" ? [credentials] : credentials).filter(Boolean);
+  const pattern = values.sort((a, b) => b.length - a.length).map(value => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const safe = pattern ? text.split(/(\[redacted\]|«redacted \d+ chars»)/).map((part, index) => index % 2
+    ? part : part.replace(new RegExp(pattern, "g"), "[redacted]")).join("") : text;
   return redactSecretsInText(safe);
 }
 
-export function redactProviderException(error: unknown, apiKey: string): unknown {
-  if (error instanceof Error) {
-    const message = redactProviderDiagnostic(error.message, apiKey);
-    if (message !== error.message) Object.defineProperty(error, "message", { value: message, configurable: true, writable: true });
-    if (error.stack) error.stack = redactProviderDiagnostic(error.stack, apiKey);
-  }
-  return typeof error === "string" ? redactProviderDiagnostic(error, apiKey) : error;
+function redactProviderValue(value: unknown, credentials: string | readonly string[], seen = new WeakSet<object>()): unknown {
+  if (typeof value === "string") return redactProviderDiagnostic(value, credentials);
+  if (!value || typeof value !== "object") return value;
+  if (seen.has(value)) return "[circular]";
+  seen.add(value);
+  const safe = Array.isArray(value) ? value.map(part => redactProviderValue(part, credentials, seen))
+    : Object.fromEntries(Object.entries(value).map(([key, part]) => [redactProviderDiagnostic(key, credentials), redactProviderValue(part, credentials, seen)]));
+  seen.delete(value);
+  return safe;
 }
 
-function safeErrorDetail(body: string, detail: string, apiKey: string, status?: number): string {
-  if (status === 401 || status === 403 || rejectsKey(400, body)
-    || /\b(?:authentication_error|permission_denied|insufficient_permissions)\b/.test(body)) {
+const SAFE_DIAGNOSTIC = Symbol("safe provider diagnostic");
+type SafeError = Error & { [SAFE_DIAGNOSTIC]?: ErrorClassification };
+
+/** Only sanitized diagnostics may carry this provenance; no raw body or credential is retained. */
+export function trustProviderError<T extends Error>(error: T, classification = classifyError(error)): T {
+  Object.defineProperty(error, SAFE_DIAGNOSTIC, { value: Object.freeze({ ...classification }), configurable: true });
+  return error;
+}
+
+export function providerErrorClassification(error: Error): ErrorClassification {
+  return (error as SafeError)[SAFE_DIAGNOSTIC] ?? classifyError(error);
+}
+
+export function providerErrorMessage(error: Error, credentials: readonly string[]): string {
+  return (error as SafeError)[SAFE_DIAGNOSTIC] ? error.message : redactProviderDiagnostic(error.message, credentials);
+}
+
+export function redactProviderException(error: unknown, credentials: string | readonly string[]): unknown {
+  if (error instanceof Error && !(error as SafeError)[SAFE_DIAGNOSTIC]) {
+    const classification = classifyError(error);
+    const message = redactProviderDiagnostic(error.message, credentials);
+    if (message !== error.message) Object.defineProperty(error, "message", { value: message, configurable: true, writable: true });
+    if (error.stack) error.stack = redactProviderDiagnostic(error.stack, credentials);
+    trustProviderError(error, classification);
+    if (error.cause !== undefined) Object.defineProperty(error, "cause", { value: redactProviderException(error.cause, credentials), configurable: true });
+    return error;
+  }
+  return error instanceof Error ? error : redactProviderValue(error, credentials);
+}
+
+export function providerAuthError(body: string, status?: number): boolean {
+  return status === 401 || status === 403 || rejectsKey(400, body)
+    || /\b(?:authentication_error|permission_denied|insufficient_permissions)\b/.test(body);
+}
+
+export function classifyProviderBody(body: string, status?: number): ErrorClassification {
+  return providerAuthError(body, status) ? { transient: false, reason: "auth" }
+    : classifyError(new Error(`${status ? `HTTP ${status}: ` : ""}${httpErrorDetail(body)}`));
+}
+
+function safeErrorDetail(body: string, detail: string, credentials: string | readonly string[], status?: number): string {
+  if (providerAuthError(body, status)) {
     return "Authentication required or permission denied. Check the provider credentials and access.";
   }
-  return redactProviderDiagnostic(detail, apiKey);
+  return redactProviderDiagnostic(detail, credentials);
 }
 
 /** Authentication bodies are untrusted credential echoes; other errors keep their safe reason and machine code. */
-export function safeHttpErrorDetail(body: string, status: number, apiKey: string): string {
-  return safeErrorDetail(body, "", apiKey, status)
-    || httpErrorDetail(body, 500, text => redactProviderDiagnostic(text, apiKey));
+export function safeHttpErrorDetail(body: string, status: number, credentials: string | readonly string[]): string {
+  return safeErrorDetail(body, "", credentials, status)
+    || httpErrorDetail(body, 500, text => redactProviderDiagnostic(text, credentials));
+}
+
+export function providerHttpFailure(status: number, body: string, input: {
+  label: string; credentials: readonly string[]; route: ModelRoute; tools: boolean; bytes: number; reasoningReplay: boolean;
+}): Error {
+  const detail = safeHttpErrorDetail(body, status, input.credentials);
+  const message = `${input.label} HTTP ${status}${detail ? `: ${detail}` : ""}`;
+  const fail = <T extends Error>(error: T) => trustProviderError(error, classifyProviderBody(body, status));
+  const refused = input.tools ? routeRefusal(input.route, status, body) : null;
+  if (refused) return fail(new ModelRouteRefused(refused, message));
+  if (providerAuthError(body, status)) return fail(new Error(message));
+  if (refusesRequestSize(status, body)) return fail(new RequestTooLargeError(message, input.bytes));
+  if (rejectsToolsParameter(status, body)) return fail(new UnsupportedChatToolsError(message));
+  const refusal = refusedToolCall(status, body);
+  if (refusal) return fail(new RejectedToolCallError(message, refusal, input.credentials));
+  if (input.reasoningReplay && rejectsReasoningReplay(status, body)) return fail(new UnsupportedReasoningReplayError(message));
+  return fail(new Error(message));
 }
 
 export class UnsupportedChatToolsError extends Error {}
@@ -97,10 +158,13 @@ export function rejectsReasoningReplay(status: number, body: string): boolean {
 /** Groq fails a completion with `tool_use_failed` when a generated tool call is invalid: usually a
  *  tool it was not offered (gpt-oss inventing a "json" tool), sometimes arguments missing the schema. */
 export class RejectedToolCallError extends ChatProtocolError {
-  readonly refusal: Record<string, unknown>;
-  constructor(message: string, refusal: Record<string, unknown>) {
+  readonly refusal: Readonly<Record<string, unknown> & { code: "tool_use_failed"; message: string }>;
+  constructor(message: string, refusal: Record<string, unknown>, credentials: string | readonly string[]) {
     super(message);
-    this.refusal = refusal;
+    const body = JSON.stringify(refusal);
+    const words = typeof refusal.message === "string" ? refusal.message : "unknown error";
+    const metadata = providerAuthError(body) ? {} : object(redactProviderValue(refusal, credentials));
+    this.refusal = Object.freeze({ ...metadata, code: "tool_use_failed", message: safeErrorDetail(body, words, credentials) });
   }
 }
 
@@ -114,21 +178,22 @@ export function refusedToolCall(status: number, body: string) {
   try { return toolCallRefusal(object(JSON.parse(body))?.error); } catch { return undefined; }
 }
 
-export function refusedToolCallFailure(error: RejectedToolCallError, earlierSteps: boolean): string {
-  const words = typeof error.refusal.message === "string" ? error.refusal.message : error.message;
+export function refusedToolCallFailure(error: RejectedToolCallError, earlierSteps: boolean): ChatProtocolError {
+  const words = error.refusal.message;
   const tool = /attempted to call tool '([^']+)'/.exec(words)?.[1];
   const what = tool ? `tried to use a tool it was not given ("${tool}")` : "made a tool call the provider rejected";
   const next = earlierSteps
     ? "The steps before it already ran, so ask only for what's left."
     : "Nothing ran. Retry; if it keeps happening, rephrase the request or choose another model.";
-  return `The model ${what}. ${next} Provider: ${words.slice(0, 200)}`;
+  return trustProviderError(new ChatProtocolError(`The model ${what}. ${next} Provider: ${words.slice(0, 200)}`), providerErrorClassification(error));
 }
 
-export function completionError(json: ProviderBody, label: string, apiKey = ""): ChatProtocolError | null {
+export function completionError(json: ProviderBody, label: string, credentials: string | readonly string[] = ""): ChatProtocolError | null {
   const message = providerError(json);
   if (!message) return null;
-  const detail = safeErrorDetail(JSON.stringify(json), message, apiKey).slice(0, 200);
+  const body = JSON.stringify(json);
+  const detail = safeErrorDetail(body, message, credentials).slice(0, 200);
   const text = `provider returned a ${label}: ${detail}`;
-  const refusal = toolCallRefusal(json.error);
-  return refusal ? new RejectedToolCallError(text, refusal) : new ChatProtocolError(text);
+  const refusal = providerAuthError(body) ? undefined : toolCallRefusal(json.error);
+  return trustProviderError(refusal ? new RejectedToolCallError(text, refusal, credentials) : new ChatProtocolError(text), classifyProviderBody(body));
 }

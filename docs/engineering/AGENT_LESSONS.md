@@ -177,6 +177,13 @@
 - 首轮修复五项失败：DOMException 的 message 是只读 getter，不能无条件赋值；组合后统一截断吞掉 machine code；旧 auth 文案断言需明确更新契约而保留 key-rejected/取消检查。修改后 focused 50 项通过；后续相关组合另发现一处旧401文案断言，保留334通过/1失败记录再更新。最初测试还把非流 helper 当 SSE 消费者，产品修改前已纠正并保留两次红例。HTTP200 的 JSON.parse 源码预览可能只回显长 key 的前缀，因此 malformed JSON 必须固定错误而非事后匹配完整 key。最终门槛见交接，不把中间通过冒充最终验收。
 - 扩展到 optional-tools 套件的首次提交门槛481通过/1失败暴露真实回归：HTTP400同时含 invalid key 与 tools unsupported 时，新固定文案不再匹配 retry auth 分类，从而触发降级重发。保留原有一次请求断言；固定文案包含既有分类词 `Authentication required`，不扩张 retry 实现或降低工具负例。固定安全文案也属于行为协议，必须验证下游分类消费者。
 
+### P2 R1：安全 message 不代表安全 refusal，固定文案也不能承担分类协议
+
+- 独立安全审查 `ses_e3d5e0593ffeDzKVrErItYReAo` 对 `1c42bc68f` 退回 NEEDS-CHANGES，暂停集成。真实 driver＋owned loopback 新红例8失败/17通过，隔离生产 server 的持久 activity 红例2失败/1通过；修正证据 runner 后冻结原红例复跑合计10失败/18通过，属于重叠口径，不能相加。历史482通过未覆盖这两个漏洞，不能延伸为R1验收。
+- 根因一：completion/HTTP 构造安全 message 却在 RejectedToolCallError 留 raw refusal，后续 fallback 重读 message 并先截200字；认证 body 可绕回显未知 `sk-LEAK`，完整已知长 key 在195字后变为 `fixtu`，实际持久化。修复在共享构造入口保留脱敏后的 metadata，所有投影先遮蔽再截断/抽 tool 名；auth 不进入 tool-refusal 重试展示，普通 non-auth 保留3次与原完整、安全日志字段。full-key→截断泄漏不是“未知部分 key”限制。
+- 根因二：key=`a` 重写固定认证文案及 `[redacted]`，旧 retry 分类依赖文案，从1次请求变2次。修复用 error 上只含分类结果的 provenance，将原始状态/分类与呈现分开；固定 safe message 不再被后续完整 key scrub 改写。局部精确匹配转义、最长优先一次替换，保护完整本地及共享 redaction marker 的幂等性；不注册全局 secret，不改全局精度门槛。回归必须同时保留 `q7!` 与 `a` 的1次请求断言。
+- R1 首轮修复又引入两个真实回归（249通过/2失败）：丢失普通 refusal log metadata、抢先 auth 分支阻断既有 Responses missing-scope route fallback。保留原断言，恢复已脱敏字段与显式 route 优先级后251通过；扩展截断/code/metadata/cause/marker 用例两文件35通过，最终同21文件选择见R1交接，不累计重复用例。原证据 runner 漏 hash tracked server e2e，保留旧回执，private新runner覆盖server/scripts/依赖entry；重跑红例而非事后补hash追认。修复身份以本条所属提交为准，仍需独立复审。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
