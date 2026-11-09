@@ -2,6 +2,7 @@
 // memory layer a turn reads and writes, whose "About you" and profile a turn gets, who "you" is for a member session,
 // and what that session is told. On any server that is not a Team Cloud every answer here is the plain one (the bot's own
 // memory, the server's profile), so a My Cloud and a desktop behave exactly as before.
+import type { AboutMeScope } from "../about-me.ts";
 import type { ThreadAudiences } from "../bot-visibility.ts";
 import { type Audience, baseBotId, layerAudience, layerId, mayRead, memberAudience, audienceMember, threadAudienceFrom } from "../audience.ts";
 import type { CloudTeam, TeamRole } from "../cloud-team.ts";
@@ -174,6 +175,10 @@ export function createCloudTeamHost(deps: CloudTeamHostDeps) {
     /** The person whose "About you" a layer's captured facts belong to; null for the team's and a room's. */
     aboutPerson(layerOrBotId: string): string | null {
       return team ? audienceMember(layerAudience(layerOrBotId)) : null;
+    },
+    aboutScope(layerOrBotId: string): AboutMeScope {
+      const person = team ? audienceMember(layerAudience(layerOrBotId)) : null;
+      return person ? { kind: "person", key: person } : { kind: "no-person" };
     },
     /** A turn's captured facts are the member's own when the conversation is theirs. */
     ownTurn(threadId: string): boolean {

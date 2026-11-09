@@ -166,6 +166,42 @@ describe("production memory correction and persisted About me", () => {
     expect(loadConfig().profile!.aboutMe).toBe(`I keep bees.\n- 2026-11-01 · learned by ${OLD_COLOR} · ${NEW_COLOR}\n- 2026-11-01 · learned by ${OLD_COLOR} · Lives in Pune\n- 2026-10-01 · learned by Another bot · Ｆavorite  color is CYAN\n${OLD_COLOR}; keeps two cats.\n${OLD_COLOR}fish`);
   });
 
+  it("R1 unresolved person provenance never becomes a valid fence when the resolver later names Ada", () => {
+    let resolved: string | null = null;
+    const profiles = new Map([["ada", `- 2026-11-01 · learned by Scout · ${OLD_COLOR}`], ["bob", "Bob's own profile"]]);
+    const about = createAboutMe({ read: () => { throw new Error("person only"); }, write: () => { throw new Error("person only"); },
+      today: () => "2026-11-01", changed: () => undefined,
+      personScope: (layer) => {
+        const key = layer === "unknown" ? resolved : layer;
+        return key === null ? { kind: "unresolved" } : { kind: "person", key };
+      },
+      person: (layer, plan) => { const key = layer === "unknown" ? resolved : layer; if (!key) return 0; const result = plan(profiles.get(key)!); if (!result) return 0; profiles.set(key, result.next); return result.count; },
+    });
+    const unknown = about.fence("unknown");
+    expect.soft(unknown()).toBe(false);
+    resolved = "ada";
+    const control = about.fence("ada"), bob = about.fence("bob"), moving = about.fence("unknown");
+    expect(control()).toBe(true);
+    resolved = "bob";
+    expect(moving()).toBe(false);
+    resolved = "ada";
+    expect(about.correct("ada", `- 2026-11-01 · learned by Scout · ${OLD_COLOR}`, NEW_COLOR)).toMatchObject({ status: "saved" });
+    console.log(JSON.stringify({ phase: "R1-null-scope", unknown: unknown(), control: control(), bob: bob(), profiles: [...profiles] }));
+    expect.soft(unknown()).toBe(false);
+    expect(control()).toBe(false);
+    expect(bob()).toBe(true);
+  });
+
+  it("R1 explicit no-person scope is valid only while it remains no-person", () => {
+    let shared = true;
+    const about = createAboutMe({ read: () => "", write: () => undefined, today: () => "2026-11-01", changed: () => undefined,
+      person: () => 0, personScope: () => shared ? { kind: "no-person" } : { kind: "person", key: "ada" } });
+    const room = about.fence("room");
+    expect(room()).toBe(true);
+    shared = false;
+    expect(room()).toBe(false);
+  });
+
   it("rejects malformed pairs before note mutation", () => {
     const aboutMe = desktopAbout();
     aboutMe.learn(from, [OLD_COLOR]);
@@ -311,7 +347,7 @@ describe("production memory correction and persisted About me", () => {
       starters: new Map([["ada", ada], ["bob", bob]]), markers: new Set(),
     });
     const aboutMe = createAboutMe({ read: () => { throw new Error("must use person"); }, write: () => { throw new Error("must use person"); },
-      changed: () => undefined, today: () => "2026-11-01", person: host.learnAbout, personKey: host.aboutPerson });
+      changed: () => undefined, today: () => "2026-11-01", person: host.learnAbout, personScope: host.aboutScope });
     const layers = [host.layer(from.botId, "ada"), host.layer(from.botId, "bob"), host.layer(from.botId, "room"), host.layer(from.botId, "team")];
     for (const layer of layers) writeMemoryFile(layer, `- 2026-11-01 · ${OLD_COLOR}\n`);
     expect(aboutMe.learn({ ...from, botId: layers[0]! }, [OLD_COLOR, "Keeps bees"])).toBe(2);

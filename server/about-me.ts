@@ -19,6 +19,8 @@ export function withoutMentionedLines(aboutMe: string, mentions: (text: string) 
 
 type Plan = (current: string) => { next: string; count: number } | null;
 
+export type AboutMeScope = { kind: "person"; key: string } | { kind: "no-person" } | { kind: "unresolved" };
+
 export interface AboutMeDeps {
   read(): string;
   write(text: string): void;
@@ -27,7 +29,7 @@ export interface AboutMeDeps {
   today(): string;
   /** A Team Cloud keeps one About me per person, found from the memory layer of their conversation. */
   person?: (layer: string, plan: Plan, checked?: boolean) => number;
-  personKey?: (layer: string) => string | null;
+  personScope?: (layer: string) => AboutMeScope;
 }
 
 export type AboutMeCorrectionOutcome =
@@ -41,7 +43,9 @@ export type AboutMe = ReturnType<typeof createAboutMe>;
 
 export function createAboutMe(deps: AboutMeDeps) {
   const revisions = new Map<string, number>();
-  const keyFor = (layer: string) => deps.person ? deps.personKey?.(layer) ?? null : "owner";
+  const scopeFor = (layer: string): AboutMeScope => deps.person
+    ? deps.personScope?.(layer) ?? { kind: "unresolved" }
+    : { kind: "person", key: "owner" };
   const learnPlan = (from: { botId: string; botName: string }, texts: readonly string[]) => {
     let facts: ReturnType<typeof planLearned> = [];
     const plan: Plan = (current) => {
@@ -63,13 +67,19 @@ export function createAboutMe(deps: AboutMeDeps) {
       return planned.count;
     },
     fence(layer: string): () => boolean {
-      const key = keyFor(layer);
-      const revision = key === null ? 0 : revisions.get(key) ?? 0;
-      return () => key === null || revision === (revisions.get(key) ?? 0);
+      const scope = scopeFor(layer);
+      if (scope.kind === "unresolved") return () => false;
+      const revision = scope.kind === "person" ? revisions.get(scope.key) ?? 0 : 0;
+      return () => {
+        const current = scopeFor(layer);
+        return scope.kind === "no-person" ? current.kind === "no-person"
+          : current.kind === "person" && current.key === scope.key && revision === (revisions.get(scope.key) ?? 0);
+      };
     },
     correct(layer: string, oldLine: string, text: string): AboutMeCorrectionOutcome {
-      const key = keyFor(layer);
-      if (deps.person && key === null) return { status: "refused", reason: "no_person" };
+      const scope = scopeFor(layer);
+      if (scope.kind !== "person") return { status: "refused", reason: "no_person" };
+      const key = scope.key;
       if (!oldLine.trim() || oldLine.trim().startsWith("#") || !text.trim() || text.length > 300 || /[\r\n]/.test(oldLine + text)) {
         return { status: "refused", reason: "unsupported_target" };
       }
@@ -98,7 +108,7 @@ export function createAboutMe(deps: AboutMeDeps) {
         }
         expected = next;
         changes.set(oldLine, { text: replacement, line: corrected });
-        if (key !== null) revisions.set(key, (revisions.get(key) ?? 0) + 1);
+        revisions.set(key, (revisions.get(key) ?? 0) + 1);
         return { next, count: 1 };
       };
       try {

@@ -276,6 +276,7 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
   const log = (line: string) => deps.log?.(line);
   const inflight = new Set<Promise<unknown>>();
   const turnFences = new WeakMap<CaptureTurn, () => boolean>();
+  const restoredTurns = new WeakSet<CaptureTurn>();
   const stamp = (batch: CaptureBatch) => {
     for (const turn of batch.turns) if (!turnFences.has(turn)) turnFences.set(turn, deps.profileFence?.(batch.botId) ?? (() => true));
   };
@@ -423,9 +424,14 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
     const at = now().getTime();
     const off: CaptureReport = { at, added: 0, topics: 0, aboutMe: 0, note: "upkeep is off" };
     const helperFence = deps.profileFence?.(id) ?? (() => true);
+    const restored = batches.some((batch) => batch.turns.some((turn) => restoredTurns.has(turn)));
     const currentProfile = () => helperFence() && batches.every((batch) => batch.turns.every((turn) => turnFences.get(turn)?.() !== false));
-    const stale = { ...off, note: "deferred after a profile correction; old capture work was not filed" };
-    if (!currentProfile()) return stale;
+    const defer = (): CaptureReport => {
+      const report = { ...off, note: `deferred after a profile correction or unresolved provenance; ${restored ? "restored" : "queued"} capture work was not filed` };
+      record(id, { lastCapture: report });
+      return report;
+    };
+    if (!currentProfile()) return defer();
     if (!upkeepEnabled(bot)) return off;
     const byThread = new Map<string, CaptureBatch>();
     for (const batch of batches) {
@@ -466,7 +472,7 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
     if (!upkeepEnabled(deps.bot(id))) return off;
     const still = conversations.map((conversation) => allowed(conversation.threadId));
     if (!still.some(Boolean)) return refused;
-    if (!currentProfile()) return stale;
+    if (!currentProfile()) return defer();
     const filed = attribute(parseCandidates(answer, today, captureItemLimit(conversations.length)), conversations, still).flatMap((item) => {
       const turns = conversations[item.at]!.turns;
       if (isForgotten(item.candidate.text) || !statedInConversation(item.candidate, turns, false)) return [];
@@ -487,7 +493,8 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
     const learned = filed.filter((item) => item.aboutMe).map((item) => item.candidate.text);
     const aboutMe = learned.length ? deps.addToAboutMe({ botId: id, botName: bot.name }, learned) : 0;
     const organized = await organize(id);
-    const report: CaptureReport = { at, added, topics, aboutMe, organized };
+    const report: CaptureReport = { at, added, topics, aboutMe, organized,
+      ...(restored ? { note: "restored capture; provenance before this process remains unverified" } : {}) };
     if (cancelled(started)) return report;
     record(id, { lastCapture: report });
     if (added || topics || aboutMe) log(`memory upkeep: noticed ${added} fact(s) for MEMORY.md, ${topics} for topic files and ${aboutMe} for About me — ${bot.name} (${id}) from ${conversations.map((conversation) => conversation.threadId).join(", ")}`);
@@ -756,6 +763,7 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
       return off;
     }
     const profileCurrent = deps.profileFence?.(botId) ?? (() => true);
+    if (!profileCurrent()) return report("deferred for unresolved profile provenance; dream work was not started");
     const conversations = deps.conversations(botId, dreamSince(botId, at));
     if (conversations.length < DREAM_MIN_CONVERSATIONS) {
       const few = report(`A dream needs at least ${DREAM_MIN_CONVERSATIONS} chats where you wrote since the last one; there ${conversations.length === 1 ? "is 1" : `are ${conversations.length}`}.`, conversations.length);
@@ -773,7 +781,7 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
       record(botId, { lastDream: late });
       return late;
     }
-    if (!profileCurrent()) return report("deferred after a profile correction; old dream work was not filed", conversations.length);
+    if (!profileCurrent()) return report("deferred after a profile correction or changed person provenance; old dream work was not filed", conversations.length);
     const dreamt = parseDream(answer, conversations.length, notebook.length);
     const source = `dream across ${conversations.length} chats`;
     // Re-read inside the write: if the notes changed after the prompt, its line numbers are stale.
@@ -908,7 +916,12 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
             if (!upkeepEnabled(deps.bot(saved.botId))) continue;
             for (const turnId of saved.turnIds) {
               const turn = deps.restoreTurn(saved.botId, saved.threadId, turnId);
-              if (turn && (turn.person.trim() || turn.bot.trim())) buffer.add(saved.botId, saved.threadId, { ...turn, turnId });
+              if (turn && (turn.person.trim() || turn.bot.trim())) {
+                const restored = { ...turn, turnId };
+                restoredTurns.add(restored);
+                stamp({ botId: saved.botId, threadId: saved.threadId, turns: [restored] });
+                buffer.add(saved.botId, saved.threadId, restored);
+              }
             }
           }
         } catch (error) {

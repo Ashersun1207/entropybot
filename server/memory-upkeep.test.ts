@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { DATA_DIR } from "./config.ts";
-import { createAboutMe } from "./about-me.ts";
+import { createAboutMe, type AboutMeScope } from "./about-me.ts";
+import { createCloudTeamHost } from "./host/cloud-team-host.ts";
 import { botMemoryUpdate } from "./memory-forget.ts";
 import { CAPTURE_MARKER, CaptureBuffer, capturePrompt, newCandidates, parseCandidates, topicFileName, type CaptureTurn } from "./memory-capture.ts";
 import { passageMatcher } from "./memory-entries.ts";
@@ -761,17 +762,18 @@ describe("process-local per-person profile correction fence", () => {
   const a = "fence-a", otherBotA = "fence-other-bot-a", b = "fence-b";
   const source = { person: old, bot: "Synthetic acknowledgement with enough bytes", owner: true };
   const answer = JSON.stringify([{ text: old, kind: "fact", aboutUser: true, evidence: old, confidence: 0.99 }]);
-  const make = (generateText: (prompt: string) => Promise<string>) => {
+  const make = (generateText: (prompt: string) => Promise<string>, restore = false, scope?: (layer: string) => AboutMeScope) => {
     const profiles = new Map([["ada", line], ["bob", line]]);
     const person = (layer: string) => layer === b ? "bob" : "ada";
     const about = createAboutMe({ read: () => { throw new Error("person only"); }, write: () => { throw new Error("person only"); },
-      changed: () => undefined, today: () => "2026-11-01", personKey: person,
+      changed: () => undefined, today: () => "2026-11-01", personScope: scope ?? ((layer) => ({ kind: "person", key: person(layer) })),
       person: (layer, plan) => { const key = person(layer), result = plan(profiles.get(key)!); if (!result) return 0; profiles.set(key, result.next); return result.count; },
     });
     for (const layer of [a, b, otherBotA]) writeMemoryFile(layer, "");
     const loop = createMemoryUpkeep({ bots: () => [], bot: (id) => ({ id, name: "Scout" }), engine: () => ({ generateText }), busy: () => false,
       addToAboutMe: (from, texts) => about.learn(from, texts), profileFence: (layer) => about.fence(layer), sourceLabel: () => 'chat "Fixture"',
       quietMs: () => 60_000, tidyHour: () => 3,
+      ...(restore ? { restoreTurn: (_botId: string, _threadId: string, turnId: string) => ({ ...source, turnId }) } : {}),
       conversations: () => [{ threadId: "one", lines: [{ by: "person", text: old }] }, { threadId: "two", lines: [{ by: "person", text: old }] }],
     });
     const correct = () => {
@@ -780,6 +782,119 @@ describe("process-local per-person profile correction fence", () => {
     };
     return { loop, profiles, correct };
   };
+
+  it.each([true, false])("R1 filesystem-restored buffered provenance: correction after load=%s", async (correctAfterLoad) => {
+    let helpers = 0;
+    const { loop, profiles, correct } = make(async (prompt) => {
+      if (!prompt.startsWith(CAPTURE_MARKER)) return "[]";
+      helpers++;
+      return answer;
+    }, true);
+    const pending = join(DATA_DIR, "memory-capture-pending.json");
+    const pendingBytes = JSON.stringify({ batches: [{ botId: a, threadId: "restored-thread", turnIds: ["restored-turn"] }] });
+    writeFileSync(pending, pendingBytes);
+    try {
+      loop.start();
+      expect(existsSync(pending)).toBe(false);
+      if (correctAfterLoad) correct();
+      const beforeFlush = readFileSync(join(workspaceDir(a), "MEMORY.md"), "utf8");
+      loop.flushThread("restored-thread");
+      await loop.idle();
+      const report = loop.status(a).lastCapture;
+      const persisted = readFileSync(join(workspaceDir(a), "MEMORY.md"), "utf8");
+      console.log(JSON.stringify({ phase: "R1-restored", correctAfterLoad, pendingBytes, beforeFlush, persisted, report, profiles: [...profiles] }));
+      if (correctAfterLoad) {
+        expect.soft(helpers).toBe(0);
+        expect.soft(persisted).toBe(beforeFlush);
+        expect.soft(profiles.get("ada")).not.toContain(old);
+        expect.soft(report).toMatchObject({ added: 0, aboutMe: 0, note: expect.stringContaining("profile correction") });
+      } else {
+        expect(helpers).toBe(1);
+        expect(persisted).toContain(old);
+        expect.soft(report).toMatchObject({ added: 1, note: expect.stringContaining("restored") });
+        expect.soft(report?.note).toContain("unverified");
+      }
+    } finally { loop.stop(); }
+  });
+
+  it.each(["queue", "buffer", "restored", "dream"])("R1 unresolved %s work is not promoted when a person later resolves", async (kind) => {
+    let resolved = false, helpers = 0;
+    const { loop } = make(async () => { helpers++; return answer; }, kind === "restored",
+      () => resolved ? { kind: "person", key: "ada" } : { kind: "unresolved" });
+    if (kind === "dream") {
+      expect(await loop.dream(a)).toMatchObject({ learned: [], aboutMe: 0, note: expect.stringContaining("unresolved") });
+      resolved = true;
+    } else if (kind === "restored") {
+      writeFileSync(join(DATA_DIR, "memory-capture-pending.json"), JSON.stringify({ batches: [{ botId: a, threadId: "one", turnIds: ["unknown-turn"] }] }));
+      try {
+        loop.start();
+        resolved = true;
+        loop.flushThread("one");
+        await loop.idle();
+        expect(loop.status(a).lastCapture).toMatchObject({ added: 0, aboutMe: 0, note: expect.stringContaining("restored") });
+      } finally { loop.stop(); }
+    } else {
+      loop.pause();
+      let queued: Promise<unknown> | undefined;
+      if (kind === "queue") queued = loop.capture({ botId: a, threadId: "one", turns: [{ ...source }] });
+      else loop.noteTurn(a, "one", { ...source });
+      resolved = true;
+      if (kind === "buffer") loop.flushThread("one");
+      loop.resume();
+      if (queued) await queued;
+      await loop.idle();
+      expect(loop.status(a).lastCapture).toMatchObject({ added: 0, aboutMe: 0, note: expect.stringContaining("unresolved") });
+    }
+    expect(helpers).toBe(0);
+    expect(readFileSync(join(workspaceDir(a), "MEMORY.md"), "utf8")).toBe("");
+  });
+
+  it.each(["capture", "dream"])("R1 %s revalidates person scope after its helper await", async (kind) => {
+    let known = true, entered!: () => void, release!: (text: string) => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    const pending = new Promise<string>((resolve) => { release = resolve; });
+    const { loop, profiles } = make(async () => { entered(); return pending; }, false,
+      () => known ? { kind: "person", key: "ada" } : { kind: "unresolved" });
+    const work = kind === "capture" ? loop.capture({ botId: a, threadId: "one", turns: [{ ...source }] }) : loop.dream(a);
+    await started;
+    known = false;
+    release(kind === "capture" ? answer : JSON.stringify({ learned: [{ text: old, aboutUser: true, from: [1, 2], confidence: 0.99 }], outdated: [], ideas: [] }));
+    expect(await work).toMatchObject({ aboutMe: 0, note: expect.stringContaining("profile correction") });
+    expect(readFileSync(join(workspaceDir(a), "MEMORY.md"), "utf8")).toBe("");
+    expect(profiles.get("ada")).toBe(line);
+    await loop.idle();
+  });
+
+  it.each([false, true])("R1 intentional Team room notes remain enabled: restored=%s", async (restored) => {
+    const host = createCloudTeamHost({ team: { id: "r1-team", name: "Fixture" }, dataDir: DATA_DIR,
+      store: { groupByThread: (thread) => thread === "room" ? { id: "launch" } : undefined }, starters: new Map(), markers: new Set() });
+    const layer = host.layer(`r1-room-${restored}`, "room");
+    writeMemoryFile(layer, "");
+    const about = createAboutMe({ read: () => { throw new Error("person only"); }, write: () => { throw new Error("person only"); },
+      person: host.learnAbout, personScope: host.aboutScope, today: () => "2026-11-01", changed: () => undefined });
+    expect(host.aboutScope(layer)).toEqual({ kind: "no-person" });
+    const roomFence = about.fence(layer);
+    let helpers = 0;
+    const loop = createMemoryUpkeep({ bots: () => [], bot: (id) => ({ id, name: "Scout" }), busy: () => false,
+      engine: () => ({ generateText: async (prompt) => { if (!prompt.startsWith(CAPTURE_MARKER)) return "[]"; helpers++; return answer; } }),
+      addToAboutMe: (from, texts) => about.learn(from, texts), profileFence: (id) => about.fence(id), sourceLabel: () => 'room "Launch"',
+      quietMs: () => 60_000, tidyHour: () => 3, restoreTurn: () => ({ ...source, owner: false }) });
+    if (restored) writeFileSync(join(DATA_DIR, "memory-capture-pending.json"), JSON.stringify({ batches: [{ botId: layer, threadId: "room", turnIds: ["prior-turn"] }] }));
+    try {
+      loop.start();
+      if (!restored) loop.noteTurn(layer, "room", { ...source, owner: false });
+      const member = `another--member-p_${"a".repeat(22)}`;
+      host.learnAbout(member, () => ({ next: line, count: 1 }));
+      expect(about.correct(member, line, next)).toMatchObject({ status: "saved" });
+      expect(roomFence()).toBe(true);
+      loop.flushThread("room");
+      await loop.idle();
+      expect(helpers).toBe(1);
+      expect(loop.status(layer).lastCapture).toMatchObject({ added: 1, aboutMe: 0 });
+      expect(readFileSync(join(workspaceDir(layer), "MEMORY.md"), "utf8")).toContain(old);
+      if (restored) expect(loop.status(layer).lastCapture?.note).toContain("unverified");
+    } finally { loop.stop(); }
+  });
 
   it("rejects delayed capture for the corrected person before filing while another person continues; NEW work can relearn", async () => {
     let release!: (text: string) => void, entered!: () => void;
