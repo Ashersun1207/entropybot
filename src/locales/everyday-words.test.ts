@@ -73,9 +73,6 @@ const INTERNAL_WORDS: readonly Word[] = [
   { word: "Local VM", pattern: /\bLocal VMs?\b/i, say: "private desktop" },
   { word: "workspace", pattern: /\bworkspaces?\b/i, say: "installation, or leave it out" },
   { word: "lent", pattern: /\b(?:lent|lends?|lending)\b/i, say: "shared, or let … use" },
-];
-
-const PENDING_WORDS: readonly Word[] = [
   { word: "This computer", pattern: /\bThis computer\b/, say: "this Mac or this PC" },
   { word: "My Cloud", pattern: /\bMy Cloud\b/, say: "the Cloud" },
 ];
@@ -87,7 +84,8 @@ const ALLOWED: Record<string, string> = {
   "sidebar.switchServerError": "points at the app menu's Server menu",
   "sidebar.update.howOther": "a server added from the app menu's Server menu: its update is for whoever runs it, not this app",
   "sidebar.update.howOtherRestart": "a server added from the app menu's Server menu: its update is for whoever runs it, not this app",
-  "cloudPhone.step1": "points at the app menu's Server menu, entry by entry",
+  "cloudPhone.step1": "points at the app menu's Server menu and its My Cloud entry, whose name is fixed by electron/cloud-home.mjs",
+  "cloudSetup.myCloud": "matches the My Cloud place name fixed by electron/cloud-home.mjs; renaming that native place is outside locale copy",
   "botAccess.tools.syntax": "the tool names people type, such as mcp:SERVER:NAME",
   "chat.notice.modelServerStoppedAnswering": "the person's model server at a named host, not the app's internal server",
 };
@@ -119,15 +117,11 @@ describe("everyday screens", () => {
     for (const bad of [
       "Switch to another engine", "Add an instance", "Restart the server", "Connect apps through Composio",
       "Start the cloud computer", "Self-hosted VPS", "Create Local VM", "Choose a workspace", "A lent Cloud", "Start lending",
+      "Switch to This computer", "Move to My Cloud",
     ]) expect(wordsIn(bad), bad).not.toEqual([]);
     for (const good of [
       "Switch this bot to another AI", "Pick a Discord server", "Post in your Slack servers", "Copy to {server}", "Add your own server",
       "Run `entropybot server start`", "Open the Cloud", "Start the cloud desktop", "Your MCP servers", "Add MCP server", "Private desktop",
     ]) expect(wordsIn(good), good).toEqual([]);
   });
-
-  for (const { word, pattern, say } of PENDING_WORDS) {
-    const left = Object.entries(english).filter(([key, text]) => everyday(key) && pattern.test(prose(text))).length;
-    it.todo(`"${word}" (say ${say}), still in ${left} everyday keys, once the screens that name it are rebuilt`);
-  }
 });

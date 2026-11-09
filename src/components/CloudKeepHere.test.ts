@@ -60,7 +60,7 @@ it("in Advanced mode, before the move: one switch and one plain line; turning it
   await ready(before);
   const { html } = render();
   expect(html).toContain("Keep this computer&#x27;s bots on this computer");
-  expect(html).toContain("stay here instead of moving to My Cloud");
+  expect(html).toContain("stay here instead of moving to the Cloud");
   expect(toggle()!.props.checked).toBe(false);
   toggle()!.props.onClick!();
   await flush();
@@ -72,7 +72,7 @@ it("after the move, turning it on first says what happens; only Bring them back 
   await ready(moved);
   toggle()!.props.onClick!();
   let html = render().html;
-  for (const text of ["Bring this computer&#x27;s bots back here?", "come back from My Cloud with what they did there", "Their automations run here again and stop on My Cloud",
+  for (const text of ["Bring this computer&#x27;s bots back here?", "return from the Cloud with what they did there", "Their automations run here again and stop on the Cloud",
     "Your other computers don&#x27;t change", "The app opens again once they&#x27;re here"]) expect(html).toContain(text);
   expect(bridge.setKeepHere).not.toHaveBeenCalled();
   press("Cancel");
@@ -84,7 +84,7 @@ it("after the move, turning it on first says what happens; only Bring them back 
   await flush();
   expect(bridge.setKeepHere).toHaveBeenCalledExactlyOnceWith(true);
   html = render().html;
-  expect(html).toContain("on their way back from My Cloud");
+  expect(html).toContain("returning from the Cloud");
   expect(toggle()!.props.disabled).toBe(true);
   expect(toggle()!.props.checked).toBe(true);
 });
@@ -95,7 +95,7 @@ it("follows the move's line, and says why when main refuses", async () => {
   vi.mocked(bridge.keepHere!).mockResolvedValue({ ...before, on: true, moved: false, coming: true });
   notify();
   await flush();
-  expect(render().html).toContain("on their way back");
+  expect(render().html).toContain("returning from the Cloud");
   vi.mocked(bridge.keepHere!).mockResolvedValue({ ...before, on: true });
   notify();
   await flush();

@@ -21,7 +21,7 @@ describe("plainErrorLine", () => {
     ["HTTP 503", "The service is busy right now. Try again in a moment."],
     ["HTTP 502 Bad Gateway", "Something went wrong on the other end. Try again."],
     ["upstream HTTP 503 Service Unavailable", "The service is busy right now. Try again in a moment."],
-    ["EACCES: permission denied, open '/Users/sam/notes.md'", "This computer didn't allow that. Check the file or folder permissions, then try again."],
+    ["EACCES: permission denied, open '/Users/sam/notes.md'", "Your computer didn't allow that. Check the file or folder permissions, then try again."],
     ["upstream HTTP 401: {\"error\":{\"message\":\"invalid x-api-key\"}}", "Access was refused. Check the sign-in, then try again."],
     ["read ECONNRESET", "The connection dropped. Try again."],
     ["TypeError: Cannot read properties of undefined (reading 'id')", "Something went wrong. Try again."],

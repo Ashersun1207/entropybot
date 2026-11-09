@@ -95,7 +95,7 @@ describe("the window frame's top bar", () => {
   });
 
   it.each([
-    [{ local: true, name: "Mac mini" }, {}, "This computer"],
+    [{ local: true, name: "Mac mini" }, {}, "Your computer"],
     [{ local: true, name: "Lab", localPath: "/Users/me/lab" }, {}, "Lab"],
     [{ local: false, name: "Saved name", home: true }, {}, "My Cloud"],
     [{ local: false, name: "Acme", role: "Admin" }, { team: { name: "Acme" } }, "Acme"],

@@ -291,7 +291,7 @@ describe("each screen of the sheet says one thing and offers one next step", () 
     button(tree, "Not now")!.props.onClick(); expect(handlers.notNow).toHaveBeenCalledOnce();
     button(tree, "Open Studio")!.props.onClick(); expect(handlers.openCloud).toHaveBeenCalledOnce();
     const still = text(panel(view).html);
-    expect(still).toContain("Switch between This computer and Studio from the menu at the top of the sidebar."); expect(still).not.toContain("Opening in");
+    expect(still).toContain("Switch between Your computer and Studio from the menu at the top of the sidebar."); expect(still).not.toContain("Opening in");
     expect(text(panel(view, { openFailed: true }).html)).toContain("Studio didn't open. Try again in a minute.");
   });
 
@@ -315,7 +315,7 @@ describe("each screen of the sheet says one thing and offers one next step", () 
     inOrder(unnamed, ["Reserving your machine", "Starting your team's Cloud", "This is taking longer than usual."]);
     const { html, tree, handlers } = panel({ kind: "team-ready", team: { id: "team-acme", name: "Acme" } });
     inOrder(text(html), ["Your team's Cloud is ready", "Acme keeps your team's bots running 24/7, even when this computer is off.",
-      "Switch between This computer and Acme from the menu at the top of the sidebar.", "Open Acme"]);
+      "Switch between Your computer and Acme from the menu at the top of the sidebar.", "Open Acme"]);
     button(tree, "Open Acme")!.props.onClick();
     expect(handlers.openTeam).toHaveBeenCalledExactlyOnceWith("team-acme"); expect(handlers.openCloud).not.toHaveBeenCalled();
     expect(text(panel({ kind: "team-ready", team: { id: "team-acme", name: "Acme" } }, { openFailed: true }).html)).toContain("Acme didn't open. Try again in a minute.");
@@ -526,7 +526,7 @@ describe("the sheet", () => {
     expect(bridge.connectHome).not.toHaveBeenCalled();
     f.values = []; f.ran = []; focused = false;
     const away = await settle();
-    expect(away).not.toContain("Opening in"); expect(away).toContain("Switch between This computer and My Cloud");
+    expect(away).not.toContain("Opening in"); expect(away).toContain("Switch between Your computer and My Cloud");
     vi.advanceTimersByTime(5000); await settle();
     expect(bridge.connectHome).not.toHaveBeenCalled();
   });

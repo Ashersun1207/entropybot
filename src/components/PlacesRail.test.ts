@@ -248,7 +248,7 @@ it("Buy a Cloud, for someone whose Admin sells one Cloud per account: the calm w
 
 it("a circle's letters and words", () => {
   expect(["Client A", "Acme", "  my  cloud ", "Ünïcode Øne", "😀 Fun"].map(placeInitials)).toEqual(["CA", "A", "MC", "ÜØ", "😀F"]);
-  expect(placeLabel(place("local", "This computer", { kind: "computer" }))).toBe("This computer");
+  expect(placeLabel(place("local", "This computer", { kind: "computer" }))).toBe("Your computer");
   expect(placeLabel(place("x", "Acme", { attention: true }))).toBe("Acme: needs you");
 });
 
@@ -359,7 +359,7 @@ it("a right-click on a circle opens its place's menu: its colour, saved by main 
   };
   expect(host.querySelector('[data-rail-place="local"] span[style]')?.getAttribute("style"), "This computer's circle wears its colour").toContain("var(--identity-teal)");
   const own = await menuOf("local");
-  expect([own?.getAttribute("aria-label"), own?.querySelector("[aria-checked='true']")?.getAttribute("data-swatch")]).toEqual(["This computer", "green"]);
+  expect([own?.getAttribute("aria-label"), own?.querySelector("[aria-checked='true']")?.getAttribute("data-swatch")]).toEqual(["Your computer", "green"]);
   expect(own!.querySelector("[data-swatch='slate']")?.getAttribute("aria-label"), "the plain swatch says what it does").toBe("None");
   await click(own!.querySelector("[data-swatch='slate']"));
   await settle();

@@ -36,8 +36,8 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("the move's words on the account", () => {
   it("needs the person once failing, goes quietly while on its way, and says nothing once done", () => {
-    expect(accountMoveWords("failed")).toBe("My Cloud move needs you");
-    expect(accountMoveWords("sending")).toBe("Moving to My Cloud…");
+    expect(accountMoveWords("failed")).toBe("The move to the Cloud needs you");
+    expect(accountMoveWords("sending")).toBe("Moving to the Cloud…");
     expect(accountMoveWords("done")).toBeNull();
     expect(accountMoveWords(null)).toBeNull();
     expect(accountMoveWords("failed", "Garage server")).toBe("Garage server move needs you");
@@ -51,10 +51,10 @@ describe("the move's words on the account", () => {
     expect(markup(failed)).toContain('data-account-move="failed"');
     expect(markup(failed)).toContain("text-warning");
     expect(markup(failed)).toContain("<button");
-    expect(markup(AccountMoveStatus({ kind: "sending", onOpen: opened }))).toContain("Moving to My Cloud…");
+    expect(markup(AccountMoveStatus({ kind: "sending", onOpen: opened }))).toContain("Moving to the Cloud…");
     expect(markup(AccountMoveStatus({ kind: "sending", onOpen: opened }))).not.toContain("text-warning");
     expect(markup(AccountMoveStatus({ kind: "failed" }))).not.toContain("<button");
-    expect(markup(AccountMoveStatus({ kind: "failed" }))).toContain("My Cloud move needs you");
+    expect(markup(AccountMoveStatus({ kind: "failed" }))).toContain("The move to the Cloud needs you");
     expect(AccountMoveStatus({ kind: "done", onOpen: opened })).toBeNull();
     expect(AccountMoveStatus({ kind: null })).toBeNull();
   });
@@ -65,13 +65,13 @@ describe("the move's words on the account", () => {
     const html = markup(status);
     const tag = tryAgainTag(html);
     expect(html.match(/<button/g)).toHaveLength(2);
-    expect(tag).toContain('aria-label="Try again to move to My Cloud"');
+    expect(tag).toContain('aria-label="Try again to move to the Cloud"');
     expect(tag).toContain('title="My Cloud did not answer."');
     expect(tag).not.toContain("aria-disabled");
     expect(html).toMatch(/data-move-retry[^>]*>Try again<\/button>/);
-    expect(html.indexOf("My Cloud move needs you")).toBeLessThan(html.indexOf(">Try again<"));
+    expect(html.indexOf("The move to the Cloud needs you")).toBeLessThan(html.indexOf(">Try again<"));
     // The words shorten before Try again does.
-    expect(html).toContain('<span class="truncate">My Cloud move needs you</span>');
+    expect(html).toContain('<span class="truncate">The move to the Cloud needs you</span>');
     expect(tag).toMatch(/class="[^"]*\bshrink-0\b/);
     const row = (status.props as { children: ReturnType<typeof createElement>[] }).children[0]!;
     const tryAgain = (row.props as { children: ReturnType<typeof createElement>[] }).children[1]!;
@@ -112,7 +112,7 @@ describe("the move's row in the account menu", () => {
     const onOpen = vi.fn(), onRetry = vi.fn();
     const items = rows(line({ phase: "copy", failing: { error: "Some of this computer's things did not reach My Cloud." } }), { onOpen, onRetry });
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ key: "cloud-move", label: "Try My Cloud move again", title: "Some of this computer's things did not reach My Cloud.", disabled: false, keepOpen: true });
+    expect(items[0]).toMatchObject({ key: "cloud-move", label: "Retry the move to the Cloud", title: "Some of this computer's things did not reach My Cloud.", disabled: false, keepOpen: true });
     expect(items[0]).toMatchObject({ note: "Some of this computer's things did not reach My Cloud.", wrap: true });
     expect(markup(items[0]!.icon)).not.toContain("animate-spin");
     items[0]!.onSelect();
@@ -132,7 +132,7 @@ describe("the move's row in the account menu", () => {
     const failing = line({ phase: "wait", failing: { error: "My Cloud did not answer." } });
     const busy = rows(failing, { retrying: true });
     expect(busy).toHaveLength(1);
-    expect(busy[0]).toMatchObject({ label: "Try My Cloud move again", disabled: true });
+    expect(busy[0]).toMatchObject({ label: "Retry the move to the Cloud", disabled: true });
     expect(markup(busy[0]!.icon)).toContain("animate-spin");
     expect(rows(failing, { unanswered: "Entropybot on this computer did not answer." })[0]!.title).toBe("Entropybot on this computer did not answer.");
     // Main gave no words: the reason it had stays.
@@ -143,7 +143,7 @@ describe("the move's row in the account menu", () => {
     const onOpen = vi.fn(), onRetry = vi.fn();
     const items = rows({ kind: "failed", text: "Your bots couldn't move to My Cloud yet.", extra: [], reason: "My Cloud is full." }, { onOpen, onRetry });
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ key: "cloud-move", label: "My Cloud move needs you", title: "My Cloud is full." });
+    expect(items[0]).toMatchObject({ key: "cloud-move", label: "The move to the Cloud needs you", title: "My Cloud is full." });
     items[0]!.onSelect();
     expect(onOpen).toHaveBeenCalledOnce();
     expect(onRetry).not.toHaveBeenCalled();
@@ -153,10 +153,10 @@ describe("the move's row in the account menu", () => {
     const onOpen = vi.fn();
     const items = rows(line({ phase: "copy", chats: { done: 34, total: 120 } }), { onOpen });
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ key: "cloud-move", label: "Moving to My Cloud…", title: "Moving your bots to My Cloud… 34 of 120 chats" });
+    expect(items[0]).toMatchObject({ key: "cloud-move", label: "Moving to the Cloud…", title: "Moving your bots to My Cloud… 34 of 120 chats" });
     expect(items[0]).not.toHaveProperty("wrap");
     expect(markup(items[0]!.icon)).toContain("animate-spin");
-    expect(rows(line({ phase: "finishing" }))[0]).toMatchObject({ label: "Moving to My Cloud…", title: "Moving to My Cloud… almost done" });
+    expect(rows(line({ phase: "finishing" }))[0]).toMatchObject({ label: "Moving to the Cloud…", title: "Moving to My Cloud… almost done" });
     items[0]!.onSelect();
     expect(onOpen).toHaveBeenCalledOnce();
   });
@@ -198,7 +198,7 @@ describe("useAccountMove", () => {
   it("on its way on either page, with nothing to press", async () => {
     const bringing = await shown({ ...notice, move: { phase: "copy", chats: { done: 34, total: 120 } } }, true);
     expect(bringing.kind).toBe("sending");
-    expect(bringing.items.map((item) => [item.label, item.title])).toEqual([["Moving to My Cloud…", "Bringing this computer's bots to My Cloud… 34 of 120 chats"]]);
+    expect(bringing.items.map((item) => [item.label, item.title])).toEqual([["Moving to the Cloud…", "Bringing this computer's bots to My Cloud… 34 of 120 chats"]]);
     f.values = [];
     const waiting = await shown({ ...notice, move: { phase: "wait", waitingFor: "Scout" } });
     expect(waiting.items.map((item) => item.title)).toEqual(["Moving your bots to My Cloud… waiting for Scout to finish"]);
@@ -214,7 +214,7 @@ describe("useAccountMove", () => {
     expect(page.moveRetry).toHaveBeenCalledTimes(1);
     expect(hook().items[0]).toMatchObject({ key: "cloud-move", disabled: true });
     answer({ ...notice, move: { phase: "finishing" } }); await flush();
-    expect(hook()).toMatchObject({ kind: "sending", items: [{ label: "Moving to My Cloud…" }] });
+    expect(hook()).toMatchObject({ kind: "sending", items: [{ label: "Moving to the Cloud…" }] });
   });
 
   it("says main's words in the tooltip when Try again goes unanswered", async () => {

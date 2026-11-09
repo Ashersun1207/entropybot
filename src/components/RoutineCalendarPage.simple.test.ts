@@ -215,7 +215,7 @@ describe("routine drawer", () => {
   it("shows bot, plain schedule, instructions, where it runs, results and the last three runs", () => {
     const { html } = details(routineItem(routine));
     for (const text of ["Bot", "Runner", "Schedule", scheduleLabel(routine.schedule), "What to do", routine.prompt,
-      "Runs on", "This computer", "Post results to", "Morning briefs", "Run logs", "Active"]) {
+      "Runs on", "Your computer", "Post results to", "Morning briefs", "Run logs", "Active"]) {
       expect(html, text).toContain(text);
     }
     expect(html.match(/aria-label="Open Morning brief run:/g)).toHaveLength(3);

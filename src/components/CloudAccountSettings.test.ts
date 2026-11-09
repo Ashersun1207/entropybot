@@ -178,7 +178,7 @@ it("while a saved sign-in is read, nothing is offered and the Cloud link waits",
 it("a saved sign-in that could not be read was removed: one line says so, and Sign in is the next step", async () => {
   await ready({ status: "signed-out", message: "restore-removed" });
   const html = render().html;
-  expect(html).toContain("Cloud sign-in couldn&#x27;t be read, so it was removed. Sign in again.");
+  expect(html).toContain("Cloud sign-in saved on your computer couldn&#x27;t be read, so it was removed. Sign in again.");
   none(html, ["could not be completed", "Unlock your system keychain"]);
   expect(button("Sign in to your Cloud plan")).toBeTruthy();
   none(render({ onAddCloud: vi.fn() }).html, BUY);
@@ -186,7 +186,7 @@ it("a saved sign-in that could not be read was removed: one line says so, and Si
 it("a saved sign-in that can't be read right now says the app tries again by itself, and asks for no sign-out", async () => {
   await ready({ status: "unavailable", message: "restore-failed" });
   const html = render().html;
-  expect(html).toContain("This computer couldn&#x27;t open its saved Cloud sign-in. Unlock your keychain, and the app tries again by itself.");
+  expect(html).toContain("The app couldn&#x27;t read the Cloud sign-in saved on this Mac. Unlock your keychain, and the app tries again by itself.");
   none(html, ["could not be read or cleared", "sign out again", "Sign out of Entropybot Cloud, then"]);
 });
 it("a sign-out that could not clear the saved sign-in still asks for it", async () => {
@@ -222,7 +222,7 @@ it("on the person's own Cloud, Settings shows the plan read only, with Manage, a
   plan.state.mockResolvedValueOnce({ status: "checking", tier: "pro" }); f.values = []; view(); f.effects[0](); await flush();
   expect(view().html).toContain("Pro · checking with Entropybot Cloud…");
   plan.state.mockResolvedValueOnce({ status: "signin", tier: "max" }); f.values = []; view(); f.effects[0](); await flush();
-  all(view().html, ["Max plan", "This computer needs to sign in to Entropybot Cloud again"]); none(view().html, [...BUY, "Could not complete", "Switch to this computer"]);
+  all(view().html, ["Max plan", "Sign in to Entropybot Cloud again on your computer"]); none(view().html, [...BUY, "Could not complete", "Switch to this computer"]);
   expect(view().nodes.filter(node => node.type === "button" && node.props.children === "Sign in again")).toHaveLength(1);
   view().nodes.find(node => node.type === "button" && node.props.children === "Sign in again")!.props.onClick!();
   await flush(); expect(plan.signIn).toHaveBeenCalledExactlyOnceWith();
@@ -275,13 +275,13 @@ it("while the bots move to My Cloud, says how the move goes, with nothing to ope
   const moving = async () => { await ready({ ...pro, machine: { status: "ready", origin } }); f.effects[2](); await flush(); return render(); };
   let view = await moving();
   all(view.html, ["Moving your bots to My Cloud… 3 of 12 chats", "data-cloud-moving"]);
-  none(view.html, [">Open the Cloud</button>", "Switch back to This computer", "The Cloud is ready"]);
+  none(view.html, [">Open the Cloud</button>", "Choose Your computer", "The Cloud is ready"]);
   move = { phase: "finishing" };
   f.values = []; view = await moving();
-  all(view.html, ["Moving to My Cloud… almost done"]); none(view.html, [">Open the Cloud</button>", "Switch back to This computer"]);
+  all(view.html, ["Moving to My Cloud… almost done"]); none(view.html, [">Open the Cloud</button>", "Choose Your computer"]);
   move = undefined;
   f.values = []; view = await moving();
-  all(view.html, [">Open the Cloud</button>", "Switch back to This computer", "The Cloud is ready"]); none(view.html, ["data-cloud-moving", "Moving"]);
+  all(view.html, [">Open the Cloud</button>", "Choose Your computer", "The Cloud is ready"]); none(view.html, ["data-cloud-moving", "Moving"]);
 });
 it("this computer's Settings has no lending card: no switch, no Which Cloud, nothing to choose, whatever the Cloud's state", async () => {
   for (const machine of [{ status: "ready", origin }, { status: "provisioning" }, { status: "stopped", origin }] as const) {

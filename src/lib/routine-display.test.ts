@@ -23,13 +23,13 @@ describe("where a routine runs", () => {
 
   it("on a desktop, a routine starts while Entropybot is open there", () => {
     expect(routineRunsOn({ roomGoal: false, cloudHome: false })).toEqual({
-      label: "This computer", hint: "Starts while Entropybot is open here.",
+      label: "Your computer", hint: "Starts while Entropybot is open here.",
     });
     expect(routineRunsOn({ roomGoal: false, runOn: "cloud", cloudHome: false })).toEqual({
       label: "Cloud desktop", hint: "Runs the whole job on the bot's cloud desktop while Entropybot is open.",
     });
     expect(routineRunsOn({ roomGoal: false, computer: "vm", cloudHome: false }).label).toBe("The bot's private desktop");
-    expect(routineRunsOn({ roomGoal: true, cloudHome: false }).label).toBe("This computer, with the whole group");
+    expect(routineRunsOn({ roomGoal: true, cloudHome: false }).label).toBe("Your computer, with the whole group");
   });
 
   it("never names Boat or a cloud runner", () => {
