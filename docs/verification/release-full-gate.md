@@ -42,9 +42,13 @@ and selects its newest run for that SHA. It never falls back to an older green r
 The run must be from this repository and head repository, use push or manual
 dispatch, be complete and successful on its first attempt, and have started within
 24 hours. It reads attempt 1 jobs, rejects incomplete/truncated API responses, and
-rechecks the run after verification to detect a concurrent rerun. Requests are GET
-only, fixed to api.github.com, reject redirects, have 15-second deadlines, and do
-not print credentials or response bodies.
+rechecks the run after verification, then reads the same SHA-filtered run listing
+again. The newest run must still be the selected run, on attempt 1, completed and
+successful; a newer run or changed attempt/state blocks with a concurrent-rerun
+error. Both listing reads reject missing or truncated evidence. This hardening is
+required before enablement and does not provision the empty trust root. Requests
+are GET only, fixed to api.github.com, reject redirects, have 15-second deadlines,
+and do not print credentials or response bodies.
 
 The expected job set is exact: ten `main-vitest-01` through `main-vitest-10` jobs,
 `broker-vitest`, `control-plane-vitest`, `electron-node`, `static-checks` and
@@ -136,3 +140,24 @@ serially if accepted, implement/review the full producer and trust pins, then ru
 against the final integrated source with real Actions evidence under separate
 authorization. Record lessons in engineering docs during controller integration;
 this owner's write scope excludes those files.
+
+### Concurrent-rerun consumer hardening
+
+The selected run's unchanged detail response did not prove that the run listing
+still selected it: a new same-SHA run could appear during verification. The final
+listing recheck closes that observed gap while retaining the per-run recheck and
+all provenance, job, truncation and trust checks. This is required-before-enable
+consumer hardening only; F2 remains blocked with `APPROVED_PRODUCER_FILES` empty
+and production still rejects before HTTP.
+
+On baseline `7ce7c3b834df5df51fb2af605ebc6a53b0cc9d95`, Node 24.22.2 ran the
+focused command above: **58 passed, 0 failed**. With the expanded tests against the
+old consumer: **57 passed, 9 failed, 66 total**. Six concurrent-rerun cases actually
+failed with missing expected rejection; the remaining failures detected the absent
+final request and absent missing/truncated-final-list rejection. After the fix:
+**66 passed, 0 failed, 0 skipped, 0 todo**. The stable case verifies both listing
+URLs and that the final listing follows the detail recheck. Newer failed, queued
+and successful runs, plus final-list attempt/status/conclusion changes, all reject.
+Scoped deny-warning oxlint and `git diff --check` passed. All API evidence remains
+synthetic; this does not validate real Actions or guarantee against changes after
+the final API read. No producer, trust pins, dependencies or workflows changed.

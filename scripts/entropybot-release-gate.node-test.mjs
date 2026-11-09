@@ -80,6 +80,7 @@ function remoteFixture() {
     record.run,
     { total_count: record.jobs.length, jobs: record.jobs },
     record.run,
+    { total_count: 1, workflow_runs: [{ ...record.run }] },
   ];
   return {
     record, responses, calls,
@@ -103,7 +104,35 @@ test("authenticated GETs bind pinned producer bytes and attempt-specific jobs", 
   assert.equal(remote.responses.length, 0);
   assert.ok(remote.calls.some(call => call.url.endsWith("/attempts/1/jobs?per_page=100")));
   assert.ok(remote.calls[0].url.endsWith(`?ref=${sha}`));
+  const listingUrl = `https://api.github.com/repos/${REPOSITORY}/actions/workflows/456/runs?head_sha=${sha}&per_page=100`;
+  assert.equal(remote.calls.filter(call => call.url === listingUrl).length, 2);
+  assert.equal(remote.calls.at(-2).url, `https://api.github.com/repos/${REPOSITORY}/actions/runs/123`);
+  assert.equal(remote.calls.at(-1).url, listingUrl);
 });
+
+for (const state of [
+  { status: "completed", conclusion: "failure" },
+  { status: "queued", conclusion: null },
+  { status: "completed", conclusion: "success" },
+]) {
+  test(`reject concurrent rerun: newer ${state.status}/${state.conclusion} run appears`, async () => {
+    const remote = remoteFixture();
+    remote.responses[7].workflow_runs.push({ ...remote.record.run, id: 124, ...state });
+    remote.responses[7].total_count++;
+    await assert.rejects(verifyRemoteGate(remote.options), /concurrent rerun/);
+  });
+}
+for (const change of [
+  { run_attempt: 2 },
+  { status: "in_progress" },
+  { conclusion: "failure" },
+]) {
+  test(`reject concurrent rerun: final listing changes ${Object.keys(change)[0]}`, async () => {
+    const remote = remoteFixture();
+    Object.assign(remote.responses[7].workflow_runs[0], change);
+    await assert.rejects(verifyRemoteGate(remote.options), /concurrent rerun/);
+  });
+}
 
 test("production trust root blocks before any network request", async () => {
   await assert.rejects(verifyRemoteGate({ sha, token: "synthetic-token", fetchImpl: () => assert.fail("must not fetch") }), /producer is not provisioned/);
@@ -113,6 +142,8 @@ const remoteMutations = {
   "disabled workflow": remote => { remote.responses[2].state = "disabled_manually"; },
   "missing evidence": remote => { remote.responses[3] = { total_count: 0, workflow_runs: [] }; },
   "truncated run list": remote => { remote.responses[3].total_count = 101; },
+  "missing final run list": remote => { remote.responses[7] = { total_count: 0, workflow_runs: [] }; },
+  "truncated final run list": remote => { remote.responses[7].total_count = 101; },
   "truncated jobs": remote => { remote.responses[5].total_count++; },
   "wrong workflow id": remote => { remote.record.run.workflow_id++; },
   "changed run during read": remote => { remote.responses[6] = { ...remote.record.run, run_attempt: 2 }; },

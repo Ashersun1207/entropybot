@@ -70,17 +70,22 @@ export async function verifyRemoteGate({ sha, token, fetchImpl = fetch, now = Da
   }
   const workflow = await get(`/actions/workflows/${WORKFLOW.split("/").at(-1)}`);
   requireThat(workflow.path === WORKFLOW && workflow.state === "active" && Number.isSafeInteger(workflow.id), "unavailable producer workflow");
-  const listing = await get(`/actions/workflows/${workflow.id}/runs?head_sha=${sha}&per_page=100`);
-  requireThat(Array.isArray(listing.workflow_runs) && listing.workflow_runs.length > 0, "missing full regression run");
-  requireThat(listing.total_count === listing.workflow_runs.length && listing.total_count <= 100, "truncated run evidence");
-  const runs = [...listing.workflow_runs].sort((left, right) => right.id - left.id);
-  const run = await get(`/actions/runs/${runs[0].id}`);
-  requireThat(run.id === runs[0].id && run.workflow_id === workflow.id, "run workflow identity mismatch");
+  const getNewestRun = async () => {
+    const listing = await get(`/actions/workflows/${workflow.id}/runs?head_sha=${sha}&per_page=100`);
+    requireThat(Array.isArray(listing.workflow_runs) && listing.workflow_runs.length > 0, "missing full regression run");
+    requireThat(listing.total_count === listing.workflow_runs.length && listing.total_count <= 100, "truncated run evidence");
+    return [...listing.workflow_runs].sort((left, right) => right.id - left.id)[0];
+  };
+  const selected = await getNewestRun();
+  const run = await get(`/actions/runs/${selected.id}`);
+  requireThat(run.id === selected.id && run.workflow_id === workflow.id, "run workflow identity mismatch");
   const result = await get(`/actions/runs/${run.id}/attempts/1/jobs?per_page=100`);
   requireThat(Array.isArray(result.jobs) && result.total_count === result.jobs.length && result.total_count <= 100, "truncated job evidence");
   const verdict = validateRecord({ run, jobs: result.jobs, sha, now });
   const current = await get(`/actions/runs/${run.id}`);
   requireThat(current.run_attempt === run.run_attempt && current.status === run.status && current.conclusion === run.conclusion && current.updated_at === run.updated_at, "run changed during verification");
+  const newest = await getNewestRun();
+  requireThat(newest.id === run.id && newest.run_attempt === 1 && newest.status === "completed" && newest.conclusion === "success", "concurrent rerun detected during verification");
   return verdict;
 }
 
