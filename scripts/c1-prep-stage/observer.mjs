@@ -77,7 +77,7 @@ registerHooks({load(url, context, nextLoad) {
   return {...result, source};
 }});
 const spawn = cp.spawn;
-cp.spawn = function(command, args, options) {
+cp.spawn = function(command, args, _options) {
   const target = args?.includes('--input-format') && args.includes('stream-json');
   if (!target) return Reflect.apply(spawn, this, arguments);
   mark('spawn.call');
