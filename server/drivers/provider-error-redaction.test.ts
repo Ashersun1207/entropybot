@@ -46,8 +46,8 @@ it.each([
   [401, ""],
 ])("replaces HTTP %s authentication bodies before helper errors and runtime events", async (status, body) => {
   const { instance, requests } = await fixture(status, body, "fixture-only");
-  await expect(instance.generateText!("hi")).rejects.toThrow(`upstream HTTP ${status}: Authentication or permission denied. Check the provider credentials and access.`);
-  expect(await turn(instance)).toMatchObject({ message: `upstream HTTP ${status}: Authentication or permission denied. Check the provider credentials and access.` });
+  await expect(instance.generateText!("hi")).rejects.toThrow(`upstream HTTP ${status}: Authentication required or permission denied. Check the provider credentials and access.`);
+  expect(await turn(instance)).toMatchObject({ message: `upstream HTTP ${status}: Authentication required or permission denied. Check the provider credentials and access.` });
   expect(requests).toEqual(["Bearer fixture-only", "Bearer fixture-only"]);
 });
 
@@ -64,8 +64,8 @@ it.each(["q7!", "x", "sk-test-abcdefghijklmnopqrstuvwxyz"])("masks the known cre
 it.each(["application/json", "text/event-stream"])("sanitizes HTTP 200 %s completion authentication errors", async type => {
   const json = JSON.stringify({ error: { code: "invalid_api_key", message: "invalid api key sk-LEAK and q7!" } });
   const { instance } = await fixture(200, type === "application/json" ? json : `data: ${json}\n\n`, "q7!", type);
-  if (type === "application/json") await expect(instance.generateText!("hi")).rejects.toThrow(/Authentication or permission denied/);
-  expect(await turn(instance)).toMatchObject({ message: expect.stringContaining("Authentication or permission denied") });
+  if (type === "application/json") await expect(instance.generateText!("hi")).rejects.toThrow(/Authentication required or permission denied/);
+  expect(await turn(instance)).toMatchObject({ message: expect.stringContaining("Authentication required or permission denied") });
   expect(JSON.stringify(await turn(instance))).not.toContain("sk-LEAK");
 });
 

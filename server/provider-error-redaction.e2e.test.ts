@@ -50,7 +50,7 @@ it("persists safe upstream diagnostics through the isolated production server an
       }, { timeout: 20_000, interval: 100 });
       expect(JSON.stringify(rows)).not.toContain("sk-LEAK");
       expect(JSON.stringify(rows)).not.toContain("q7!");
-      expect(JSON.stringify(rows)).toContain(mode === "rate-limit" ? "retry later" : "Authentication or permission denied");
+      expect(JSON.stringify(rows)).toContain(mode === "rate-limit" ? "retry later" : "Authentication required or permission denied");
     }
     await fixture.restart();
     for (const thread of threads) {

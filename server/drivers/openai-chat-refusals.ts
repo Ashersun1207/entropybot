@@ -55,7 +55,7 @@ export function redactProviderException(error: unknown, apiKey: string): unknown
 function safeErrorDetail(body: string, detail: string, apiKey: string, status?: number): string {
   if (status === 401 || status === 403 || rejectsKey(400, body)
     || /\b(?:authentication_error|permission_denied|insufficient_permissions)\b/.test(body)) {
-    return "Authentication or permission denied. Check the provider credentials and access.";
+    return "Authentication required or permission denied. Check the provider credentials and access.";
   }
   return redactProviderDiagnostic(detail, apiKey);
 }

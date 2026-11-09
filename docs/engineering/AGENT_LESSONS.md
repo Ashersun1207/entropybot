@@ -175,6 +175,7 @@
 - 原体验夹具配置 `fixture-only`、401 文案却回显未知短值 `sk-LEAK`；不能把它误诊为已知 key 的 turn-final scrub 失效。合成生产 driver 红例 13 失败/36 通过，真实隔离 server 的持久 activity 红例确认：已知 `q7!` 已脱敏，未知短值仍出现；helper 的已知 key 则确实未被既有 turn scrub 覆盖。修复身份以本条所属提交为准，详细证据/限制见 [验证说明](../verification/provider-error-redaction.md)。
 - 在共享 HTTP/JSON/SSE 错误入口使用 owner-local 精确值遮蔽（无长度/前缀门槛），401/403 及识别的 auth/permission 错误改固定文案，保留状态；不要降低普通文本全局 regex 的精度或注册无 owner 生命周期的全局 secret。先遮蔽再截断，保留安全 machine-code suffix；原始 body 仍供分类。Responses 两类失败事件、chat completion errors、helper 与实际持久化/restart 必须一并覆盖，不能只验 helper。未知、编码或部分回显不承诺通用识别。
 - 首轮修复五项失败：DOMException 的 message 是只读 getter，不能无条件赋值；组合后统一截断吞掉 machine code；旧 auth 文案断言需明确更新契约而保留 key-rejected/取消检查。修改后 focused 50 项通过；后续相关组合另发现一处旧401文案断言，保留334通过/1失败记录再更新。最初测试还把非流 helper 当 SSE 消费者，产品修改前已纠正并保留两次红例。HTTP200 的 JSON.parse 源码预览可能只回显长 key 的前缀，因此 malformed JSON 必须固定错误而非事后匹配完整 key。最终门槛见交接，不把中间通过冒充最终验收。
+- 扩展到 optional-tools 套件的首次提交门槛481通过/1失败暴露真实回归：HTTP400同时含 invalid key 与 tools unsupported 时，新固定文案不再匹配 retry auth 分类，从而触发降级重发。保留原有一次请求断言；固定文案包含既有分类词 `Authentication required`，不扩张 retry 实现或降低工具负例。固定安全文案也属于行为协议，必须验证下游分类消费者。
 
 ## 不应合并的改动
 

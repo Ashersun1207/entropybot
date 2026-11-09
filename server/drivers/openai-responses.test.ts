@@ -161,7 +161,7 @@ it.each(["error", "response.failed"])("redacts Responses %s authentication diagn
   const result = await f.turn();
   expect(result.end).toMatchObject({ ok: false });
   expect(f.paths()).toEqual(["/v1/chat/completions", "/v1/responses"]);
-  expect(failureOf(result.events)).toContain("Authentication or permission denied");
+  expect(failureOf(result.events)).toContain("Authentication required or permission denied");
   expect(JSON.stringify(result.events)).not.toContain("sk-LEAK");
   expect(JSON.stringify(result.events)).not.toContain(KEY);
 });
@@ -474,7 +474,7 @@ describe("what Responses can answer", () => {
     const { end, events: seen } = await f.turn();
     expect(end).toMatchObject({ ok: false });
     expect(f.paths()).toEqual(["/v1/chat/completions", "/v1/responses"]);
-    expect(failureOf(seen)).toContain("HTTP 401: Authentication or permission denied. Check the provider credentials and access.");
+    expect(failureOf(seen)).toContain("HTTP 401: Authentication required or permission denied. Check the provider credentials and access.");
     expect(keyRejected(OPENAI, KEY)).toBe(true);
     expect(await f.instance.snapshot()).toMatchObject({ authenticated: false });
   });

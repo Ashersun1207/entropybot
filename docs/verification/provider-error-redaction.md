@@ -11,7 +11,7 @@ The isolated server baseline here independently reproduced the persisted
 ## Contract
 
 HTTP 401/403 bodies use fixed content:
-`Authentication or permission denied. Check the provider credentials and access.`
+`Authentication required or permission denied. Check the provider credentials and access.`
 The provider label and HTTP status remain; upstream authentication wording and
 arbitrary machine codes are omitted. Recognized invalid-key/authentication or
 permission errors inside HTTP 200 JSON/chat SSE and Responses failure events
@@ -68,7 +68,12 @@ helper; the corrected run tests SSE through the streaming turn instead.
 `green-focused` records the first repair's five failures (three assertions from
 one lost-code-suffix defect, a read-only DOMException message assignment, and
 one old auth wording assertion); `green-focused-r1` records 50 passed. `related`
-records 334 passed / one further old auth-wording assertion. Final receipts and
+records 334 passed / one further old auth-wording assertion. The first committed
+`final-related` run records 481 passed / one real regression: a mixed HTTP400
+invalid-key/tools-unsupported error downgraded optional tools because the new
+fixed sentence no longer matched the existing auth classifier. The corrected
+fixed content includes `Authentication required`; the original one-request
+assertion is preserved. Final receipts and
 the handoff bind the corrected source, exact commands and counts; intermediate
 results are not substituted for final checks.
 
