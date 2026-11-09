@@ -22,7 +22,8 @@ it("pins one unique page and never closes a browser or unrelated page", async ()
   await expect(target.stop()).resolves.toBe(true);
   expect(send.mock.calls.filter(([method]) => method === "Page.stopLoading")).toHaveLength(1);
   expect(send).toHaveBeenCalledWith("Page.stopLoading", {}, "owned-session");
-  expect(send.mock.calls.map(([method]) => method)).toEqual(["Target.getTargets", "Target.attachToTarget", "Page.stopLoading"]);
+  expect(send).toHaveBeenCalledWith("Page.navigate", { url: "about:blank" }, "owned-session");
+  expect(send.mock.calls.map(([method]) => method)).toEqual(["Target.getTargets", "Target.attachToTarget", "Page.stopLoading", "Page.navigate"]);
   target.close();expect(close).toHaveBeenCalledOnce();
 });
 

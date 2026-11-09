@@ -94,6 +94,7 @@ it.runIf(process.env.OMB_STOP_BROWSER_E2E === "1")("stops only the interrupted b
       followupSettled = true;
     } catch { followupSettled = false; }
     followupDiagnostics = { sendResp, followupSettled, laneRecovery: followupSettled ? "recovered" : "open: next browser turn did not complete", followupMessages: await messages(next) };
+    expect(followupSettled, JSON.stringify(followupDiagnostics.followupMessages)).toBe(true);
     expect(reads).not.toContain("/after-stop");
     expect((await messages(thread(primary))).filter((m: any) => m.role === "bot" && m.kind === "text")).toEqual([]);
     report = { ...report, oldReplyAbsent: true, laneRecovery: followupSettled ? "recovered" : "open", controlUnaffected: true, reads, requests };

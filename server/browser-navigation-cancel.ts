@@ -22,7 +22,14 @@ export async function prepareNavigationStop(cdpUrl: string, pageUrl: string, con
     const sessionId = attached.sessionId;
     const connection = cdp;
     let stopped: Promise<boolean> | undefined;
-    return { stop: () => stopped ??= connection.send("Page.stopLoading", {}, sessionId).then(() => true, () => false), close: () => connection.close() };
+    return {
+      stop: () => stopped ??= connection.send("Page.stopLoading", {}, sessionId)
+        // The engine's own open waits for the page to finish loading. Navigating the interrupted tab to about:blank fires a
+        // load on that tab only, so the stale open can return and free the session's single-command lane.
+        .then(() => connection.send("Page.navigate", { url: "about:blank" }, sessionId))
+        .then(() => true, () => false),
+      close: () => connection.close(),
+    };
   } catch { cdp?.close();return null; }
 }
 
