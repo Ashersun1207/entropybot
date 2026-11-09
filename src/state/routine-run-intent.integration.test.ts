@@ -88,6 +88,31 @@ const preflightCases = (["initial", "post-settings"] as const).flatMap((phase) =
   (["environment", "session"] as const).flatMap((endpoint) => [false, true].map((priorPending) => [phase, endpoint, priorPending] as const)));
 
 describe("actual StoreProvider and routine details consumer", () => {
+  it("refuses joined Retry subscribers for a replacement held behind settings without clearing details uncertainty", async () => {
+    const originalKey = crypto.randomUUID();
+    localStorage.setItem(MANUAL_RUN_STORAGE, JSON.stringify({ version: 1, entries: [{
+      environmentId: "11111111-1111-4111-8111-111111111111", contextId, routineId: routine.id, key: originalKey, phase: "pending",
+    }] }));
+    let release!: (response: Response) => void;
+    profile = new Promise((resolve) => { release = resolve; }); mount(true);
+    const replacementStarted = vi.fn(); const retry = { onStarted: vi.fn(), onError: vi.fn(), onSettled: vi.fn() };
+    act(() => {
+      dispatch({ type: "updateBot", botId: bot.id, patch: { title: "Saved" } });
+      dispatch({ type: "runRoutine", routineId: routine.id, acknowledgePriorRun: true, onStarted: replacementStarted });
+    });
+    await flush(); expect(posts).toHaveLength(0);
+    click("Retry");
+    act(() => dispatch({ type: "runRoutine", routineId: routine.id, acknowledgePriorRun: false, ...retry }));
+    await flush(); expect(retry.onSettled).not.toHaveBeenCalled();
+    release(json({ bot: { ...bot, title: "Saved" } })); await flush();
+    expect(replacementStarted).toHaveBeenCalledExactlyOnceWith(run);
+    expect(retry.onStarted).not.toHaveBeenCalled();
+    expect(retry.onError).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ reason: "blocked" }));
+    expect(retry.onSettled).toHaveBeenCalledOnce();
+    expect(posts).toHaveLength(1); expect(key(0)).not.toBe(originalKey);
+    expect(JSON.parse(localStorage.getItem(MANUAL_RUN_STORAGE)!).entries[0]).toMatchObject({ key: key(0), phase: "confirmed" });
+    expect(host.textContent).toContain("Retry"); expect(host.textContent).toContain("Start another run…");
+  });
   it.each(["null", "getter", "method", "rejection"])("shows explicit %s coordination feedback without dispatching", async (failure) => {
     const getter = vi.spyOn(navigator, "locks", "get");
     if (failure === "getter") getter.mockImplementation(() => { throw Error("denied"); });

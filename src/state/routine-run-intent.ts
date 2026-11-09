@@ -9,6 +9,7 @@ export const MANUAL_RUN_STORAGE = "entropybot.manual-routine-intents.v1";
 export const MANUAL_ROUTINE_PREFLIGHT_TIMEOUT_MS = 5_000;
 type Marker = ManualRoutineScope & { routineId: string; key: string; phase: "pending" | "confirmed" };
 type Ledger = { version: 1; entries: Marker[] };
+type RunOperation = { marker: Marker; run: RoutineRun };
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const sameScope = (a: ManualRoutineScope, b: ManualRoutineScope) => a.environmentId === b.environmentId && a.contextId === b.contextId;
 const sameMarker = (a: Marker, b: Marker | undefined) => !!b && a.key === b.key && sameScope(a, b);
@@ -90,11 +91,11 @@ export function decodeManualRun(body: unknown, routineId: string): RoutineRun | 
 }
 
 export function createRoutineRunIntents() {
-  const inFlight = new Map<string, { scope: Promise<ManualRoutineScope>; promise: Promise<RoutineRun> }>();
+  const inFlight = new Map<string, { scope: Promise<ManualRoutineScope>; promise: Promise<RunOperation> }>();
   const uncertain = new Map<string, Marker>();
   const completed = new Map<string, Marker>();
   const needsRecovery = (marker: Marker) => !isCompleted(marker, completed);
-  const execute = async (routineId: string, scope: ManualRoutineScope, settings: () => Promise<void>, acknowledgePriorRun: boolean | undefined, recovery: Marker | undefined): Promise<RoutineRun> => {
+  const execute = async (routineId: string, scope: ManualRoutineScope, settings: () => Promise<void>, acknowledgePriorRun: boolean | undefined, recovery: Marker | undefined): Promise<RunOperation> => {
     let marker: Marker | undefined;
     try {
       const storage = globalThis.localStorage;
@@ -132,7 +133,7 @@ export function createRoutineRunIntents() {
         if (completed.size > 32) completed.delete(completed.keys().next().value!);
         uncertain.delete(routineId);
       });
-      return run;
+      return { marker: reserved, run };
     } catch (error) {
       if (error instanceof ManualRunError) throw error;
       throw new ManualRunError(marker ? "unknown" : error instanceof ManualRunCoordinationError ? "coordination" : "blocked");
@@ -152,14 +153,22 @@ export function createRoutineRunIntents() {
       if (pending) {
         return Promise.all([scope, pending.scope]).then(([current, captured]) => {
           if (!sameScope(captured, current)) throw new ManualRunError("changed");
-          return pending.promise;
+          return pending.promise.then(({ marker, run }) => {
+            if (recovery) {
+              try {
+                const latest = load(globalThis.localStorage).entries.find((m) => m.routineId === routineId);
+                if (!sameMarker(recovery, marker) || !sameMarker(recovery, latest)) throw new ManualRunError("blocked");
+              } catch { throw new ManualRunError("blocked"); }
+            }
+            return run;
+          });
         });
       }
       const promise = scope.then((captured) => execute(routineId, captured, settings, acknowledgePriorRun, recovery));
       const entry = { scope, promise };
       inFlight.set(routineId, entry);
       void promise.finally(() => { if (inFlight.get(routineId) === entry) inFlight.delete(routineId); }).catch(() => {});
-      return promise;
+      return promise.then(({ run }) => run);
     },
   };
 }

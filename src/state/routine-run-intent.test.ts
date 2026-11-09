@@ -46,6 +46,60 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); });
 
 describe("protected manual intent", () => {
+  const seedPending = () => {
+    const marker = { environmentId: environment.environmentId, contextId, routineId: "routine", key: crypto.randomUUID(), phase: "pending" };
+    localStorage.setItem(MANUAL_RUN_STORAGE, JSON.stringify({ version: 1, entries: [marker] }));
+    return marker;
+  };
+  it.each([false, true])("binds joined explicit Retry to the reserved operation after held settings (replacement: %s)", async (replace) => {
+    const original = seedPending(); const owner = createRoutineRunIntents();
+    let release!: () => void;
+    const first = owner.run("routine", () => new Promise<void>((resolve) => { release = resolve; }), replace);
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    const retry = owner.run("routine", settings, false).then((value) => value, (error: unknown) => error);
+    release(); await expect(first).resolves.toEqual(run);
+    if (replace) expect(await retry).toMatchObject({ reason: "blocked" });
+    else await expect(retry).resolves.toEqual(run);
+    expect(posts).toHaveLength(1);
+    if (replace) expect(key(0)).not.toBe(original.key); else expect(key(0)).toBe(original.key);
+    expect(JSON.parse(localStorage.getItem(MANUAL_RUN_STORAGE)!).entries[0]).toMatchObject({ key: key(0), phase: "confirmed" });
+  });
+  it("does not attribute a replacement to joined Retry even if the captured marker reappears", async () => {
+    const original = seedPending(); const owner = createRoutineRunIntents();
+    let releaseSettings!: () => void, releasePreflight!: (response: Response) => void;
+    const replacement = owner.run("routine", () => new Promise<void>((resolve) => { releaseSettings = resolve; }), true);
+    await vi.waitFor(() => expect(releaseSettings).toBeTypeOf("function"));
+    request.mockImplementationOnce(() => new Promise((resolve) => { releasePreflight = resolve; }));
+    const retry = owner.run("routine", settings, false).then((value) => value, (error: unknown) => error);
+    releaseSettings(); await replacement;
+    const restored = JSON.stringify({ version: 1, entries: [original] });
+    localStorage.setItem(MANUAL_RUN_STORAGE, restored); releasePreflight(json(environment));
+    expect(await retry).toMatchObject({ reason: "blocked" });
+    expect(posts).toHaveLength(1); expect(key(0)).not.toBe(original.key);
+    expect(localStorage.getItem(MANUAL_RUN_STORAGE)).toBe(restored);
+  });
+  it.each(["unchanged", "missing", "key", "context", "environment"] as const)("revalidates joined explicit Retry after its delayed preflight when the marker is %s", async (change) => {
+    const original = seedPending(); const owner = createRoutineRunIntents();
+    let releaseResponse!: (response: Response) => void;
+    answer = () => new Promise((resolve) => { releaseResponse = resolve; });
+    const first = owner.run("routine", settings, false);
+    await vi.waitFor(() => expect(posts).toHaveLength(1));
+    let releasePreflight!: (response: Response) => void;
+    request.mockImplementationOnce(() => new Promise((resolve) => { releasePreflight = resolve; }));
+    const retry = owner.run("routine", settings, false).then((value) => value, (error: unknown) => error);
+    releaseResponse(json({ run })); await first;
+    const ledger = JSON.parse(localStorage.getItem(MANUAL_RUN_STORAGE)!);
+    if (change === "missing") ledger.entries = [];
+    if (change === "key") ledger.entries[0].key = crypto.randomUUID();
+    if (change === "context") ledger.entries[0].contextId = `mr1_${"b".repeat(64)}`;
+    if (change === "environment") ledger.entries[0].environmentId = crypto.randomUUID();
+    const stored = JSON.stringify(ledger); localStorage.setItem(MANUAL_RUN_STORAGE, stored);
+    releasePreflight(json(environment));
+    if (change === "unchanged") await expect(retry).resolves.toEqual(run);
+    else expect(await retry).toMatchObject({ reason: "blocked" });
+    expect(posts).toHaveLength(1); expect(key(0)).toBe(original.key);
+    expect(localStorage.getItem(MANUAL_RUN_STORAGE)).toBe(stored);
+  });
   it("allows overlapping owners to dispatch the same reserved key while responses are pending", async () => {
     const releases: (() => void)[] = [];
     answer = () => new Promise<Response>((resolve) => releases.push(() => resolve(json({ run }))));

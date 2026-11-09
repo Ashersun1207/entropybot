@@ -106,6 +106,12 @@
 - 显式 Retry 要在动作开始捕获原 key/context，等待期间缺失或替换就拒绝，不因驱逐或另一页写入生成新 key。锁获取独立五秒截止、abort 与回调入口单调时间/已结束 fence；缺/null/抛错/拒绝的 native API 明确提示并零写入/零 POST，无锁降级。新错误 reason 不能沿用“非 blocked 就未知”的旧 UI 判断：首轮 browser 9 通过/1 失败实际看到无 marker 的锁超时显示 Retry；修复仅 unknown/changed 或真实存储 marker 进入恢复态。类型首轮仅测试 LockGrantedCallback 缺泛型参数，补 unknown，不放松 strict。
 - 回归入口：`src/state/manual-run-coordination.test.ts`、两份 routine-run-intent unit/provider suite、`scripts/testing/routine-run-multitab-ui.e2e.test.ts`，并保留原三项真实 reload/server restart 兼容回归。happy-dom 的 locks 是 null，测试显式注入共享 fake，但不把 fake 当多进程证明；真实 Chrome 仍用原生锁、原组件/Store/settings/preflight 与隔离服务。证据、失败及限制见 [跨页验证](../verification/routine-run-multitab.md)。不同 origin/端口/别名/profile/旧客户端、真实安装主进程与公开 TLS 不在保证内；无 native Web Locks 的普通 HTTP 页面拒绝受保护运行，查看/编辑/取消继续可用。无依赖/server/schema/安装/发布变更；pt-BR 人审仍待完成。
 
+## A1 多标签页 R1：合并订阅也必须核对恢复身份
+
+- 独立复审 `1bf8913b6` 发现 pending 快捷分支只校验 scope 就返回在途 promise，绕过 execute 的显式 Retry 身份检查。实际红例：存 A、ack=true 替换阻塞在 settings、同 provider 的 ack=false Retry 捕获 A 后加入替换，最终错误收到 B 的 run/onStarted；只有一条获授权替换 POST，不是额外派发。另有 joined Retry 的 preflight 等待期间 A 消失或 key/context/environment 被改，旧快捷分支仍报告成功。前次 112/14/35 不能证明此交错安全。
+- R1 修复以本条所属提交为准：私有在途结果携带真实保留的 marker 与 run，公共接口仍返回 RoutineRun；显式 joined Retry 在交付成功前同时匹配捕获 marker、实际 operation marker 和当前 ledger，缺失/变化只拒绝该订阅者，不覆写 ledger、不额外 POST。不能仅从当前 ledger 推断在途操作身份；额外控制在 B 完成后恢复 A，仍须拒绝把 B 认作 A。
+- 回归入口仍为两份 `routine-run-intent` unit/provider suite：R1 修复前 6 个真实断言失败；新增 9 例覆盖替换/settings、joined preflight 迟到/缺失/三类身份替换、同身份正常合并和实际 Store 回调/UI 不确定态。并按修复提交重跑 14 项真实 browser 兼容及相关 size/docs/types/lint/locale；最终 SHA/命令/计数见私有 R1 交接。不改 schema/auth/cancel/native API/短锁事务或预算，真实安装/跨 origin/profile/pt-BR 人审边界保留。
+
 ## A1：生产采集派发与报告确认
 
 - `report.state: pending` 只表示报告排队，不能让采集 host 的发布回调成功。生产接线必须保留每个 run 的版本化计划和原 HTTP request receipt；重启只恢复同一手动身份，未知读取 reservation 不重发，不能读取后来修改的 routine 计划。报告使用现有 Store/commands SQLite 的稳定消息命令，在目标聊天实际消息存在后才确认；繁忙时保持未确认，取消后不得靠后续 flush 发布旧摘要。
