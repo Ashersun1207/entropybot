@@ -1,5 +1,7 @@
 // About me, the profile every bot reads: facts bots learn into it, and lines a person asks a bot to forget.
-import { appendAboutMe, commitLearned, planLearned } from "./profile-learned.ts";
+import { foldForMatch, passageMatcher } from "./memory-entries.ts";
+import { appendAboutMe, commitLearned, correctLearnedLines, planLearned } from "./profile-learned.ts";
+import { redactSecretsInText } from "./redact.ts";
 
 const LEARNED_PREFIX = /^\s*-\s*\d{4}-\d{2}-\d{2} · learned by [^·\n]* · /;
 const BULLET = /^\s*(?:[-*•]|\d+[.)])\s+/;
@@ -48,6 +50,31 @@ export function createAboutMe(deps: AboutMeDeps) {
       if (!planned) return 0;
       deps.write(planned.next);
       commitLearned(facts());
+      deps.changed();
+      return planned.count;
+    },
+    correct(layer: string, oldText: string, text: string): number {
+      const mentions = passageMatcher(oldText);
+      const replacement = redactSecretsInText(text.trim());
+      if (!mentions || !replacement || replacement.length > 300 || /[\r\n]/.test(oldText + replacement)) return 0;
+      const changes = new Map<string, { text: string; line: string }>();
+      const plan: Plan = (current) => {
+        const next = current.split("\n").map((line) => {
+          if (line.trim().startsWith("#")) return line;
+          const prefix = LEARNED_PREFIX.exec(line)?.[0] ?? BULLET.exec(line)?.[0] ?? "";
+          const fact = line.slice(prefix.length).trim();
+          if (!mentions(fact) || foldForMatch(fact) !== foldForMatch(oldText)) return line;
+          const corrected = prefix + replacement;
+          if (corrected !== line) changes.set(line, { text: replacement, line: corrected });
+          return corrected;
+        }).join("\n");
+        return next === current ? null : { next, count: changes.size };
+      };
+      if (deps.person) return deps.person(layer, plan);
+      const planned = plan(deps.read());
+      if (!planned) return 0;
+      deps.write(planned.next);
+      correctLearnedLines(changes);
       deps.changed();
       return planned.count;
     },

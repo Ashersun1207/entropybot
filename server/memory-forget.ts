@@ -92,7 +92,7 @@ export interface PreferenceTarget {
 export function botMemoryUpdate(
   layer: string,
   body: { action?: unknown; text?: unknown; oldText?: unknown; until?: unknown },
-  opts: { source: string; aboutMe: Pick<AboutMe, "forget"> | null; prefer?: PreferenceTarget | null },
+  opts: { source: string; aboutMe: Pick<AboutMe, "forget" | "correct"> | null; prefer?: PreferenceTarget | null },
 ): BotMemoryResult {
   if (body.action === "prefer") {
     const text = typeof body.text === "string" ? body.text.replace(/\s+/g, " ").trim() : "";
@@ -117,5 +117,9 @@ export function botMemoryUpdate(
     return { ok: true, forgotten, aboutMe };
   }
   if (body.action === "append" && typeof body.text === "string") clearForgotten(body.text);
-  return updateMemory(layer, { action: body.action, text: body.text, oldText: body.oldText, ...(body.until !== undefined ? { until: body.until } : {}) } as MemoryUpdate, { source: opts.source });
+  const result = updateMemory(layer, { action: body.action, text: body.text, oldText: body.oldText, ...(body.until !== undefined ? { until: body.until } : {}) } as MemoryUpdate, { source: opts.source });
+  if (result.ok && (body.action === "replace" || body.action === "supersede") && typeof body.oldText === "string" && typeof body.text === "string") {
+    opts.aboutMe?.correct(layer, body.oldText, body.text);
+  }
+  return result;
 }

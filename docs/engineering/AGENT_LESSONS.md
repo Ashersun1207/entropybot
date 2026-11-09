@@ -160,6 +160,13 @@
 - 流式字节累计不能相信 Content-Length；无/低报长度仍限制实际字节，超限立即取消并释放 reader，不先 text/json。缓冲区按需增长且封顶，完整有界输入才进行 fatal UTF-8 decode/JSON.parse；分块不能切坏多字节字符，来源不能默默截断。超时和卸载信号也必须覆盖 pending body read；取消 producer promise 不结束时不无限等待它。回归 `src/lib/bounded-json.test.ts`、`src/state/api-bounded.test.ts`、`src/state/api-background.test.ts`、`src/components/routines/CollectionUI.test.ts`；覆盖真实62 MB流超限、JSON.parse未调用、Content-Length误导、UTF-8、取消/timeout、释放锁及普通API兼容。新测试的首次类型检查只因HeadersInit推断失败，修正测试注解，未改strict。
 - 浏览器夹具另注入“真实200报告＋超限长度头”，要求固定错误且正文隐藏，再正常重试；与原真实403/404/篡改409及reload回归一起在最终修复提交重跑。此长度头是明确合成故障，不当成服务器真实超限响应或旧证据延伸。源码/回执/限制见 [采集UI验证](../verification/web-collection-ui.md)。本轮不改语言文件及其他owner的私有路径/copy polish，不改服务端产物上限或安全策略。
 
+## M1：About me 的更正与 learned card 必须同步
+
+- 触发：真实 `botMemoryUpdate` 的 replace/supersede 只写 notes，随后 learn 把新值追加到仍含旧值的 About me。合成生产函数红例 5 失败/6 通过，保留 MEMORY.md 划线正确而 config/profile 中新旧并存的日志；不能拿 notes 的 supersession 正确冒充 About me 准确。
+- 本条所属提交采用完整事实的规范化字面匹配，原位换正文、保留 learned-by/date；部分短语/复合事实不自动更正，避免无声丢失其他事实。不要把更正等同 forget：全局 passage suppression 无 person key，且会拦截包含旧短语的合法新值。Team Cloud 复用 person plan，另一成员与 room/team 范围保持隔离。
+- 本轮首次最终组合为 405 通过/1 文档失败：验证文档用文件名说明两个 standalone suite 不存在，docs guard 仍把否定句中的测试文件名当作必须存在的引用。改为普通模块名称，冻结文档后重跑；不能删守卫或造空测试文件满足引用。
+- Desktop 的 learned card 也需按确切旧行同步 text/line，保留 id/作者/时间，否则原 remove 操作找不到已更正的行。顺序是 profile 保存后再更新卡片；多文件不是原子事务，profile 保存失败时 notes 已提交，不能声称回滚。回归 `server/memory-forget.test.ts` 覆盖持久字节、真实模型提示投影、第二次更正/重复操作、其他 bot、成员隔离和原卡片删除；详见 [验证边界](../verification/memory-aboutme-correction.md)。真实模型/语义匹配/历史副本/安装未验。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

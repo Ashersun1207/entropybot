@@ -90,6 +90,18 @@ export function commitLearned(facts: readonly LearnedFact[]): void {
   save(file);
 }
 
+export function correctLearnedLines(changes: ReadonlyMap<string, { text: string; line: string }>): void {
+  const file = load();
+  let changed = false;
+  file.learned = file.learned.map((fact) => {
+    const correction = changes.get(fact.line);
+    if (!correction) return fact;
+    changed = true;
+    return { ...fact, ...correction };
+  });
+  if (changed) save(file);
+}
+
 export function appendAboutMe(aboutMe: string, lines: readonly string[], maxChars = 24_000): string | null {
   if (!lines.length) return aboutMe;
   const base = aboutMe.replace(/\s+$/, "");
