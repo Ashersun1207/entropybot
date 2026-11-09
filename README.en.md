@@ -1,37 +1,45 @@
 # Entropybot
 
-A local-first team of AI assistants for macOS. Chat with assistants focused on different roles, connect the models and execution engines you choose, and manage their memories and tasks on your desktop.
+Keep your information, memories and tasks in one desktop workspace. A local-first AI assistant for macOS, with the models and execution engines you choose.
 
-[Website · Try it online](https://bot.cloudentropy.ai/?lang=en) · [中文](README.md) · [Download for macOS](https://github.com/Ashersun1207/entropybot/releases/latest) · [Releases](https://github.com/Ashersun1207/entropybot/releases) · [Updates and migration](docs/ENTROPYBOT_UPDATES.md)
+[Try it online](https://bot.cloudentropy.ai/?lang=en) · [Download for macOS](https://github.com/Ashersun1207/entropybot/releases/latest) · [中文](README.md)
 
-![The real Entropybot desktop workspace with synthetic sample content](site/assets/product-ui-light.webp)
+<a href="https://bot.cloudentropy.ai/?lang=en">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-workspace-dark-en.png" />
+  <img src="docs/images/readme-workspace-light-en.png" alt="The real Entropybot workspace: assistant sidebar, document comparison and task results, using synthetic sample data" width="1120" />
+</picture>
+</a>
 
-## Start with a conversation
+*Captured from the current development build using synthetic data and preset replies; the public download may differ. Click the image to try the website workspace. See the [release notes](https://github.com/Ashersun1207/entropybot/releases) for features available in the public download.*
 
-- **Assistant roles:** choose assistants in the sidebar and select models and execution engines for their tasks.
-- **Local memory:** memories and indexes stay on your machine, with Chinese search and optional DashScope `text-embedding-v4` semantic retrieval.
-- **Long conversations:** budget-aware history replay and context compression, including handling for context-length errors, content arrays and repeated tool-call IDs.
-- **Independent updates:** Entropybot has its own identity, versions and GitHub Releases. Updates are currently checked and installed manually.
+## What you can do
 
-Local storage does not mean all processing is offline. Remote models and cloud embeddings send relevant content to the services you configure and may incur charges. Credentials, personal chats and real memories are not included in this repository.
+| Use case | How it works |
+| --- | --- |
+| Organize information | Compare documents, summarize findings, and keep differences, sources and open questions together. |
+| Move tasks forward | Explain the goal, timing and boundaries. Ask for steps and results, and confirm decisions when needed. |
+| Keep context | Give assistants distinct roles, continue existing conversations, and view or revise their memories. |
+| Choose your models | Connect model services and execution engines for your tasks, within your own desktop workspace. |
 
-## Download and release status
+Tool use and task execution depend on the connected model, engine and permissions you grant.
 
-Download only the public versions and attachments listed in [this repository's Releases](https://github.com/Ashersun1207/entropybot/releases). The current public release is **0.2.3**. **0.2.6 remains an unpublished local candidate.**
+## Get started
 
-The current target is macOS on Apple silicon. Existing builds use ad-hoc signing and are not notarized by Apple; stable Developer ID signing and notarization are not complete. Source support for other platforms does not imply that installation packages are available.
+1. Download the macOS Apple silicon version from [Releases](https://github.com/Ashersun1207/entropybot/releases/latest).
+2. Install it, connect your chosen model service or execution engine, and configure its credentials.
+3. Create or select an assistant and give it a clear task. Start with a document comparison, summary or preparation checklist.
 
-Before updating, quit the app and back up your workspace and desktop configuration. See the [update and migration notes](docs/ENTROPYBOT_UPDATES.md). Synthetic checks do not replace real installation, migration and recovery qualification.
+You can also [try the website](https://bot.cloudentropy.ai/?lang=en): switch assistants, type and send messages. Chinese / EN examples use synthetic data and preset replies isolated in your tab. No live model, account or personal memory is connected.
 
-## Interactive website
+## Releases and data
 
-The [website](https://bot.cloudentropy.ai/?lang=en) embeds the real product workspace. Switch assistants, type a message, send it and receive a streaming example reply. Chinese / EN translates the page, product UI and sample content while preserving conversation identity and unsent drafts.
+- The current public download is **0.2.3**. **0.2.6 remains an unpublished candidate.** Source UI may be ahead of the downloadable version.
+- The current target is **macOS on Apple silicon**. Public builds use ad-hoc signing and are not notarized by Apple. Read the release notes before installing.
+- Memories and indexes stay on your machine. Remote models and cloud embeddings send relevant content to the services you configure and may incur charges.
+- Quit the app and back up your workspace and desktop configuration before updating. Personal chats, real memories and credentials are not included in the public repository.
 
-The sample conversation repeats automatically and offers pause/resume controls. Four feature stories demonstrate tool use, reusable steps, preference correction and assistant collaboration. The title uses the native SVG mascot with natural blinks, gaze and restrained eye proportions.
-
-The website uses clearly labeled synthetic data and preset replies, isolated in the visitor's tab. It connects no live model, account or personal memory. Demonstrating candidate UI does not publish a desktop release. The legacy `/demo/` path remains compatible.
-
-See [website build and preview instructions](site/README.md) and the [confirmed experience requirements](site/EXPERIENCE.md).
+[Installation, backup and updates](docs/ENTROPYBOT_UPDATES.md) · [All releases](https://github.com/Ashersun1207/entropybot/releases)
 
 ## Development
 
@@ -41,7 +49,7 @@ Requires Node.js 24+ and pnpm 10.33.0:
 pnpm install --frozen-lockfile
 ```
 
-Run the server and frontend in separate terminals:
+Start the server and frontend in separate terminals:
 
 ```sh
 pnpm dev:server
@@ -51,7 +59,9 @@ pnpm dev:server
 pnpm dev
 ```
 
-Configure model credentials locally; do not commit them. The application bundle ID is `ai.entropybot.desktop`. Versions and release channels are managed independently. Use isolated fixtures and synthetic data for development verification; see [verification guidance](docs/verification/README.md).
+Configure model credentials locally; do not commit them. Use isolated fixtures and synthetic data for verification; see [verification guidance](docs/verification/README.md). The application bundle ID is `ai.entropybot.desktop`; versions and update channels are managed independently.
+
+[Website build and preview](site/README.md) · [Website experience requirements](site/EXPERIENCE.md)
 
 ## Origin and license
 
