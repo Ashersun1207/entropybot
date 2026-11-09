@@ -352,6 +352,7 @@ desktop routing, cancellation, and computer authority cleanup.
 - [M1b expired multiline retrieval](memory-expiry-retrieval.md)
 - [M1 general forgetting: retained sources and model visibility](memory-general-forgetting-scope.md)
 - [M1 complete-span tidy archival](memory-tidy-spans.md)
+- [M1 bounded tidy supersession](memory-tidy-supersession.md)
 - [C1a paired chat preparation attribution](chat-preparation-attribution.md)
 - [C1 deep chat preparation stage attribution](chat-prep-stage-attribution.md)
 - [L1 core and on-demand capability boundary research](capability-boundary.md)

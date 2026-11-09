@@ -38,7 +38,7 @@ function duplicatesOf(live: readonly MemoryEntryLine[]): MemoryEntryLine[] {
 export function contradictionCandidates(text: string, today: string): MemoryEntryLine[] {
   const live = parseMemoryEntries(text).filter((e) => !e.struck && !isExpired(e, today));
   const dupes = new Set(duplicatesOf(live).map((e) => e.line));
-  return live.filter((e) => !dupes.has(e.line));
+  return live.filter((e) => e.end === e.line + 1 && !dupes.has(e.line));
 }
 
 export function contradictionBudget(liveEntries: number): number {

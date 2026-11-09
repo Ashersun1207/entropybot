@@ -188,3 +188,10 @@
 - 触发：过期条目带缩进续文和闭合代码围栏。`applyTidy` 只删 `entry.line`、只归档 `entry.raw`，续文失去过期首行后进入实际 prompt、SQLite 索引与 file search；旧投影过滤正确也挡不住身份已被 tidy 删除的孤立内容。修复使用解析器 `[line, end)` 整段删除并完整归档，来源、until、续文与围栏保留，过期标记仍在首行。修复身份以本条所属提交为准，证据见 [验证说明](../verification/memory-tidy-spans.md)。
 - 仅凭首行 `factIdentity(entry.body)` 不能判定多行重复：同标题不同续文会被合并。此修复保守保留所有多行条目（完全相同者也保留），单行归一化、日期优先和正负数区分保持原样。回归 `server/memory-tidy.test.ts` 覆盖真实 plan/apply 后的投影以及 core/topic 的生产 upkeep 持久归档与第二次 no-op；修正夹具后的基线为 7 失败/1 通过，修复后定向 8 项通过，相关套件计数见交接，不能叠加重复用例。
 - 首轮夹具误把 `readMemoryTopic` 的 string 当 `{text}`，且误以为 parser 支持 CRLF 日期首行；保留原失败并在修改产品前修正。CRLF 控制仅证明未识别文本不被修改；单 token recall 基线本已因准入返回 null，不冒充 recall 泄漏红例。archive 仍按既有政策可检索，不称彻底遗忘。多行 contradiction/remainder 的续文归属是另一个范围，本轮未改；真实数据、模型、Keychain、安装与跨平台未验证。
+
+## M1：多行条目暂不参加自动 supersession
+
+- 触发：contradiction helper 只读取多行条目的首行，而 `applyTidy` 将 dated remainder 插入旧首行与续文之间。合成红例实际把唯一续文 canary 的 owner 从已划掉原条目移到活跃 remainder，并经 core/topic 的生产 `createMemoryUpkeep().tidy()` 持久化；原投影按完整 span 过滤也无法恢复旧归属。基线红例 6 失败/6 通过；最小修复后定向 12 项通过，最终相关门槛与 SHA 见 [验证说明](../verification/memory-tidy-supersession.md) 及私有 source-bound 回执。
+- 修复在共享 `contradictionCandidates` 排除 `[line, end)` 超过一行的条目，prompt 和 `planTidy` 复用同一候选顺序；不能只隐藏 prompt 而保留 planner 的旧索引。完整多行原文继续保留、活跃、未解决。旧两项候选长度由 2 改为 0，同时保留 duplicates 为空和 apply 后原文字节不变的检查。修复身份以本条所属提交为准。
+- 回归入口 `server/memory-tidy.test.ts`：真实 helper 输入/返回索引/计划及 core/topic 持久化、prompt/index、第二次 tidy；交错 multiline/single-line、正负数、remainder、默认 live-count budget 和 `minimumBudget`。十条 live 中仅五条 eligible 仍须有 budget 2，不能无意改为按过滤后的候选数计费。既有完整段 expiry/dedupe 和相关 retrieval/upkeep/projection 套件继续执行。
+- 公共 `applyTidy` 仅验证同源 `planTidy` 生成的有效计划，不声称防御外部伪造多行 plan 或陈旧 source。未发明全文纠正语义，不扩张 parser/历史/日志/备份/遗忘政策。真实模型、用户数据、Keychain、UI、安装与跨平台未验证。runner 在 subprocess 返回后立即捕获单调时长，不能把 after-snapshot 开销计作命令耗时，也不改名追认旧计时。
