@@ -1,7 +1,7 @@
 // "Forget X" reaches every note a bot keeps: MEMORY.md, its topic notes and their archive. About me is forgotten by the caller.
 import { join } from "node:path";
 
-import type { AboutMe } from "./about-me.ts";
+import type { AboutMe, AboutMeCorrectionOutcome } from "./about-me.ts";
 import { parseMemoryEntries, passageMatcher } from "./memory-entries.ts";
 import { clearForgotten, rememberForgotten } from "./profile-learned.ts";
 import { isMemorySeed, listMemoryTopics, readMemoryText, updateMemory, workspaceDir, writeMemoryFile, writeMemoryTopic, type MemoryUpdate, type MemoryUpdateResult } from "./workspace.ts";
@@ -72,7 +72,7 @@ export function ownersOwnAsk(path: ReadonlyArray<{ role: string; kind?: string; 
   return Boolean(asked) && !asked!.sender && !asked!.peerAsk;
 }
 
-export type BotMemoryResult = MemoryUpdateResult | { ok: true; forgotten: string[]; aboutMe: string[] }
+export type BotMemoryResult = (MemoryUpdateResult & { aboutMeCorrection?: AboutMeCorrectionOutcome }) | { ok: true; forgotten: string[]; aboutMe: string[] }
   | { ok: true; preference: "saved" | "known"; person?: string };
 
 /** The longest preference one line of About me holds: one standing wish, not instructions. */
@@ -91,9 +91,16 @@ export interface PreferenceTarget {
  * work, which every bot reads, so nothing has to be passed on to each bot; `prefer` is null when no one person began it. */
 export function botMemoryUpdate(
   layer: string,
-  body: { action?: unknown; text?: unknown; oldText?: unknown; until?: unknown },
+  body: { action?: unknown; text?: unknown; oldText?: unknown; until?: unknown; oldAboutMeText?: unknown; aboutMeText?: unknown },
   opts: { source: string; aboutMe: Pick<AboutMe, "forget" | "correct"> | null; prefer?: PreferenceTarget | null },
 ): BotMemoryResult {
+  const paired = body.oldAboutMeText !== undefined || body.aboutMeText !== undefined;
+  if (paired && (!(body.action === "replace" || body.action === "supersede")
+    || typeof body.oldAboutMeText !== "string" || !body.oldAboutMeText.trim() || body.oldAboutMeText.length > 24_000
+    || typeof body.aboutMeText !== "string" || !body.aboutMeText.trim() || body.aboutMeText.length > PREFERENCE_CHARS
+    || /[\r\n]/.test(body.oldAboutMeText + body.aboutMeText))) {
+    return { ok: false, code: "invalid", error: "Profile correction needs replace or supersede and both exact oldAboutMeText and one-line aboutMeText (at most 300 characters)." };
+  }
   if (body.action === "prefer") {
     const text = typeof body.text === "string" ? body.text.replace(/\s+/g, " ").trim() : "";
     if (!text || text.length > PREFERENCE_CHARS) {
@@ -118,8 +125,10 @@ export function botMemoryUpdate(
   }
   if (body.action === "append" && typeof body.text === "string") clearForgotten(body.text);
   const result = updateMemory(layer, { action: body.action, text: body.text, oldText: body.oldText, ...(body.until !== undefined ? { until: body.until } : {}) } as MemoryUpdate, { source: opts.source });
-  if (result.ok && (body.action === "replace" || body.action === "supersede") && typeof body.oldText === "string" && typeof body.text === "string") {
-    opts.aboutMe?.correct(layer, body.oldText, body.text);
-  }
-  return result;
+  if (!result.ok || (body.action !== "replace" && body.action !== "supersede")) return result;
+  const aboutMeCorrection: AboutMeCorrectionOutcome = !paired
+    ? { status: "not_checked", reason: "selector_missing" }
+    : !opts.aboutMe ? { status: "refused", reason: "not_authorized" }
+    : opts.aboutMe.correct(layer, body.oldAboutMeText as string, body.aboutMeText as string);
+  return { ...result, aboutMeCorrection };
 }

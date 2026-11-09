@@ -665,6 +665,13 @@ export async function callTool(called: string, input: Json, context: ToolCallCon
     return confirmationResult(r, "the default model change", "model");
   }
   if (member === "memory_update") {
+    const paired = args.old_about_me_text !== undefined || args.about_me_text !== undefined;
+    if (paired && (!(args.action === "replace" || args.action === "supersede")
+      || typeof args.old_about_me_text !== "string" || !args.old_about_me_text.trim() || args.old_about_me_text.length > 24_000
+      || typeof args.about_me_text !== "string" || !args.about_me_text.trim() || args.about_me_text.length > 300
+      || /[\r\n]/.test(args.old_about_me_text + args.about_me_text))) {
+      return { text: "Profile correction needs replace or supersede and both exact old_about_me_text and one-line about_me_text (at most 300 characters).", isError: true };
+    }
     const passageOnly = args.action === "remove" || args.action === "forget";
     if (!["append", "replace", "remove", "supersede", "forget", "prefer"].includes(String(args.action))
       || (!passageOnly && (typeof args.text !== "string" || !args.text.trim()))
@@ -679,6 +686,7 @@ export async function callTool(called: string, input: Json, context: ToolCallCon
         action: args.action,
         text: args.text,
         oldText: args.old_text,
+        ...(paired ? { oldAboutMeText: args.old_about_me_text, aboutMeText: args.about_me_text } : {}),
         ...(typeof args.until === "string" && args.until.trim() ? { until: args.until.trim() } : {}),
       }),
     });
@@ -695,6 +703,18 @@ export async function callTool(called: string, input: Json, context: ToolCallCon
     const movedNote = moved.length
       ? `\nTo stay within what loads each session, moved ${moved.length === 1 ? "1 older entry" : `${moved.length} older entries`} to your archive (session_search finds them):\n${shown.join("\n")}${more}`
       : "";
+    if (args.action === "replace" || args.action === "supersede") {
+      const correction = jsonRecord(r.aboutMeCorrection) ? r.aboutMeCorrection : {};
+      const status = correction.status;
+      const detail = status === "saved"
+        ? `About me corrected.${correction.notification === "failed" ? " Its change notification was not confirmed." : ""}`
+        : status === "not_checked" ? "About me was not checked: no exact profile item was supplied. Do not claim it was corrected."
+        : status === "refused" ? "About me was not changed: this profile target is not permitted."
+        : status === "conflict" ? "About me was not changed: the exact profile item is absent, changed or ambiguous."
+        : status === "partial" ? "About me correction is only partially confirmed. Re-read current state; do not repeat the note change automatically."
+        : "This server did not confirm About me. Do not claim it was corrected.";
+      return { text: `Notes saved.${entry}${full}${movedNote}\n${detail}`, ...((status === "partial" || status === "conflict" || status === "refused") ? { isError: true } : {}) };
+    }
     return { text: `Memory updated.${entry}${full}${movedNote}` };
   }
   if (name === "retry_thread") {

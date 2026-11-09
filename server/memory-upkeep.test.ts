@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { DATA_DIR } from "./config.ts";
-import { CaptureBuffer, capturePrompt, newCandidates, parseCandidates, topicFileName, type CaptureTurn } from "./memory-capture.ts";
+import { createAboutMe } from "./about-me.ts";
+import { botMemoryUpdate } from "./memory-forget.ts";
+import { CAPTURE_MARKER, CaptureBuffer, capturePrompt, newCandidates, parseCandidates, topicFileName, type CaptureTurn } from "./memory-capture.ts";
 import { passageMatcher } from "./memory-entries.ts";
 import { mergeTopicText, parseTopicHeader } from "./memory-topics.ts";
 import { applyMoves, MAX_MOVES, organizeCandidates, ORGANIZE_MARKER, parseMoves } from "./memory-organize.ts";
@@ -749,5 +751,97 @@ describe("the upkeep loop", () => {
     expect(prompts).toEqual([]);
     expect(existsSync(pending)).toBe(false);
     next.stop();
+  });
+});
+
+describe("process-local per-person profile correction fence", () => {
+  const old = "The person's favorite color is cyan (青色).";
+  const next = "最喜欢的颜色是深蓝色（deep blue），青色已作废。";
+  const line = `- 2026-11-01 · learned by Scout · ${old}`;
+  const a = "fence-a", otherBotA = "fence-other-bot-a", b = "fence-b";
+  const source = { person: old, bot: "Synthetic acknowledgement with enough bytes", owner: true };
+  const answer = JSON.stringify([{ text: old, kind: "fact", aboutUser: true, evidence: old, confidence: 0.99 }]);
+  const make = (generateText: (prompt: string) => Promise<string>) => {
+    const profiles = new Map([["ada", line], ["bob", line]]);
+    const person = (layer: string) => layer === b ? "bob" : "ada";
+    const about = createAboutMe({ read: () => { throw new Error("person only"); }, write: () => { throw new Error("person only"); },
+      changed: () => undefined, today: () => "2026-11-01", personKey: person,
+      person: (layer, plan) => { const key = person(layer), result = plan(profiles.get(key)!); if (!result) return 0; profiles.set(key, result.next); return result.count; },
+    });
+    for (const layer of [a, b, otherBotA]) writeMemoryFile(layer, "");
+    const loop = createMemoryUpkeep({ bots: () => [], bot: (id) => ({ id, name: "Scout" }), engine: () => ({ generateText }), busy: () => false,
+      addToAboutMe: (from, texts) => about.learn(from, texts), profileFence: (layer) => about.fence(layer), sourceLabel: () => 'chat "Fixture"',
+      quietMs: () => 60_000, tidyHour: () => 3,
+      conversations: () => [{ threadId: "one", lines: [{ by: "person", text: old }] }, { threadId: "two", lines: [{ by: "person", text: old }] }],
+    });
+    const correct = () => {
+      writeMemoryFile(a, "- 2026-11-01 · old Chinese note\n");
+      expect(botMemoryUpdate(a, { action: "supersede", oldText: "old Chinese note", text: next, oldAboutMeText: line, aboutMeText: next }, { source: "fixture", aboutMe: about })).toMatchObject({ ok: true, aboutMeCorrection: { status: "saved" } });
+    };
+    return { loop, profiles, correct };
+  };
+
+  it("rejects delayed capture for the corrected person before filing while another person continues; NEW work can relearn", async () => {
+    let release!: (text: string) => void, entered!: () => void;
+    const pending = new Promise<string>((resolve) => { release = resolve; });
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    let delayed = true;
+    const { loop, profiles, correct } = make(async (prompt) => {
+      if (!prompt.startsWith(CAPTURE_MARKER)) return "[]";
+      if (delayed) { delayed = false; entered(); return pending; }
+      return answer;
+    });
+    const capture = loop.capture({ botId: otherBotA, threadId: "one", turns: [{ ...source }] });
+    await started;
+    const bob = loop.capture({ botId: b, threadId: "two", turns: [{ ...source }] });
+    correct();
+    release(answer);
+    expect(await capture).toMatchObject({ added: 0, aboutMe: 0, note: expect.stringContaining("profile correction") });
+    expect(await bob).toMatchObject({ added: 1 });
+    expect(profiles.get("ada")).not.toContain(old);
+    expect(profiles.get("bob")).toContain(old);
+    expect(readFileSync(join(workspaceDir(otherBotA), "MEMORY.md"), "utf8")).not.toContain(old);
+    expect(await loop.capture({ botId: otherBotA, threadId: "old-retained-source", turns: [{ ...source }] })).toMatchObject({ added: 1, aboutMe: 1 });
+    expect(profiles.get("ada")).toContain(old);
+    await loop.idle();
+  });
+
+  it.each(["queue", "buffer"])("does not restamp %s work queued before correction", async (kind) => {
+    let calls = 0;
+    const { loop, profiles, correct } = make(async () => { calls++; return answer; });
+    loop.pause();
+    let queued: Promise<unknown> | undefined;
+    if (kind === "queue") queued = loop.capture({ botId: a, threadId: "one", turns: [{ ...source }] });
+    else loop.noteTurn(a, "one", { ...source });
+    correct();
+    if (kind === "buffer") loop.flushThread("one");
+    loop.resume();
+    if (queued) await queued;
+    await loop.idle();
+    expect(calls).toBe(0);
+    expect(profiles.get("ada")).not.toContain(old);
+  });
+
+  it("rejects an old delayed dream before outdated or learned writes, but a NEW dream may read old sources", async () => {
+    let release!: (text: string) => void, entered!: () => void;
+    const pending = new Promise<string>((resolve) => { release = resolve; });
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    let delayed = true;
+    const dreamed = JSON.stringify({ learned: [{ text: old, from: [1, 2], aboutUser: true, confidence: 0.99 }], outdated: [{ line: 0, now: "Stale dream replacement", from: [1] }], ideas: [] });
+    const { loop, profiles, correct } = make(async () => { if (delayed) { delayed = false; entered(); return pending; } return dreamed; });
+    writeMemoryFile(otherBotA, "- 2026-11-01 · Current dream control\n");
+    const dreaming = loop.dream(otherBotA);
+    await started;
+    const bobDream = loop.dream(b);
+    correct();
+    release(dreamed);
+    expect(await dreaming).toMatchObject({ learned: [], outdated: [], aboutMe: 0, note: expect.stringContaining("profile correction") });
+    expect((await bobDream).learned).toEqual([{ text: old, where: "MEMORY.md" }]);
+    expect(readFileSync(join(workspaceDir(otherBotA), "MEMORY.md"), "utf8")).toBe("- 2026-11-01 · Current dream control\n");
+    expect(profiles.get("ada")).not.toContain(old);
+    expect(readFileSync(join(workspaceDir(otherBotA), "MEMORY.md"), "utf8")).not.toContain(old);
+    expect(await loop.dream(otherBotA)).toMatchObject({ aboutMe: 1 });
+    expect(profiles.get("ada")).toContain(old);
+    await loop.idle();
   });
 });

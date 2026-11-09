@@ -160,3 +160,65 @@ it("recalls, captures, suggests, forgets and tidies a bot's memory", async () =>
     rmSync(scratch, { recursive: true, force: true });
   }
 }, 180_000);
+
+it("corrects differently worded About me through the real fake-engine MCP tool and reports legacy/conflicting outcomes", async () => {
+  const scratch = mkdtempSync(join(tmpdir(), "omb-profile-correction-"));
+  const calls = join(scratch, "calls.json");
+  const routes = join(scratch, "routes.json");
+  const oldNote = "最喜欢的颜色是青色（cyan）。";
+  const correctedNote = "最喜欢的颜色是深蓝色（deep blue），青色已作废。";
+  const oldProfile = "The person's favorite color is cyan (青色).";
+  const oldLine = `- 2026-11-01 · learned by Scout · ${oldProfile}`;
+  writeFileSync(calls, "[]");
+  writeFileSync(routes, JSON.stringify({ [CAPTURE_MARKER]: "[]", [TIDY_MARKER]: '{"pairs":[]}' }));
+  const fixture = await launchVerificationServer({ ...process.env, FAKE_CLAUDE_TOOL_CALLS_FILE: calls, FAKE_CLAUDE_TEXT_ROUTES: routes });
+  const api = async (path: string, method = "GET", body?: unknown): Promise<any> => {
+    const response = await fetch(fixture.info.url + path, { method, headers: { "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    expect(response.ok, `${method} ${path}`).toBe(true);
+    return response.json();
+  };
+  const script = (input?: object) => writeFileSync(calls, JSON.stringify(input ? [{ server: "agents", name: "memory_update", input }] : []));
+  try {
+    const { bot } = await api("/api/bots", "POST", { name: "Scout" });
+    await api(`/api/bots/${bot.id}`, "PATCH", { memoryUpkeep: false });
+    await api("/api/config", "PUT", { profile: { aboutMe: `Keeps two cats.\n${oldLine}\nCyan is not a work preference.` } });
+    const card = { id: "synthetic-legacy-card", text: oldProfile, line: oldLine, botId: bot.id, botName: "Scout", at: 123456 };
+    writeFileSync(join(fixture.info.dataDir, "profile-learned.json"), JSON.stringify({ learned: [card], removed: [], forgotten: [] }));
+    const turn = async (text: string, threadId = bot.threadId) => {
+      await runControlOmb(["send", "--url", fixture.info.url, "--bot", bot.id, "--task", threadId, "--text", text]);
+      expect(await runControlOmb(["wait", "--url", fixture.info.url, "--bot", bot.id, "--task", threadId, "--timeout", "30"])).toMatchObject({ status: "settled" });
+      return JSON.stringify(await api(`/api/threads/${threadId}/messages?limit=100`));
+    };
+    script({ action: "append", text: oldNote });
+    await turn("Remember my favorite color: cyan.");
+    expect(JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")).systemPrompt).toContain(oldProfile);
+    script({ action: "supersede", old_text: oldNote, text: correctedNote, old_about_me_text: oldLine, about_me_text: correctedNote });
+    const correctedMessages = await turn(correctedNote);
+    expect(correctedMessages).toContain("About me corrected.");
+    const profile = (await api("/api/config")).profile.aboutMe as string;
+    expect(profile).not.toContain(oldProfile);
+    expect(profile).toBe(`Keeps two cats.\n${oldLine.replace(oldProfile, correctedNote)}\nCyan is not a work preference.`);
+    const learned = (await api("/api/profile/learned")).learned;
+    expect(learned).toEqual([{ ...card, text: correctedNote, line: oldLine.replace(oldProfile, correctedNote) }]);
+    expect(readFileSync(join(fixture.info.dataDir, "config.json"), "utf8")).not.toContain(oldProfile);
+    expect(readFileSync(join(fixture.info.dataDir, "profile-learned.json"), "utf8")).not.toContain(oldProfile);
+    const notebook = (await api(`/api/bots/${bot.id}/memory/file?path=MEMORY.md`)).text;
+    expect(notebook).toContain(`~~${oldNote}~~`);
+    expect(notebook).toContain(correctedNote);
+    script({ action: "replace", old_text: correctedNote, text: correctedNote });
+    expect(await turn("Keep the corrected note as it is.")).toContain("About me was not checked");
+    script({ action: "replace", old_text: correctedNote, text: correctedNote, old_about_me_text: oldLine, about_me_text: correctedNote });
+    expect(await turn("Correct that same current item again if it still matches.")).toContain("exact profile item is absent, changed or ambiguous");
+    expect((await api("/api/config")).profile.aboutMe).toBe(profile);
+    script();
+    const opened = await api(`/api/bots/${bot.id}/tasks`, "POST", { title: "Fresh profile query" });
+    await turn("What should you know about me?", opened.task?.threadId ?? opened.threadId);
+    const dump = JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8"));
+    expect(dump.systemPrompt).toContain(correctedNote);
+    expect(dump.systemPrompt).not.toContain(oldProfile);
+    console.log(JSON.stringify({ phase: "explicit-profile-tool-e2e", profile, learned, notebook, modelSystemPrompt: dump.systemPrompt }));
+  } finally {
+    await fixture.close();
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}, 90_000);

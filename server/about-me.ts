@@ -1,5 +1,4 @@
 // About me, the profile every bot reads: facts bots learn into it, and lines a person asks a bot to forget.
-import { foldForMatch, passageMatcher } from "./memory-entries.ts";
 import { appendAboutMe, commitLearned, correctLearnedLines, planLearned } from "./profile-learned.ts";
 import { redactSecretsInText } from "./redact.ts";
 
@@ -27,12 +26,22 @@ export interface AboutMeDeps {
   changed(): void;
   today(): string;
   /** A Team Cloud keeps one About me per person, found from the memory layer of their conversation. */
-  person?: (layer: string, plan: Plan) => number;
+  person?: (layer: string, plan: Plan, checked?: boolean) => number;
+  personKey?: (layer: string) => string | null;
 }
+
+export type AboutMeCorrectionOutcome =
+  | { status: "not_checked"; reason: "selector_missing" }
+  | { status: "refused"; reason: "not_authorized" | "no_person" | "unsupported_target" }
+  | { status: "conflict"; reason: "absent_or_changed" | "ambiguous" }
+  | { status: "saved"; metadata: "saved" | "not_applicable"; notification: "sent" | "failed" }
+  | { status: "partial"; reason: "profile_save_failed" | "metadata_save_failed" | "persisted_value_mismatch" };
 
 export type AboutMe = ReturnType<typeof createAboutMe>;
 
 export function createAboutMe(deps: AboutMeDeps) {
+  const revisions = new Map<string, number>();
+  const keyFor = (layer: string) => deps.person ? deps.personKey?.(layer) ?? null : "owner";
   const learnPlan = (from: { botId: string; botName: string }, texts: readonly string[]) => {
     let facts: ReturnType<typeof planLearned> = [];
     const plan: Plan = (current) => {
@@ -53,30 +62,67 @@ export function createAboutMe(deps: AboutMeDeps) {
       deps.changed();
       return planned.count;
     },
-    correct(layer: string, oldText: string, text: string): number {
-      const mentions = passageMatcher(oldText);
+    fence(layer: string): () => boolean {
+      const key = keyFor(layer);
+      const revision = key === null ? 0 : revisions.get(key) ?? 0;
+      return () => key === null || revision === (revisions.get(key) ?? 0);
+    },
+    correct(layer: string, oldLine: string, text: string): AboutMeCorrectionOutcome {
+      const key = keyFor(layer);
+      if (deps.person && key === null) return { status: "refused", reason: "no_person" };
+      if (!oldLine.trim() || oldLine.trim().startsWith("#") || !text.trim() || text.length > 300 || /[\r\n]/.test(oldLine + text)) {
+        return { status: "refused", reason: "unsupported_target" };
+      }
       const replacement = redactSecretsInText(text.trim());
-      if (!mentions || !replacement || replacement.length > 300 || /[\r\n]/.test(oldText + replacement)) return 0;
       const changes = new Map<string, { text: string; line: string }>();
+      let outcome: AboutMeCorrectionOutcome = { status: "refused", reason: "no_person" };
+      let expected: string | undefined;
       const plan: Plan = (current) => {
-        const next = current.split("\n").map((line) => {
-          if (line.trim().startsWith("#")) return line;
-          const prefix = LEARNED_PREFIX.exec(line)?.[0] ?? BULLET.exec(line)?.[0] ?? "";
-          const fact = line.slice(prefix.length).trim();
-          if (!mentions(fact) || foldForMatch(fact) !== foldForMatch(oldText)) return line;
-          const corrected = prefix + replacement;
-          if (corrected !== line) changes.set(line, { text: replacement, line: corrected });
-          return corrected;
-        }).join("\n");
-        return next === current ? null : { next, count: changes.size };
+        const lines = current.split("\n");
+        const matches = lines.flatMap((line, at) => line === oldLine ? [at] : []);
+        if (matches.length !== 1) {
+          outcome = { status: "conflict", reason: matches.length ? "ambiguous" : "absent_or_changed" };
+          return null;
+        }
+        const prefix = LEARNED_PREFIX.exec(oldLine)?.[0] ?? BULLET.exec(oldLine)?.[0] ?? "";
+        if (!oldLine.slice(prefix.length).trim()) {
+          outcome = { status: "refused", reason: "unsupported_target" };
+          return null;
+        }
+        const corrected = prefix + replacement;
+        lines[matches[0]!] = corrected;
+        const next = lines.join("\n");
+        if (next.length > (deps.person ? 4_000 : 24_000) || (deps.person && next.trim() !== next)) {
+          outcome = { status: "refused", reason: "unsupported_target" };
+          return null;
+        }
+        expected = next;
+        changes.set(oldLine, { text: replacement, line: corrected });
+        if (key !== null) revisions.set(key, (revisions.get(key) ?? 0) + 1);
+        return { next, count: 1 };
       };
-      if (deps.person) return deps.person(layer, plan);
-      const planned = plan(deps.read());
-      if (!planned) return 0;
-      deps.write(planned.next);
-      correctLearnedLines(changes);
-      deps.changed();
-      return planned.count;
+      try {
+        if (deps.person) {
+          deps.person(layer, plan, true);
+        } else {
+          const planned = plan(deps.read());
+          if (planned) {
+            deps.write(planned.next);
+            if (deps.read() !== expected) return { status: "partial", reason: "persisted_value_mismatch" };
+          }
+        }
+      } catch {
+        return { status: "partial", reason: "profile_save_failed" };
+      }
+      if (expected === undefined) return outcome;
+      let metadata: "saved" | "not_applicable" = "not_applicable";
+      if (!deps.person) {
+        try { if (correctLearnedLines(changes)) metadata = "saved"; } catch { return { status: "partial", reason: "metadata_save_failed" }; }
+      }
+      try { deps.changed(); } catch {
+        return { status: "saved", metadata, notification: "failed" };
+      }
+      return { status: "saved", metadata, notification: "sent" };
     },
     /** The facts removed from the About me of the person whose conversation `layer` is. */
     forget(layer: string, mentions: (text: string) => boolean): string[] {

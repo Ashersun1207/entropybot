@@ -53,6 +53,7 @@ export interface UpkeepDeps {
   busy: (botId: string) => boolean;
   addToAboutMe: (from: { botId: string; botName: string }, texts: readonly string[]) => number;
   sourceLabel: (botId: string, threadId: string) => string;
+  profileFence?: (layer: string) => () => boolean;
   /** Asked again at capture, so a turn queued before a visibility change is dropped. */
   mayCapture?: (botId: string, threadId: string) => boolean;
   restoreTurn?: (botId: string, threadId: string, turnId: string) => CaptureTurn | null;
@@ -274,6 +275,10 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
   const now = () => deps.now?.() ?? new Date();
   const log = (line: string) => deps.log?.(line);
   const inflight = new Set<Promise<unknown>>();
+  const turnFences = new WeakMap<CaptureTurn, () => boolean>();
+  const stamp = (batch: CaptureBatch) => {
+    for (const turn of batch.turns) if (!turnFences.has(turn)) turnFences.set(turn, deps.profileFence?.(batch.botId) ?? (() => true));
+  };
   const tidying = new Map<string, Promise<TidyReport>>();
   const dreaming = new Map<string, { generation: number; promise: Promise<DreamReport> }>();
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -417,6 +422,10 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
     const bot = deps.bot(id);
     const at = now().getTime();
     const off: CaptureReport = { at, added: 0, topics: 0, aboutMe: 0, note: "upkeep is off" };
+    const helperFence = deps.profileFence?.(id) ?? (() => true);
+    const currentProfile = () => helperFence() && batches.every((batch) => batch.turns.every((turn) => turnFences.get(turn)?.() !== false));
+    const stale = { ...off, note: "deferred after a profile correction; old capture work was not filed" };
+    if (!currentProfile()) return stale;
     if (!upkeepEnabled(bot)) return off;
     const byThread = new Map<string, CaptureBatch>();
     for (const batch of batches) {
@@ -457,6 +466,7 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
     if (!upkeepEnabled(deps.bot(id))) return off;
     const still = conversations.map((conversation) => allowed(conversation.threadId));
     if (!still.some(Boolean)) return refused;
+    if (!currentProfile()) return stale;
     const filed = attribute(parseCandidates(answer, today, captureItemLimit(conversations.length)), conversations, still).flatMap((item) => {
       const turns = conversations[item.at]!.turns;
       if (isForgotten(item.candidate.text) || !statedInConversation(item.candidate, turns, false)) return [];
@@ -528,6 +538,7 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
   }
 
   function enqueue(entry: Waiting): void {
+    stamp(entry.batch);
     queue.push(entry);
     kick();
   }
@@ -744,6 +755,7 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
       record(botId, { lastDream: off });
       return off;
     }
+    const profileCurrent = deps.profileFence?.(botId) ?? (() => true);
     const conversations = deps.conversations(botId, dreamSince(botId, at));
     if (conversations.length < DREAM_MIN_CONVERSATIONS) {
       const few = report(`A dream needs at least ${DREAM_MIN_CONVERSATIONS} chats where you wrote since the last one; there ${conversations.length === 1 ? "is 1" : `are ${conversations.length}`}.`, conversations.length);
@@ -761,6 +773,7 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
       record(botId, { lastDream: late });
       return late;
     }
+    if (!profileCurrent()) return report("deferred after a profile correction; old dream work was not filed", conversations.length);
     const dreamt = parseDream(answer, conversations.length, notebook.length);
     const source = `dream across ${conversations.length} chats`;
     // Re-read inside the write: if the notes changed after the prompt, its line numbers are stale.
@@ -857,6 +870,7 @@ export function createMemoryUpkeep(deps: UpkeepDeps): MemoryUpkeep {
     noteTurn(botId, threadId, turn) {
       if (!upkeepEnabled(deps.bot(botId))) return;
       if (!turn.person.trim() && !turn.bot.trim()) return;
+      stamp({ botId, threadId, turns: [turn] });
       buffer.add(botId, threadId, turn);
     },
     flushThread: (threadId) => buffer.flush(threadId),

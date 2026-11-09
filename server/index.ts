@@ -5147,7 +5147,7 @@ const sideJobs = createSideJobs({
 });
 
 const aboutMeFacts = createAboutMe({ read: () => cfg.profile?.aboutMe ?? "", write: (aboutMe) => { saveConfig({ profile: { ...cfg.profile, aboutMe } }); Object.assign(cfg, loadConfig()); },
-  changed: () => broadcast({ kind: "config", ...configStatus() }), today: () => memoryDate(), ...(CLOUD_TEAM ? { person: (layer: string, plan: Parameters<typeof teamHost.learnAbout>[1]) => teamHost.learnAbout(layer, plan) } : {}) });
+  changed: () => broadcast({ kind: "config", ...configStatus() }), today: () => memoryDate(), ...(CLOUD_TEAM ? { personKey: teamHost.aboutPerson, person: (layer: string, plan: Parameters<typeof teamHost.learnAbout>[1], checked?: boolean) => teamHost.learnAbout(layer, plan, checked) } : {}) });
 const personPreference = createPersonPreference<InternalCapability>({ team: Boolean(CLOUD_TEAM), aboutMe: aboutMeFacts, requester: actingPeople.requester, userStarted: (turn) => turnOrigin(turn).kind === "user", personName: teamHost.personName });
 const setupSuggestions = setupSuggestionsFor({ store, config: () => cfg, shared: sharedMembership, languageCode: () => appLanguage() ?? Intl.DateTimeFormat().resolvedOptions().locale, engine: (bot) => registry.get(bot.modelSelection.instanceId)?.adapter.capabilities, browserOn: () => builtInBrowserEnabled(cfg),
   withinBudget: () => { try { assertWithinBudget(cfg, DATA_DIR); return true; } catch { return false; } }, writer: (botId) => sideJobs.text("setup-suggestions", botId), apps: { configured: () => composio.configured(cfg), mode: () => composio.connectionMode(cfg), connected: () => composio.connectedServices(cfg) }, log: (line) => console.log(line) });
@@ -5157,7 +5157,7 @@ const memoryUpkeep = createMemoryUpkeep({
   bot: (id) => store.bot(teamHost.baseBotId(id)) ?? undefined,
   engine: (botId) => sideJobs.text("memory", teamHost.baseBotId(botId)),
   busy: (botId) => botHasActiveTurn(teamHost.baseBotId(botId)),
-  addToAboutMe: (from, texts) => aboutMeFacts.learn(from, texts),
+  addToAboutMe: (from, texts) => aboutMeFacts.learn(from, texts), profileFence: (layer) => aboutMeFacts.fence(layer),
   sourceLabel: (botId, threadId) => memorySourceLabel({ room: store.groupByThread(threadId), task: store.taskByThread(teamHost.baseBotId(botId), threadId), threadId }),
   mayCapture: (botId, threadId) => {
     const room = store.groupByThread(threadId);

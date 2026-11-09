@@ -364,3 +364,35 @@ describe("page tools", () => {
       { path: "/api/internal/pages/unpublish", body: { page_id: "abcdefghijklmnopqrstuvwxyz" } }]);
   });
 });
+
+describe("profile correction tool outcomes", () => {
+  it.each([
+    [{ status: "not_checked", reason: "selector_missing" }, "About me was not checked", false],
+    [{ status: "saved", metadata: "saved", notification: "sent" }, "About me corrected.", false],
+    [{ status: "saved", metadata: "saved", notification: "failed" }, "notification was not confirmed", false],
+    [{ status: "conflict", reason: "ambiguous" }, "About me was not changed", true],
+    [{ status: "refused", reason: "not_authorized" }, "not permitted", true],
+    [{ status: "partial", reason: "profile_save_failed" }, "partially confirmed", true],
+    [undefined, "This server did not confirm About me", false],
+  ])("reports saved notes separately from profile outcome %j", async (aboutMeCorrection, text, error) => {
+    let body: any;
+    const result = await callTool("memory_update", { action: "supersede", old_text: "中文旧笔记", text: "中文新笔记", old_about_me_text: "- learned profile", about_me_text: "Corrected fact" }, context({ client: {
+      api: async () => ({}), apiResponse: async (_path, init) => { body = JSON.parse(String(init?.body)); return { ok: true, status: 200, body: { ok: true, moved: [], aboutMeCorrection } }; },
+    } }));
+    expect(body).toMatchObject({ oldAboutMeText: "- learned profile", aboutMeText: "Corrected fact" });
+    expect(result.text).toContain("Notes saved.");
+    expect(result.text).toContain(text as string);
+    expect(Boolean(result.isError)).toBe(error);
+  });
+
+  it("rejects incomplete and multiline pairs before calling HTTP", async () => {
+    let calls = 0;
+    for (const pair of [{ old_about_me_text: "one" }, { about_me_text: "two" }, { old_about_me_text: "one", about_me_text: "two\nthree" }]) {
+      const result = await callTool("memory_update", { action: "replace", old_text: "old", text: "new", ...pair }, context({ client: {
+        api: async () => ({}), apiResponse: async () => { calls++; return { ok: true, status: 200, body: {} }; },
+      } }));
+      expect(result.isError).toBe(true);
+    }
+    expect(calls).toBe(0);
+  });
+});

@@ -36,7 +36,7 @@ export type PersonProfilePatch = { name?: string; email?: string; avatarUrl?: st
 
 export interface PeopleAbout {
   read(person: string): string;
-  write(person: string, aboutMe: string): string;
+  write(person: string, aboutMe: string, checked?: boolean): string;
   profile(person: string): PersonProfile;
   hasProfile(person: string): boolean;
   saveProfile(person: string, patch: PersonProfilePatch): PersonProfile;
@@ -69,9 +69,10 @@ export function createPeopleAbout(dataDir: string): PeopleAbout {
         return "";
       }
     },
-    write(person, aboutMe) {
+    write(person, aboutMe, checked = false) {
       const path = join(folder(person), "about.json");
       const text = aboutMe.replace(/\r\n/g, "\n").trim().slice(0, ABOUT_ME_MAX);
+      if (checked && text !== aboutMe) throw new Error("Profile correction exceeds the supported exact value.");
       ensureFolder(person);
       writeFileAtomic(path, JSON.stringify({ version: 1, aboutMe: text }) + "\n", { mode: 0o600 });
       return text;

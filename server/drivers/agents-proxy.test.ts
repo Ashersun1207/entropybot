@@ -1318,17 +1318,17 @@ describe("agents-proxy MCP surface", () => {
       fromBotId: "spoofed-bot", fromThreadId: "spoofed-thread",
     });
     expect(result.result.isError).toBe(false);
-    expect(result.result.content[0].text).toBe("Memory updated.");
+    expect(result.result.content[0].text).toBe("Notes saved.\nThis server did not confirm About me. Do not claim it was corrected.");
     expect(lastAuth).toBe(`Bearer ${TOKEN}`);
     expect(lastMemoryBody).toEqual({
       fromBotId: "bot-asker", fromThreadId: "thread-asker-routine",
       action: "replace", text: "- New preference", oldText: "- Old preference",
     });
     memoryResponse = { ok: true, truncated: false, entry: '- 2026-09-10 · from chat "Setup" · New preference' };
-    const echoed = await callTool("memory_update", { action: "supersede", text: "New preference", old_text: "- Old preference" });
+    const echoed = await callTool("memory_update", { action: "supersede", text: "New preference", old_text: "- Old preference", old_about_me_text: "- Profile preference", about_me_text: "New profile preference" });
     expect(echoed.result.isError).toBe(false);
-    expect(echoed.result.content[0].text).toBe('Memory updated. Entry: - 2026-09-10 · from chat "Setup" · New preference');
-    expect(lastMemoryBody).toMatchObject({ action: "supersede", text: "New preference", oldText: "- Old preference" });
+    expect(echoed.result.content[0].text).toBe('Notes saved. Entry: - 2026-09-10 · from chat "Setup" · New preference\nThis server did not confirm About me. Do not claim it was corrected.');
+    expect(lastMemoryBody).toMatchObject({ action: "supersede", text: "New preference", oldText: "- Old preference", oldAboutMeText: "- Profile preference", aboutMeText: "New profile preference" });
     memoryResponse = { ok: true, truncated: false };
     const append = await callTool("memory_update", { action: "append", text: "- Another fact" });
     expect(append.result.isError).toBe(false);
@@ -1347,8 +1347,14 @@ describe("agents-proxy MCP surface", () => {
     const tools = await rpc("tools/list");
     const schema = tools.result.tools.find((tool: { name: string }) => tool.name === "memory_update").inputSchema;
     // No pattern on free-text params: constrained decoding collapses a patterned field to a minimal satisfier.
-    expect(fullInputSchema("memory_update")).toMatchObject({ properties: { text: { minLength: 1, maxLength: 1000 } } });
+    expect(fullInputSchema("memory_update")).toMatchObject({ properties: { text: { minLength: 1, maxLength: 1000 }, old_about_me_text: { type: "string", maxLength: 24000 }, about_me_text: { type: "string", maxLength: 300 } } });
     expect(schema.properties.text).not.toHaveProperty("pattern");
+    expect(schema.properties.old_about_me_text).toMatchObject({ type: "string", description: expect.stringContaining("EXACT current profile line") });
+    expect(schema.properties.about_me_text).toMatchObject({ type: "string", description: expect.stringContaining("Complete corrected profile fact BODY") });
+    const beforeOversized = lastMemoryBody;
+    const oversizedProfile = await callTool("memory_update", { action: "replace", old_text: "old", text: "new", old_about_me_text: "- old profile", about_me_text: "x".repeat(301) });
+    expect(oversizedProfile.result.isError).toBe(true);
+    expect(lastMemoryBody).toBe(beforeOversized);
     memoryStatus = 409;
     memoryResponse = { error: "oldText must match exactly once in the latest memory." };
     const stale = await callTool("memory_update", { action: "remove", old_text: "missing" });

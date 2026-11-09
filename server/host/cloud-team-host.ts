@@ -102,12 +102,13 @@ export function createCloudTeamHost(deps: CloudTeamHostDeps) {
       return own === botId ? [] : [workspaceDir(own)];
     },
     /** Captured facts about the person, into that person's own "About you"; nothing for the team's or a room's layer. */
-    learnAbout(layerOrBotId: string, plan: (current: string) => { next: string; count: number } | null): number {
+    learnAbout(layerOrBotId: string, plan: (current: string) => { next: string; count: number } | null, checked = false): number {
       const person = team ? audienceMember(layerAudience(layerOrBotId)) : null;
       if (!person) return 0;
       const planned = plan(people.read(person));
       if (!planned) return 0;
-      people.write(person, planned.next);
+      people.write(person, planned.next, checked);
+      if (checked && people.read(person) !== planned.next) throw new Error("Profile correction was not confirmed.");
       return planned.count;
     },
     /** Whether a turn in `threadId` may read `other` (the read rule). Off a team: everything, as before. */
