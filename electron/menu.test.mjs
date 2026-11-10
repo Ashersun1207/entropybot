@@ -92,7 +92,7 @@ describe("buildApplicationMenu", () => {
     expect(without.find(entry => entry.type === "radio" && entry.label.startsWith("My Cloud")).label).toBe("My Cloud — omb-u-1.fly.dev");
     const onAddCloud = vi.fn();
     const submenu = build("darwin", { environments: servers, onAddCloud, sublabels: { cloud: "Always on" } }).find(entry => entry.label === "Server").submenu;
-    expect(submenu.map(entry => entry.id ?? entry.label ?? entry.type).slice(0, 4)).toEqual(["This computer", "My Cloud — Always on", "add-cloud", "separator"]);
+    expect(submenu.map(entry => entry.id ?? entry.label ?? entry.type).slice(0, 4)).toEqual(["Your computer", "My Cloud — Always on", "add-cloud", "separator"]);
     submenu.find(entry => entry.id === "add-cloud").click();
     expect(onAddCloud).toHaveBeenCalledOnce();
     expect(submenu.find(entry => entry.id === "add-cloud").label).toBe("Add a Cloud…");

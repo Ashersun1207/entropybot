@@ -46,6 +46,20 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); });
 
 describe("protected manual intent", () => {
+  it("persists and reuses a v4 request key when crypto.randomUUID is unavailable", async () => {
+    const getRandomValues = vi.fn(crypto.getRandomValues.bind(crypto));
+    vi.stubGlobal("crypto", { getRandomValues });
+    const owner = createRoutineRunIntents();
+    await expect(owner.run("routine", settings)).resolves.toEqual(run);
+    const requestKey = key(0);
+    expect(requestKey).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(getRandomValues).toHaveBeenCalledOnce();
+    expect(JSON.parse(localStorage.getItem(MANUAL_RUN_STORAGE)!).entries[0]).toMatchObject({ key: requestKey, phase: "confirmed" });
+    await expect(createRoutineRunIntents().run("routine", settings, false)).resolves.toEqual(run);
+    expect(posts).toHaveLength(2);
+    expect(key(1)).toBe(requestKey);
+    expect(getRandomValues).toHaveBeenCalledOnce();
+  });
   const seedPending = () => {
     const marker = { environmentId: environment.environmentId, contextId, routineId: "routine", key: crypto.randomUUID(), phase: "pending" };
     localStorage.setItem(MANUAL_RUN_STORAGE, JSON.stringify({ version: 1, entries: [marker] }));

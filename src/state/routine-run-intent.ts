@@ -1,4 +1,5 @@
 import { t } from "../lib/i18n";
+import { randomUuid } from "../lib/random-uuid";
 import type { RoutineRun } from "../lib/routines";
 import { decodeManualRoutineScope, type ManualRoutineScope } from "../lib/session";
 import { api } from "./api";
@@ -112,7 +113,7 @@ export function createRoutineRunIntents() {
         const pending = held ?? (latest && (needsRecovery(latest) || acknowledgePriorRun === false) ? latest : undefined);
         if (pending && !sameScope(pending, scope) && !acknowledgePriorRun) throw new ManualRunError("changed");
         marker = pending && !acknowledgePriorRun ? { ...pending, phase: "pending" } : {
-          ...scope, routineId, key: crypto.randomUUID(), phase: "pending",
+          ...scope, routineId, key: randomUuid(), phase: "pending",
         };
         save(storage, marker, completed);
         completed.delete(routineId);

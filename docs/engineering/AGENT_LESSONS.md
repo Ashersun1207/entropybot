@@ -166,6 +166,12 @@
 - 边界：只覆盖已有 Chat Completions runtime；没有调用真实 Magpie、Composio 或用户数据，不能宣称云端服务恢复、安装包或 UI 实测通过。已有启动等待预算保持原样；执行中失败仍走原不确定结果/关闭语义，不自动重试外部动作。
 - 文档漏检：`398e32e2d` 新增验证文档但未接入 README，原 359 项行为/体积回归未包含文档守卫。主控 04:27 运行 `scripts/testing/verification-docs.test.ts` 时 6 通过/1 失败，`are all reachable from README.md` 在第 102 行实际得到 `["optional-connectors-isolation.md"]`，期望 `[]`；本 worktree 原提交重现同一失败，证据 `optional-connectors-evidence/docs-index-red.{json,log}`。根因是新增文档时未把索引与文档守卫纳入变更范围检查。修复补 README 链接；以后新增/移动验证文档均运行该守卫，行为/类型检查不能替代文档可达性验证。此次文档修复不改生产代码，不重跑未变的 359 项；修复身份及文档守卫绿例见后续单独提交与交接。
 
+## F2 前置回归：浏览器 UUID、原生文案与 locale 范围
+
+- renderer 的手动运行身份必须复用 `src/lib/random-uuid.ts`，不能直接调用可能缺失的 `crypto.randomUUID`。`src/state/routine-run-intent.test.ts` 新增缺失该 API 时实际保存 v4 key、发送请求和新 owner Retry 复用原 key 的回归；native Web Locks 的拒绝策略不变，fallback 不代表普通 HTTP 已支持锁。
+- 产品文案提交修改共享 `place.local` / `rail.thisComputer` 后，原生菜单与切换器的旧英文、葡语测试 pin 也须核对；本次按既有目录采用 Your computer / Seu computador，保留角色、排序、无 Forget 和回调断言。入口为 `electron/menu.test.mjs`、`electron/environments.node-test.mjs`、`electron/native-text.node-test.mjs`。
+- locale import-graph 守卫新增指出 `server/routine-manual-request.e2e.test.ts` 的传递目录依赖，以及 `scripts/entropybot-ci-workflow.test.ts` 中 workflow 命令的保守文本命中。两者加入 `scripts/ci-scope.mjs` 的 locale 子集；不增加豁免或放宽图守卫。后者自身不解析翻译，额外运行短契约测试以保留守卫的保守边界。第一轮图守卫转绿但精确子集清单断言未同步（343 通过/1 失败）；第二轮同步清单测试，不改原图断言。此修复仅为前置回归，不能据此声称完整 F2 回归或发布通过；集成前仍须独立审查。
+
 ## A1：手动运行在 reload 后恢复
 
 - 触发：confirmed setItem 成功而紧随的 getItem 抛错。旧 provider 的 uncertain map 保留原 key，但 reload/更换 provider 丢失该 map；原有同 provider 重试通过并不能证明 reload 安全。基线 `a92388449` 的新增红例实际发出两个不同 key，真实 Chrome 夹具在故障、原服务器同 dataDir 重启及 Page.reload 后缺少 Retry。修复身份见本条所属提交：新 owner 对任何既有 marker 先以原 key/context 对账，confirmed phase 不单独授权旋转或驱逐；本 owner 的成功回执有界保存，显式 Retry 即使在同 provider 重开详情后也强制复用原操作，提前替换仍须原确认。回归入口 `src/state/routine-run-intent.test.ts`、`src/state/routine-run-intent.integration.test.ts`、`scripts/testing/routine-run-reload-ui.e2e.test.ts`；含实际 browser reload、同目录 server restart、真实合成认证 context 变更前置拒绝、unmount 后迟到响应和替换身份 fence、32 条容量保留/可确认驱逐。边界：reload 后即使先前成功也保守要求再对账；32 条未对账会阻止新 routine；无多 tab 仲裁、真实账号/模型/Keychain 或安装包验收。证据与测试入口见 [验证说明](../verification/routine-run-reload-recovery.md)。
