@@ -356,6 +356,7 @@ desktop routing, cancellation, and computer authority cleanup.
 - [M1 complete-span tidy archival](memory-tidy-spans.md)
 - [M1 bounded tidy supersession](memory-tidy-supersession.md)
 - [M1 explicit current-item About me correction](memory-aboutme-correction.md)
+- [M1 person-scoped source-item linkage design](aboutme-source-linkage-design.md)
 - [C1a paired chat preparation attribution](chat-preparation-attribution.md)
 - [C1 deep chat preparation stage attribution](chat-prep-stage-attribution.md)
 - [L1 core and on-demand capability boundary research](capability-boundary.md)
