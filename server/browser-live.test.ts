@@ -1403,3 +1403,169 @@ describe("unconfirmed browser reset recovery", () => {
     expect(nativeClose).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("reset barriers at direct command dispatch", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void, reject!: (error: Error) => void;
+    const promise = new Promise<T>((done, fail) => { resolve = done;reject = fail; });
+    return { promise, resolve, reject };
+  }
+  const connect = (owner: string, session = "s", current = () => true, res = new ResponseFixture()) => live.open({
+    botId: "a", session, owner, isCurrent: current, res: res as unknown as ServerResponse,
+    spec: { command: "/engine", env: { AGENT_BROWSER_SESSION: session } },
+  });
+  const launchFailure = () => Object.assign(new Error("Command failed"), { stderr: "Missing X server or $DISPLAY" });
+
+  it("ends an enable-triggered reset attempt without fallback status or open", async () => {
+    nativeClose.mockResolvedValue(false);
+    execute.mockResolvedValueOnce(output({ ...ready, enabled: false, connected: false }))
+      .mockRejectedValueOnce(launchFailure()).mockResolvedValue(output({ ...ready, connected: false }));
+    const result = await connect("a").then(() => "opened", error => error);
+    expect(execute.mock.calls.map(call => call[1].slice(0, 2))).toEqual([["stream", "status"], ["stream", "enable"]]);
+    expect(result).toMatchObject({ status: 503 });
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+    expect(SocketFixture.instances).toHaveLength(0);
+  });
+
+  it("blocks an entered connection after same-session reset false while launchReady awaited", async () => {
+    const preparing = deferred<void>(), entered = deferred<void>();
+    vi.mocked(runtime.launchReady).mockImplementationOnce(async () => { entered.resolve();await preparing.promise; });
+    const waiting = connect("a").then(() => "opened", error => error);
+    await entered.promise;
+    nativeClose.mockResolvedValue(false);execute.mockRejectedValueOnce(launchFailure());
+    await expect(connect("b")).rejects.toThrow("Reconnect to retry");
+    await expect(nativeClose.mock.results[0]!.value).resolves.toBe(false);
+    execute.mockResolvedValue(output({ ...ready, connected: false }));
+    preparing.resolve();
+    const result = await waiting;
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: 503 });
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+    expect(SocketFixture.instances).toHaveLength(0);
+  });
+
+  it.each(["launchReady", "discovery", "enable"].flatMap(stage => ["pending", "false", "reject"].map(reset => ({ stage, reset }))))("blocks continuation during $stage with another viewer's reset $reset", async ({ stage, reset }) => {
+    const preparing = deferred<void>(), entered = deferred<void>(), reply = deferred<ReturnType<typeof output>>(), close = deferred<boolean>();
+    if (stage === "launchReady") vi.mocked(runtime.launchReady).mockImplementationOnce(async () => { entered.resolve();await preparing.promise; });
+    else {
+      if (stage === "enable") execute.mockResolvedValueOnce(output({ ...ready, enabled: false, connected: false }));
+      execute.mockImplementationOnce(() => { entered.resolve();return reply.promise; });
+    }
+    const waiting = connect("a").then(() => "opened", error => error);
+    await entered.promise;
+    nativeClose.mockImplementationOnce(() => close.promise);execute.mockRejectedValueOnce(launchFailure());
+    await expect(connect("b")).rejects.toThrow("Reconnect to retry");
+    if (reset === "false") { close.resolve(false);await expect(close.promise).resolves.toBe(false); }
+    if (reset === "reject") { close.reject(Error("synthetic close detail"));await expect(close.promise).rejects.toThrow("synthetic close detail"); }
+    const accepted = execute.mock.calls.length;
+    if (stage === "launchReady") preparing.resolve();
+    else reply.resolve(output({ ...ready, connected: true }));
+    const result = await waiting;
+    expect(result).toMatchObject({ status: 503 });
+    expect(String(result)).not.toContain("synthetic close detail");
+    expect(execute).toHaveBeenCalledTimes(accepted);
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+    expect(SocketFixture.instances).toHaveLength(0);
+    if (reset === "pending") { close.resolve(true);await close.promise; }
+  });
+
+  it.each(["pending", "reject", "true"])("ends reset-triggering enable even when owned close is %s", async state => {
+    const close = deferred<boolean>();
+    if (state === "true") close.resolve(true);
+    nativeClose.mockImplementationOnce(() => close.promise);
+    execute.mockResolvedValueOnce(output({ ...ready, enabled: false, connected: false }))
+      .mockRejectedValueOnce(launchFailure()).mockResolvedValue(output({ ...ready, connected: false }));
+    await expect(connect("a")).rejects.toMatchObject({ status: 503 });
+    expect(execute.mock.calls.map(call => call[1].slice(0, 2))).toEqual([["stream", "status"], ["stream", "enable"]]);
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+    expect(SocketFixture.instances).toHaveLength(0);
+    if (state === "pending") close.resolve(false);
+    if (state === "reject") close.reject(Error("synthetic close detail"));
+    await close.promise.catch(() => false);
+  });
+
+  it("retains the ordinary status fallback for enable failures that do not start a reset", async () => {
+    execute.mockResolvedValueOnce(output({ ...ready, enabled: false, connected: false }))
+      .mockRejectedValueOnce(Error("stream temporarily unavailable")).mockResolvedValue(output(ready));
+    await connect("a");
+    expect(execute.mock.calls.map(call => call[1].slice(0, 2))).toEqual([["stream", "status"], ["stream", "enable"], ["stream", "status"]]);
+    expect(nativeClose).not.toHaveBeenCalled();
+    expect(SocketFixture.instances).toHaveLength(1);
+  });
+
+  it("keeps another session usable when a reset starts while its launchReady is pending", async () => {
+    const preparing = deferred<void>(), entered = deferred<void>();
+    vi.mocked(runtime.launchReady).mockImplementationOnce(async () => { entered.resolve();await preparing.promise; });
+    const waiting = connect("a");
+    await entered.promise;
+    nativeClose.mockResolvedValue(false);execute.mockRejectedValueOnce(launchFailure());
+    await expect(connect("b", "other")).rejects.toThrow("Reconnect to retry");
+    execute.mockResolvedValue(output({ ...ready, connected: false }));preparing.resolve();await waiting;
+    expect(execute.mock.calls.map(call => call[2].env.AGENT_BROWSER_SESSION)).toEqual(["other", "s", "s"]);
+    await expect(connect("c", "other")).rejects.toMatchObject({ status: 503 });
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(nativeClose).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["response closed", "owner aborted", "identity replaced"])("checks viewer currentness at execute after launchReady: %s", async state => {
+    const preparing = deferred<void>(), entered = deferred<void>(), res = new ResponseFixture();let current = true;
+    vi.mocked(runtime.launchReady).mockImplementationOnce(async () => { entered.resolve();await preparing.promise; });
+    const waiting = connect("a", "s", () => current, res).then(() => "opened", error => error);
+    await entered.promise;
+    if (state === "response closed") res.destroy();
+    else if (state === "owner aborted") live.closeForOwner("a");
+    else current = false;
+    preparing.resolve();
+    expect(await waiting).not.toBe("opened");
+    expect(execute).not.toHaveBeenCalled();
+    expect(nativeClose).not.toHaveBeenCalled();
+    expect(SocketFixture.instances).toHaveLength(0);
+  });
+
+  it("only a later explicit reconnect recovers an enable-triggered failed reset after owned true", async () => {
+    nativeClose.mockResolvedValue(false);
+    execute.mockResolvedValueOnce(output({ ...ready, enabled: false, connected: false })).mockRejectedValueOnce(launchFailure());
+    await expect(connect("a")).rejects.toThrow("Reconnect to retry");
+    expect(execute).toHaveBeenCalledTimes(2);
+    nativeClose.mockResolvedValueOnce(true);execute.mockResolvedValue(output({ ...ready, connected: false }));
+    await connect("b");
+    expect(nativeClose).toHaveBeenCalledTimes(2);
+    expect(execute.mock.calls.map(call => call[1][0])).toEqual(["stream", "stream", "stream", "open"]);
+    expect(SocketFixture.instances).toHaveLength(1);
+    await connect("c");
+    expect(nativeClose).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["timeout", "launch failure", "ordinary rejection"])("does not start another reset when an accepted command rejects after reset false: %s", async failure => {
+    const entered = deferred<void>(), reply = deferred<ReturnType<typeof output>>();
+    vi.mocked(runtime.working).mockReturnValue(false);
+    execute.mockImplementationOnce(() => { entered.resolve();return reply.promise; });
+    const waiting = connect("a").then(() => "opened", error => error);await entered.promise;
+    nativeClose.mockResolvedValueOnce(false);execute.mockRejectedValueOnce(launchFailure());
+    await expect(connect("b")).rejects.toThrow("Reconnect to retry");
+    await expect(nativeClose.mock.results[0]!.value).resolves.toBe(false);
+    const error = failure === "timeout" ? Object.assign(Error("synthetic timeout"), { killed: true, signal: "SIGKILL", code: null })
+      : failure === "launch failure" ? launchFailure() : Error("synthetic rejected command");
+    reply.reject(error);
+    const result = await waiting;
+    expect(result).toMatchObject({ status: 503, message: "The browser reset could not be confirmed. Reconnect to retry closing this browser." });
+    expect(result).not.toHaveProperty("settled", true);
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+    expect(SocketFixture.instances).toHaveLength(0);
+  });
+
+  it("shares one reset across same-key viewers while an earlier connection is already in progress", async () => {
+    const preparing = deferred<void>(), entered = deferred<void>(), close = deferred<boolean>();
+    vi.mocked(runtime.launchReady).mockImplementationOnce(async () => { entered.resolve();await preparing.promise; });
+    const first = connect("a").catch(error => error);await entered.promise;
+    nativeClose.mockImplementationOnce(() => close.promise);execute.mockRejectedValueOnce(launchFailure());
+    await expect(connect("b")).rejects.toThrow("Reconnect to retry");
+    const second = connect("c").catch(error => error);
+    preparing.resolve();expect(await first).toMatchObject({ status: 503 });
+    close.resolve(false);expect(await second).toMatchObject({ status: 503 });
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(SocketFixture.instances).toHaveLength(0);
+  });
+});

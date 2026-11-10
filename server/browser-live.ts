@@ -38,11 +38,13 @@ const ENDED_PROBE = { timeoutMs: 5_000, maxBytes: 65_536 };
 export const BROWSER_ASLEEP_ERROR = { type: "error", retryable: false, asleep: true, message: "This browser closed after it sat unused, to save memory. Reconnect to open it again." };
 /** What a view hears while its browser cannot show it yet; it keeps waiting. */
 export const BROWSER_WAITING = { type: "waiting", reason: "busy" };
+const RESET_UNCONFIRMED = "The browser reset could not be confirmed. Reconnect to retry closing this browser.";
 
 export class BrowserLiveError extends Error {
   readonly status: number;
   constructor(message: string, status = 400) { super(message); this.name = "BrowserLiveError"; this.status = status; }
 }
+class BrowserResetError extends BrowserLiveError {}
 
 export class BrowserActionFailedError extends BrowserLiveError {
   readonly settled = true;
@@ -564,6 +566,7 @@ export class BrowserLive {
 
   private async command(viewer: Viewer, args: string[], timeout = COMMAND_TIMEOUT_MS, person = false): Promise<ObjectValue> {
     if (!this.current(viewer)) throw new BrowserLiveError("This browser view is no longer available.", 409);
+    if (this.unconfirmedResets.has(viewer.session) || this.sessionResets.has(viewer.session)) throw new BrowserResetError(RESET_UNCONFIRMED, 503);
     const env = browserRuntimeEnv({ ...viewer.spec.env, AGENT_BROWSER_SESSION: viewer.session });
     try {
       const { stdout } = await execute(viewer.spec.command, [...args, "--json", "--no-webmcp"], {
@@ -571,6 +574,7 @@ export class BrowserLive {
         signal: viewer.abort.signal,
       });
       if (!this.current(viewer)) throw new Error("stale viewer");
+      if (this.unconfirmedResets.has(viewer.session) || this.sessionResets.has(viewer.session)) throw new BrowserResetError(RESET_UNCONFIRMED, 503);
       const result = object(JSON.parse(stdout));
       const data = object(result?.data);
       if (result?.success !== true || !data) {
@@ -580,12 +584,13 @@ export class BrowserLive {
       }
       return data;
     } catch (error) {
+      if (error instanceof BrowserResetError || this.unconfirmedResets.has(viewer.session) || this.sessionResets.has(viewer.session)) throw new BrowserResetError(RESET_UNCONFIRMED, 503);
       if (timedOut(error)) throw new BrowserBusyError();
       console.warn("browser-live:", error);
       if (browserLaunchFailure(error)) {
         // A daemon holding a launch config Chrome cannot satisfy here (headed, no display) fails every command until killed, so discard the session once.
         this.resetSession(viewer, "a failed browser launch");
-        throw new BrowserLiveError("The browser could not start on this server. Reconnect to retry with a fresh browser session.", 503);
+        throw new BrowserResetError("The browser could not start on this server. Reconnect to retry with a fresh browser session.", 503);
       }
       if (person && engineAnsweredFailure(error)) throw new BrowserActionFailedError(args);
       throw new BrowserLiveError("The browser could not complete this action. Check that the browser engine is installed, then reconnect.", 503);
@@ -608,10 +613,9 @@ export class BrowserLive {
   }
 
   private async connect(viewer: Viewer): Promise<number> {
-    if (!this.current(viewer)) throw new BrowserLiveError("This browser view is no longer available.", 409);
     if (this.unconfirmedResets.has(viewer.session) && !this.sessionResets.has(viewer.session)) this.resetSession(viewer, "an unconfirmed session reset");
     const resetting = this.sessionResets.get(viewer.session);
-    if (resetting && !await resetting) throw new BrowserLiveError("The browser reset could not be confirmed. Reconnect to retry closing this browser.", 503);
+    if (resetting && !await resetting) throw new BrowserResetError(RESET_UNCONFIRMED, 503);
     await this.runtime.settled(viewer.session);
     if (!this.current(viewer)) throw new BrowserLiveError("This browser view is no longer available.", 409);
     await this.runtime.launchReady(viewer.spec).catch((error: unknown) => {
@@ -628,7 +632,7 @@ export class BrowserLive {
     if (status.enabled !== true) {
       try { status = await this.command(viewer, ["stream", "enable"]); }
       catch (error) {
-        if (error instanceof BrowserBusyError) throw error;
+        if (error instanceof BrowserBusyError || error instanceof BrowserResetError || this.unconfirmedResets.has(viewer.session) || this.sessionResets.has(viewer.session)) throw error;
         status = await this.command(viewer, ["stream", "status"]);
       }
     }

@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## Browser stop consumer R2：入口检查不能代替实际派发屏障
+
+- whole-tree reviewer 对387返回NEEDS-CHANGES：stream enable的launch failure装入reset后，catch仍fallback status/open；另一个viewer进入launchReady后，同session新reset false也挡不住它之后的execute。上一轮477及两项真实browser关闭证明未覆盖这两个交错，不撤销已关闭的target/errorText/lateACK/close合同，也不追认whole-tree通过。
+- 在修改产品前，实际导入committed387的BrowserLive，通过public entry+受控execute/close复现2失败/135过滤；源码/blob/hash与红源均保留。R2在唯一direct execute前、accepted command返回后检查pending和unconfirmed状态；enable catch用typed reset error结束当前attempt，不能凭安全message文本分类，也不能因快速true而恢复旧fallback。普通非reset enable失败保留原fallback。已接受command不可撤回，拒绝迟到结果不等于零副作用。
+- 第二个consumer-root修复只写browser-live.ts及既有tests/docs，保留显式reconnect一次owned close、true后才继续的策略和失败屏障寿命。完整live156通过，包括新21项public-entry时序控制；首个冻结组合498通过/3平台skip留档。提交前自审补全同一派发边界的reject分支：accepted command在新barrier后timeout/launch error/普通reject也必须先查barrier，不能进入旧错误分类再发owned close。再加3项有界callback控制，明确不标settled=true；前135项及manual/input/takeover断言不删。source1000行，预算不变，不压空白/拆碎/改close产品。完成后重新冻结文档并按原13文件+完整rawprobe/真实stopped/4=4/exit0/childclose/fixtureclear和strict guards/types/lint验收；新unknown立即阻断，无第三轮shutdown修复。最终whole tree仍须新独立复审。
+
 ## Browser stop consumer R1：失败状态不能随 Promise finally 消失
 
 - 主控仅扩权 browser-live.ts 及既有 tests/docs 后，在原 reset manager 中增加按 session 保留的 unconfirmed barrier；pending false 拒绝该 reconnect 的 probe/enable/open，下一次显式 reconnect 只重试一次 owned close，true 后才继续，false/throw/reject 仍保留。已有 finally 可移除 pending Promise，但不能把未知状态当作新浏览器启动授权。confirmed manual/input restart 才清状态；其他 session 不受影响，不新增 timeout/自动循环/close 产品改动。
