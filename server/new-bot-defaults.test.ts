@@ -11,6 +11,21 @@ describe("new-bot templates", () => {
     expect(resolveBotCreationDefaults(defaults, { settings: { toolScope: null } }).profile).toEqual({ toolScope: null });
     expect(newBotDefaultsSchema.safeParse({ profile: { toolScope: { deny: ["mcp:*:read"] } } }).success).toBe(false);
   });
+  it("keeps creation tool scope nested, independently of legacy aliases and template opt-out", () => {
+    const toolScope = { deny: ["mcp:browser:*"] };
+    const defaults = newBotDefaultsSchema.parse({ profile: { toolScope, computer: "off" } });
+    expect(resolveBotCreationDefaults(undefined, { toolScope, computer: "browser" }).profile).toEqual({});
+    expect(resolveBotCreationDefaults(defaults, { toolScope: null, computer: "browser" }).profile).toEqual({ toolScope, computer: "off" });
+    expect(resolveBotCreationDefaults(defaults, { name: "Legacy name", settings: { name: "Nested name", computer: "browser", toolScope: { allow: [] } }, toolScope: null }).profile)
+      .toEqual({ name: "Legacy name", computer: "browser", toolScope: { allow: [] } });
+    expect(resolveBotCreationDefaults(defaults, { useDefaults: false }).profile).toEqual({});
+    expect(resolveBotCreationDefaults(defaults, { useDefaults: false, settings: { computer: "browser", toolScope } }).profile).toEqual({ computer: "browser", toolScope });
+    expect(resolveBotCreationDefaults(defaults, { settings: { toolScope: null } }).profile).toEqual({ computer: "off", toolScope: null });
+    for (const invalid of [false, [], { allow: "all" }, { deny: ["mcp:*:read"] }, { unknown: true }]) {
+      expect(() => resolveBotCreationDefaults(undefined, { settings: { toolScope: invalid } })).toThrow();
+    }
+  });
+
   it("stores Full as a plain preference, with no consent field, and creates new bots with it", () => {
     const defaults = newBotDefaultsSchema.parse({ profile: { name: "", approvalMode: "full" } });
     expect(defaults.profile).toEqual({ name: "", approvalMode: "full" });

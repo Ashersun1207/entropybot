@@ -1123,6 +1123,23 @@ describe("structured tool execution boundaries", () => {
   });
 
   it.each([
+    { allow: ["mcp:audit:fail"] },
+    { deny: ["mcp:audit:write"] },
+  ])("rejects an explicit forged call excluded by tool scope %j", async toolScope => {
+    const f = await fixture((_body, response, round) => round === 1
+      ? sse(response, [chunk({ tool_calls: [toolCall("audit_write")] }, "tool_calls")]) : answer(response));
+    await f.start({ toolScope });
+    expect(await f.completed()).toMatchObject({ ok: false });
+    const names = f.requests[0].tools?.map(tool => tool.function.name) ?? [];
+    expect(names).toContain("audit_fail");
+    expect(names).not.toContain("audit_write");
+    expect(f.effects()).toEqual([]);
+    expect(f.recorder.events.some(event => event.type === "request.opened")).toBe(false);
+    expect(f.recorder.events).toContainEqual(expect.objectContaining({ type: "item.completed", itemType: "tool", ok: false }));
+    expect(f.requests[1].messages.at(-1)).toMatchObject({ role: "tool", tool_call_id: "call_write", content: expect.any(String) });
+  });
+
+  it.each([
     ["invalid JSON", "audit_write", '{"name":'],
     ["non-object arguments", "audit_write", '[]'],
     ["arguments outside the advertised schema", "audit_write", '{"name":"receipt","value":42}'],

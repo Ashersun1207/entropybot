@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## 创建 toolScope：先核对实际请求和嵌套契约
+
+- November 9 `probe-scope.mjs` 留存最终文件的两个创建调用均未传 toolScope，然后 PATCH deny；不能把它当成 POST 失败证据。当前创建契约是 `settings.toolScope` / `settings.computer`，PATCH 才是顶层 toolScope；owner 创建路径忽略顶层这两个字段，不能把不受支持字段的 ignored 行为称为权限修复或 bypass。客户端 create-configured-bot 已使用嵌套 scope，保持 legacy alias、defaults、useDefaults 和 null 语义，不自动扩字段或拒绝未知顶层 key。
+- 隔离 HTTP 首轮健康库存、未 PATCH deny 首发和 owner 顶层对照已通过，随后测试误期望 client-only 顶层请求 201，实际通用鉴权正确返回 403；只改夹具预期，保留失败、零 bots.json 变更及独立重跑。检查同 fixture 真实模型请求的工具名、GET/raw bots.json、同 dataDir 重启后未发送 bot 的首发和健康控制；不能用工具挂载失败造成的空库存证明策略有效。
+- 回归入口 `server/bot-create-tool-scope.e2e.test.ts`、`server/new-bot-defaults.test.ts` 与既有 OpenAI tools suite 的 restrictive allow/deny forged invocation；实际 dispatcher 必须拒绝并零 fixture write。验证范围、已有资源显式路径、关闭回执及历史证据限制见[创建 scope 验证](../verification/bot-create-tool-scope.md)。只交付 tests/docs；真实模型、浏览器导航、真实 companion transport、用户数据及安装发布未验，最终树仍需独立审查。
+
 ## Memory journal undo：必须核对记录的 after 状态与存在性
 
 - R1 独立复审 `ses_e3a1e53a5ffeKGCfC8hqUgieNL` 对75fcbfaf2退回：持久NDJSON的TS类型不能替代runtime校验。旧206通过未覆盖unknown kind、缺失/null/wrong-type before、created矛盾before和beforeHash缺失/坏格式/不匹配；matching afterHash仍可授权清空/删除/错误恢复。修复前实际reader/revert与HTTP红例保留28失败/5通过/35过滤：direct21次成功并变更、3次TypeError、3项原已409仅安全文案不同，另HTTP200清空。原d76红例与206证据不追认、不覆盖。
