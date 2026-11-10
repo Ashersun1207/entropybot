@@ -54,6 +54,12 @@
 - 首轮产品检查 114 通过/3 失败/2 平台跳过：半预算产生小数 `execFile.timeout`，Node 同步拒绝，先创建的 timer 又访问未初始化 child。整数截断并处理同步拒绝；新增近截止和悬挂 ps 回归。第二轮 136 通过/1 失败/2 跳过剩新 fake-clock fixture 只推进 0ms，后续零延时枚举尚未执行；修正夹具推进 1ms，不改产品、既有断言或预算。类型检查另发现 mock 把可选 deadline 误写必需，修正测试类型；20 秒工具超时的首次 types 无 post receipt，保留 incomplete。
 - 回归入口 `server/browser-close-budget.test.ts`、`server/browser-process-budget.test.ts` 与既有 engine/process/lifecycle suites；真实 owned Node 子进程覆盖非零/timeout/exit 先于 stdio close。一次既有 packaged 0.37 独立 close 边界捕获 5 成员/2 组，224.3ms 返回 true，随后 tree absent 与空 inventory 才删本次目录。未含冻结 cancellation candidate；direct/redirect＋完整 shared raw probe 必须在获审组合上另验，原 native false 原因/inner fallback wait 仍 unknown。无真实模型、用户 Chrome、Keychain、依赖或安装动作。检查与维护/安全审查限制见 [验证说明](../verification/browser-close-budget.md)，集成前仍须独立产品安全复审；阻塞 I/O、墙钟调整、Windows/Linux 平台不在本次保证内。
 
+## Legacy close R1：阶段预算与真实 pid 删除的订阅契约
+
+- 独立复审 `ses_e3b4091e6ffe63cAf8qw69FW0L` 对 `3190a92ec` 退回两项：循环入口检查 nativeDeadline 不代表内部 process query 受同阶段约束；把 total deadline 传下去会吃掉 fallback reserve。另一个旧并发测试没实际删 pid 文件，漏掉 prior true 后订阅者得到 false。基线实际函数回归 `r1-red` 为17通过/3失败，明确重现 query 收到160ms总预算而非80ms阶段预算，以及删文件后的 `[true,false]`；旧255通过和fast native probe不能替代这些失败合同。
+- R1 把消失查询限制在 native phase，阶段到期直接转 fallback，保留原总截止。排队记录同时携带原身份和结果；只有同捕获身份的 prior confirmed success、重新受截止约束的空 inventory 与最终仍无 pid 文件才允许继承成功，false/unknown、身份变化、重新列出与订阅者到期均拒绝。回归保留160ms的 confirmed/unknown两种fallback结果、实际unlink、初始无pid时prior false、确认前/中/结果后替换和挂起inventory；不增加服务器预算、不从absence单独推成功。完整证据入口仍为 `server/browser-close-budget.test.ts` 和 [验证说明](../verification/browser-close-budget.md) 的R1节。
+- 本轮仅修这两个已授权合同，旧轮次失败和probe留档，不重跑packaged Chrome凑绿；源码/文档冻结后执行原8文件、size/docs/types/lint。无新的供给链、凭证或授权变更；进程表失败拒绝signal、command close fence、start-time/group guards保持。最终树仍须针对工程98基线独立产品/安全复审，原取消组合对与内核I/O/墙钟/跨平台限制继续开放。
+
 ## Chrome 子进程关闭边界
 
 - Node 24 的额外 stdio pipe 是 Duplex；`exit` 只证明根进程已退出，`end()` 只结束写半边，均不等于 `ChildProcess.close`。CDP launch 的 close/kill 和握手失败收尾必须回收本端 fd3/4 并有界等待实际 close，registry 在 close 后才移除；超时抛错、保留 profile/registry 证据。回归 `server/browser/chrome/launch.test.ts` 使用真实 Node 假 Chrome 和短暂继承 fd3/4 的辅助进程制造 exit 先于 close，另用 mock 验证 close 永不到及握手失败清理未知；`server/browser/cdp/connection.test.ts` 验证两端完整销毁。根进程 close 不证明所有 Chrome helper 或外部资源已消失，需单独进程审计。原 S4-actions 功能 32 pass 但缺 close 的 `ok:false` 记录不得被补验覆盖。

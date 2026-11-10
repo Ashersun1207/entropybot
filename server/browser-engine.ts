@@ -139,7 +139,7 @@ export function runningBrowserSessionNames(binaryPath: string, env: NodeJS.Proce
   return controlEnv ? runningBrowserSessions(binaryPath, controlEnv, Date.now() + timeoutMs) : Promise.resolve(null);
 }
 
-const closingBrowsers = new Map<string, Promise<boolean>>();
+const closingBrowsers = new Map<string, { identity: string | null; result: Promise<boolean> }>();
 
 /** Closes one daemon and its Chrome without the CLI's implicit launch; true once nothing of that browser runs. */
 export function closeBrowserSession(binaryPath: string, env: NodeJS.ProcessEnv, timeoutMs = 15_000): Promise<boolean> {
@@ -151,13 +151,24 @@ export function closeBrowserSession(binaryPath: string, env: NodeJS.ProcessEnv, 
   const identity = () => { try { return readFileSync(key, "utf8").trim(); } catch { return null; } };
   const requested = identity();
   const current = () => identity() === requested;
-  const attempt = (closingBrowsers.get(key) ?? Promise.resolve(true)).then(() => Date.now() < deadline && current() ? closeOnce(binaryPath, snapshot, session, deadline, current) : false).catch(() => false).finally(() => {
-    if (closingBrowsers.get(key) === attempt) closingBrowsers.delete(key);
+  const prior = closingBrowsers.get(key);
+  let shared = false;
+  const attempt = (prior?.result ?? Promise.resolve(false)).then(async (closed) => {
+    if (Date.now() >= deadline || (prior && (!closed || prior.identity !== requested))) return false;
+    if (prior && closed && identity() === null) {
+      shared = true;
+      const controlEnv = daemonControlEnv(snapshot);
+      const running = controlEnv ? await runningBrowserSessions(binaryPath, controlEnv, deadline) : null;
+      return running !== null && !running.includes(session) && identity() === null && Date.now() < deadline;
+    }
+    return current() ? closeOnce(binaryPath, snapshot, session, deadline, current) : false;
+  }).catch(() => false).finally(() => {
+    if (closingBrowsers.get(key)?.result === attempt) closingBrowsers.delete(key);
   });
-  closingBrowsers.set(key, attempt);
+  closingBrowsers.set(key, { identity: requested, result: attempt });
   return new Promise((done) => {
     const timer = setTimeout(() => done(false), Math.max(0, deadline - Date.now()));
-    void attempt.then((ok) => { clearTimeout(timer); done(ok); });
+    void attempt.then((ok) => { clearTimeout(timer); done(ok && (!shared || identity() === null) && Date.now() < deadline); });
   });
 }
 
@@ -183,7 +194,8 @@ async function closeOnce(binaryPath: string, env: NodeJS.ProcessEnv, session: st
       const sessions = await runningBrowserSessions(binaryPath, closeEnv, nativeDeadline);
       if (!sessions) return false;
       const listed = sessions.includes(session) && daemonPid() === closing;
-      if (!listed && !(tree && await browserProcessesRunning(tree, deadline))) return Date.now() < deadline;
+      if (!listed && !(tree && await browserProcessesRunning(tree, nativeDeadline))) return Date.now() < deadline;
+      if (Date.now() >= nativeDeadline) break;
       await new Promise((resolve) => setTimeout(resolve, Math.min(25, Math.max(0, nativeDeadline - Date.now()))));
     }
   }

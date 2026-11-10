@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -14,11 +14,11 @@ let env: NodeJS.ProcessEnv;
 let closeChild: ReturnType<typeof spawn>;
 let nativeCode: number | undefined;
 const tree = { daemon: 43210, members: new Map([[43210, "owned"]]), groups: [43210] };
-function child(args: readonly string[]): ReturnType<typeof spawn> {
+function child(args: readonly string[], sessions = ["work"]): ReturnType<typeof spawn> {
   const result = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), kill: vi.fn(() => { setTimeout(() => result.emit("close", null), 0); return true; }) });
   queueMicrotask(() => {
     if (args[0] === "session") {
-      result.stdout.emit("data", JSON.stringify({ success: true, data: { sessions: ["work"] } }));
+      result.stdout.emit("data", JSON.stringify({ success: true, data: { sessions } }));
       result.emit("close", 0);
     } else if (nativeCode !== undefined) result.emit("close", nativeCode);
   });
@@ -146,6 +146,162 @@ it("awaits actual inventory stdio close after root exit", async () => {
     expect(stopBrowserProcesses).not.toHaveBeenCalled();
   } finally { if (!closed) { command?.kill("SIGKILL"); command?.stdout?.destroy(); } }
 });
+it.each([false, true])("preserves owned fallback after native acknowledgement and a hung disappearance query (confirmed %s)", async (confirmed) => {
+  nativeCode = 0;
+  let inventories = 0;
+  vi.mocked(spawn).mockImplementation((_file, args) => child(args, ++inventories === 1 ? ["work"] : []));
+  const queries: number[] = [];
+  vi.mocked(browserProcessesRunning).mockImplementation(async (_tree, deadline = Infinity) => {
+    queries.push(deadline);
+    await new Promise((resolve) => setTimeout(resolve, deadline - Date.now()));
+    return true;
+  });
+  let fallbackAt: number | undefined;
+  vi.mocked(stopBrowserProcesses).mockImplementation(async (_tree, _grace, options) => {
+    fallbackAt = Date.now();
+    expect(options?.deadline).toBe(10_160);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return confirmed;
+  });
+  const result = closeBrowserSession("/fixture/engine", env, 160);
+  await vi.advanceTimersByTimeAsync(160);
+  expect(queries).toEqual([10_080]);
+  expect(fallbackAt).toBe(10_080);
+  expect(await result).toBe(confirmed);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+function removableDaemon(onInventory?: (count: number, command: ReturnType<typeof spawn>) => ReturnType<typeof spawn> | void) {
+  let sessions = ["work"];
+  let inventories = 0;
+  vi.mocked(spawn).mockImplementation((_file, args) => {
+    const command = child(args, sessions);
+    return args[0] === "session" ? onInventory?.(++inventories, command) ?? command : command;
+  });
+  vi.mocked(browserProcessesRunning).mockResolvedValue(false);
+  return (code = 0) => {
+    sessions = [];
+    unlinkSync(browserDaemonFile(env, ".pid"));
+    closeChild.emit("close", code);
+  };
+}
+it("shares confirmed close with a queued subscriber after actual pid-file removal", async () => {
+  const finish = removableDaemon();
+  const first = closeBrowserSession("/fixture/engine", env, 1_000);
+  await vi.advanceTimersByTimeAsync(1);
+  const second = closeBrowserSession("/fixture/engine", env, 1_000);
+  finish();
+  expect(await Promise.all([first, second])).toEqual([true, true]);
+  expect(vi.mocked(spawn).mock.calls.filter((call) => call[1][0] === "close")).toHaveLength(1);
+});
+it("does not inherit absence after a previous false close", async () => {
+  const finish = removableDaemon();
+  const first = closeBrowserSession("/fixture/engine", env, 1_000);
+  await vi.advanceTimersByTimeAsync(1);
+  const second = closeBrowserSession("/fixture/engine", env, 1_000);
+  finish(7);
+  expect(await Promise.all([first, second])).toEqual([false, false]);
+  expect(vi.mocked(spawn).mock.calls.filter((call) => call[1][0] === "close")).toHaveLength(1);
+});
+it("does not inherit absence after false when both requests began without a pid file", async () => {
+  const finish = removableDaemon();
+  unlinkSync(browserDaemonFile(env, ".pid"));
+  const first = closeBrowserSession("/fixture/engine", env, 1_000);
+  await vi.advanceTimersByTimeAsync(1);
+  const second = closeBrowserSession("/fixture/engine", env, 1_000);
+  writeFileSync(browserDaemonFile(env, ".pid"), String(tree.daemon));
+  finish(7);
+  expect(await Promise.all([first, second])).toEqual([false, false]);
+  expect(vi.mocked(spawn).mock.calls.filter((call) => call[1][0] === "close")).toHaveLength(1);
+});
+it("does not share successful close if fresh inventory lists the session again", async () => {
+  const finish = removableDaemon((count) => count === 3 ? child(["session"], ["work"]) : undefined);
+  const first = closeBrowserSession("/fixture/engine", env, 1_000);
+  await vi.advanceTimersByTimeAsync(1);
+  const second = closeBrowserSession("/fixture/engine", env, 1_000);
+  finish();
+  expect(await Promise.all([first, second])).toEqual([true, false]);
+  expect(vi.mocked(spawn).mock.calls.filter((call) => call[1][0] === "close")).toHaveLength(1);
+});
+it("refuses a replacement before a queued subscriber settles even after confirmed close", async () => {
+  const finish = removableDaemon();
+  const first = closeBrowserSession("/fixture/engine", env, 1_000);
+  await vi.advanceTimersByTimeAsync(1);
+  const second = closeBrowserSession("/fixture/engine", env, 1_000);
+  finish();
+  expect(await first).toBe(true);
+  writeFileSync(browserDaemonFile(env, ".pid"), "54321");
+  expect(await second).toBe(false);
+  expect(vi.mocked(spawn).mock.calls.filter((call) => call[1][0] === "close")).toHaveLength(1);
+});
+it.each(["during inventory", "after inventory result"])("refuses a replacement %s during queued confirmation", async (stage) => {
+  const finish = removableDaemon((count, command) => {
+    if (count !== 3) return;
+    command.on("close", () => {
+      const replace = () => writeFileSync(browserDaemonFile(env, ".pid"), "54321");
+      if (stage === "during inventory") replace();
+      else queueMicrotask(() => queueMicrotask(() => queueMicrotask(replace)));
+    });
+  });
+  const first = closeBrowserSession("/fixture/engine", env, 1_000);
+  await vi.advanceTimersByTimeAsync(1);
+  const second = closeBrowserSession("/fixture/engine", env, 1_000);
+  finish();
+  expect(await Promise.all([first, second])).toEqual([true, false]);
+  expect(vi.mocked(spawn).mock.calls.filter((call) => call[1][0] === "close")).toHaveLength(1);
+});
+it("does not inherit prior success for a different identity captured while queued", async () => {
+  const finish = removableDaemon();
+  const first = closeBrowserSession("/fixture/engine", env, 1_000);
+  await vi.advanceTimersByTimeAsync(1);
+  writeFileSync(browserDaemonFile(env, ".pid"), "54321");
+  const second = closeBrowserSession("/fixture/engine", env, 1_000);
+  finish();
+  expect(await Promise.all([first, second])).toEqual([true, false]);
+  expect(vi.mocked(spawn).mock.calls.filter((call) => call[1][0] === "close")).toHaveLength(1);
+});
+it("does not inherit absence while a prior command close remains unknown", async () => {
+  const finish = removableDaemon();
+  const first = closeBrowserSession("/fixture/engine", env, 160);
+  await vi.advanceTimersByTimeAsync(1);
+  const second = closeBrowserSession("/fixture/engine", env, 500);
+  vi.mocked(closeChild.kill).mockImplementation(() => false);
+  unlinkSync(browserDaemonFile(env, ".pid"));
+  await vi.advanceTimersByTimeAsync(160);
+  expect(await Promise.all([first, second])).toEqual([false, false]);
+  expect(stopBrowserProcesses).not.toHaveBeenCalled();
+  expect(vi.mocked(spawn).mock.calls.filter((call) => call[1][0] === "close")).toHaveLength(1);
+  writeFileSync(browserDaemonFile(env, ".pid"), String(tree.daemon));
+  finish(7);
+});
+it("keeps a queued subscriber unknown if its fresh inventory cannot complete in its own budget", async () => {
+  const finish = removableDaemon((count) => {
+    if (count !== 3) return;
+    const pending = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), kill: () => { queueMicrotask(() => pending.emit("close", null)); return true; } });
+    return pending as unknown as ReturnType<typeof spawn>;
+  });
+  const first = closeBrowserSession("/fixture/engine", env, 1_000);
+  await vi.advanceTimersByTimeAsync(1);
+  const second = closeBrowserSession("/fixture/engine", env, 100);
+  finish();
+  expect(await first).toBe(true);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(await second).toBe(false);
+  expect(vi.mocked(spawn).mock.calls.filter((call) => call[1][0] === "close")).toHaveLength(1);
+  expect(vi.getTimerCount()).toBe(0);
+});
+it("counts the subscriber's own expiry before a prior confirmed close", async () => {
+  const finish = removableDaemon();
+  const first = closeBrowserSession("/fixture/engine", env, 1_000);
+  await vi.advanceTimersByTimeAsync(1);
+  const second = closeBrowserSession("/fixture/engine", env, 5);
+  await vi.advanceTimersByTimeAsync(5);
+  expect(await second).toBe(false);
+  finish();
+  expect(await first).toBe(true);
+  expect(vi.mocked(spawn).mock.calls.filter((call) => call[1][0] === "close")).toHaveLength(1);
+});
+
 it.each([7, null])("awaits the real owned command close (exit %s)", async (code) => {
   vi.useRealTimers();
   const actual = await vi.importActual<typeof import("node:child_process")>("node:child_process");

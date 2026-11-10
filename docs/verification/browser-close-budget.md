@@ -79,3 +79,46 @@ permissions, auth/schema/UI or cancellation ownership change. Required independe
 product/security review must examine the final diff and resource/identity fences
 before any main integration or combination with the frozen cancellation work.
 Final check counts and source identity are in the private handoff.
+
+## Independent review R1
+
+Reviewer `ses_e3b4091e6ffe63cAf8qw69FW0L` returned `3190a92ec` with two
+contract failures. That commit and its 255-pass/8-guard/packaged-probe evidence
+remain historical; they are not sufficient evidence for the R1 correction.
+
+The native-success disappearance loop checked its phase deadline but passed the
+total deadline into the process query. A hung query could consume the reserved
+fallback interval. R1 passes the native phase deadline to that query and exits
+the phase immediately at expiry, leaving fallback its original caller deadline.
+A controlled 160 ms actual `closeBrowserSession` test observes the query deadline
+at 80 ms and owned fallback starting at 80 ms; separate confirmed/unknown outcomes
+must remain true/false respectively. This exercises the caller contract through
+real pid-file boundaries and controlled subprocess/process-table edges.
+
+The queue captured only the subscriber's pid content. A successful prior close
+removing that file then made a legitimate subscriber fail with `[true, false]`.
+R1 retains the prior request identity with its result. A subscriber can inherit
+confirmed success for that same identity only after a new bounded inventory
+confirms the session absent and the pid file remains absent through delivery.
+A prior false/unknown result never supplies inherited success. Different captured
+identities, a replacement before/during/after inventory confirmation, a re-listed
+session and expired subscriber budgets refuse without another native close.
+The existing serialized retry path remains for a successful predecessor whose
+pid file still has the captured content; it rechecks through the normal caller
+contract. Distinct session queues remain independent.
+
+`r1-red` on committed `3190a92ec` with new tests recorded 17 pass/3 fail:
+two native-success reserve cases and the actual pid-removal subscriber case.
+The first focused repair command passed 25 tests; two extra controls then cover
+prior false with initially absent pid files and a session reappearing in inventory.
+No existing assertion or deadline was weakened. R1 final eight-file behavior,
+strict size/docs, server types and scoped lint results are bound in the private
+`R1-HANDOFF.md` and `r1-*` receipts after source/docs freeze.
+
+No packaged probe was repeated: its earlier fast-close result is explicitly
+bound to the earlier source and is not a causal hang-repair demonstration. R1
+uses synthetic owned boundaries plus the existing real owned Node command and
+process cases. Original native false causality, exact cancellation-pair acceptance,
+Date.now/OS scheduling limits and platform skips remain unchanged. Independent
+review must recheck the complete final tree against engineering `98b25c17b`;
+main integration and cancellation composition remain on hold.
