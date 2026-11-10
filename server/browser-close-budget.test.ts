@@ -326,4 +326,3 @@ it.each([7, null])("awaits the real owned command close (exit %s)", async (code)
     expect(() => process.kill(command!.pid!, 0)).toThrow();
   } finally { if (!closed) command?.kill("SIGKILL"); }
 });
-
