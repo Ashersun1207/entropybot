@@ -2,7 +2,7 @@
 // leave open, and a throwaway profile removed on close.
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync } from "node:fs";
-import { tmpdir, userInfo } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Readable, Writable } from "node:stream";
 
@@ -43,9 +43,9 @@ export function chromeLaunchArgs(profile: string, args: string[], platform: Node
   ];
 }
 
-/** macOS Chrome defaults to the account's home to avoid a missing-keychain dialog; fixtures pass their own home explicitly. */
-export function chromeLaunchEnv(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform, home: string = userInfo().homedir): NodeJS.ProcessEnv {
-  return { ...env, ...(platform === "win32" ? { USERPROFILE: home } : { HOME: home }) };
+/** Keep fixture isolation in the caller's environment unless a home is explicitly supplied. */
+export function chromeLaunchEnv(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform, home: string | undefined = platform === "win32" ? env.USERPROFILE : env.HOME): NodeJS.ProcessEnv {
+  return { ...env, ...(home === undefined ? {} : platform === "win32" ? { USERPROFILE: home } : { HOME: home }) };
 }
 
 export async function launchPipeChrome(binary: string, args: string[], env: NodeJS.ProcessEnv = chromeLaunchEnv()): Promise<PipeChrome> {

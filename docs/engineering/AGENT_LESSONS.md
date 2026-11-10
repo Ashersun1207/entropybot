@@ -105,6 +105,12 @@
 - R1 把消失查询限制在 native phase，阶段到期直接转 fallback，保留原总截止。排队记录同时携带原身份和结果；只有同捕获身份的 prior confirmed success、重新受截止约束的空 inventory 与最终仍无 pid 文件才允许继承成功，false/unknown、身份变化、重新列出与订阅者到期均拒绝。回归保留160ms的 confirmed/unknown两种fallback结果、实际unlink、初始无pid时prior false、确认前/中/结果后替换和挂起inventory；不增加服务器预算、不从absence单独推成功。完整证据入口仍为 `server/browser-close-budget.test.ts` 和 [验证说明](../verification/browser-close-budget.md) 的R1节。
 - 本轮仅修这两个已授权合同，旧轮次失败和probe留档，不重跑packaged Chrome凑绿；源码/文档冻结后执行原8文件、size/docs/types/lint。无新的供给链、凭证或授权变更；进程表失败拒绝signal、command close fence、start-time/group guards保持。最终树仍须针对工程98基线独立产品/安全复审，原取消组合对与内核I/O/墙钟/跨平台限制继续开放。
 
+## Pipe Chrome：合成 HOME 不能被账户数据库默认值覆盖
+
+- 触发：supervisor/测试 setup 已设置合成 HOME，但 `chromeLaunchEnv` 默认读取 `userInfo().homedir`，把 Chrome 子进程改回真实账户目录。旧测试还把该行为当正确合同。新合同在产品修改前为7失败/3通过；实际 owned Chrome 的 exec 环境记录也确认 HOME 与 synthetic 不同，profile 在 tmpdir，原 mock-keychain 和 deny-all gate 均保留。不把独立 profile 或纯函数绿例当作 HOME 隔离，更不声称审计过真实 Keychain 访问。
+- 修复仅让 pipe helper 默认读取传入 env.HOME（win32 为 USERPROFILE），不再回退账户 home；保留显式第三参数、flags/profile/gate。回归 `server/testing/chrome-pipe.test.ts` 覆盖默认参数、两种变量、缺失/空值、显式 known-home override。实际 smoke 记录 exec HOME/argv/PID、Chrome/CDP 与关闭后 profile/process 状态。初始两次 probe 因 ps 不提供预期 HOME 而失败，保留日志，证据改用 exec 边界原样继承环境；只完成两轮 probe 修正，不改产品凑绿。
+- 修复身份以本条所属提交为准；[验证说明](../verification/chrome-pipe-home-isolation.md) 列全调用者与未修改的 flags/accountHome、ChromeLauncher、opt-in Muse live helper。生产默认值与显式隔离 fixture 需分别审查，不扩改生产 home 政策。Windows/Linux 仅函数合同验证，真实平台 smoke 仅 Darwin；仍须独立审查和主控最终集成回归，F2 producer/trust-map/完整回归未完成。
+
 ## Chrome 子进程关闭边界
 
 - Node 24 的额外 stdio pipe 是 Duplex；`exit` 只证明根进程已退出，`end()` 只结束写半边，均不等于 `ChildProcess.close`。CDP launch 的 close/kill 和握手失败收尾必须回收本端 fd3/4 并有界等待实际 close，registry 在 close 后才移除；超时抛错、保留 profile/registry 证据。回归 `server/browser/chrome/launch.test.ts` 使用真实 Node 假 Chrome 和短暂继承 fd3/4 的辅助进程制造 exit 先于 close，另用 mock 验证 close 永不到及握手失败清理未知；`server/browser/cdp/connection.test.ts` 验证两端完整销毁。根进程 close 不证明所有 Chrome helper 或外部资源已消失，需单独进程审计。原 S4-actions 功能 32 pass 但缺 close 的 `ok:false` 记录不得被补验覆盖。

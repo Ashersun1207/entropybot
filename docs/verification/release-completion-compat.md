@@ -35,7 +35,7 @@ A wider related test run exposed two additional DNS assumptions: the local resol
 
 Production defaults and the “use my Chrome” path are retained. No environment switch changes the production default globally.
 
-- `chromeLaunchEnv(env, platform, home)` accepts an explicit home; its previous account-home default is unchanged.
+- `chromeLaunchEnv(env, platform, home)` accepts an explicit home. This historical slice retained the account-home default; the later [pipe fixture isolation fix](chrome-pipe-home-isolation.md) changes that helper's default to the caller environment.
 - `launchPipeChrome` accepts an explicit environment and can create a proxy-specific CDP browser context.
 - `ChromeLauncherOptions.home` is carried through calibration, generated launcher HOME and launcher checks.
 - The internal launch/calibration/engine/local-backend options carry `home` to the existing `chromeEnv` boundary. Explicit `userDataDir`/profile folders remain separate.

@@ -336,6 +336,7 @@ desktop routing, cancellation, and computer authority cleanup.
 ### Engineering, collection and delivery evidence
 
 - [F2 release full-regression gate (blocked state)](release-full-gate.md)
+- [Pipe Chrome fixture HOME isolation](chrome-pipe-home-isolation.md)
 - [B1 source-server performance baseline](perf-baseline.md)
 - [B1 active cancellation and retained-engine measurements](perf-cancel-retained.md)
 - [Manual routine request identity and context protocol](routine-manual-request.md)
