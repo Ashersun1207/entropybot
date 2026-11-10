@@ -111,6 +111,13 @@
 - 修复仅让 pipe helper 默认读取传入 env.HOME（win32 为 USERPROFILE），不再回退账户 home；保留显式第三参数、flags/profile/gate。回归 `server/testing/chrome-pipe.test.ts` 覆盖默认参数、两种变量、缺失/空值、显式 known-home override。实际 smoke 记录 exec HOME/argv/PID、Chrome/CDP 与关闭后 profile/process 状态。初始两次 probe 因 ps 不提供预期 HOME 而失败，保留日志，证据改用 exec 边界原样继承环境；只完成两轮 probe 修正，不改产品凑绿。
 - 修复身份以本条所属提交为准；[验证说明](../verification/chrome-pipe-home-isolation.md) 列全调用者与未修改的 flags/accountHome、ChromeLauncher、opt-in Muse live helper。生产默认值与显式隔离 fixture 需分别审查，不扩改生产 home 政策。Windows/Linux 仅函数合同验证，真实平台 smoke 仅 Darwin；仍须独立审查和主控最终集成回归，F2 producer/trust-map/完整回归未完成。
 
+## Fixture server：必须覆盖 launcher 与 backend 的显式 HOME
+
+- Pipe helper 修复不能外推到服务器的全局 ChromeLauncher。full Chrome 的 fixture-server 启动会进入实际校准、生成 wrapper 和 `--version` 检查；无显式 home 时 Darwin account-home 默认覆盖 synthetic HOME。新服务子进程 recorder 红例实际记录这两个阶段 HOME 为账户目录，argv 仍有 mock-keychain；这不是原生 Keychain 访问证据。生产默认及既有 flags/launcher 的 deliberate stand-in policy tests 不改。
+- 修复由 `verificationServerEnvironment` 生成 owned `OMB_TEST_BROWSER_HOME`，全局 launcher 和 host ChromeEngine 通过已有 home 参数接收，后者继续传给 LocalBackend。新增 `scripts/testing/fixture-server-browser-home.test.ts` 运行真实 server、失败校准 stand-in 与缓存身份后的实际 wrapper 子进程，验证 HOME/USERPROFILE/parent PID/credential flags 和 restart；`server/host/browser-fixture-home.test.ts` 覆盖有/无 override 的 launcher/backend 构造。原 `browser-fixture-home.test.ts` 保持完整，不能用新增同名文件覆盖旧覆盖。
+- 批准的本地打包资源只有 headless-shell，该路径在 resolver 直接 legacy，不能将 browser-evidence/navigation-stop 通过宣称 full-Chrome 校准已跑。新增 full-Chrome recorder case 需显式 `OMB_FIXTURE_HOME_CHROME`，本轮未执行，不拿系统 Chrome 替代自有资产。详见 [验证说明](../verification/chrome-pipe-home-isolation.md)；完整回归/producer/trust map/签名、原生 Keychain、Windows/Linux 和 native backend 实际子进程仍各需相应证据。修复身份以本条所属提交为准。
+- 首轮冻结门槛只有 docs citation 失败：说明中的裸测试文件名也会被 guard 当仓库根路径，补齐实际 `scripts/testing/` 前缀后重新冻结；不改 guard。外部 scoped types 配置首次因相对解析找不到 Node type library，在配置中明确已有依赖的 typeRoots 后重跑，保持 strict。随后类型检查指出新增 host fixture 的 store mock 应返回 null 而非 undefined，按真实 Store 契约修正后重跑；不以强制 unknown cast 绕过。不把这些 harness/docs/test 失败算产品根因或抹去原回执。
+
 ## Chrome 子进程关闭边界
 
 - Node 24 的额外 stdio pipe 是 Duplex；`exit` 只证明根进程已退出，`end()` 只结束写半边，均不等于 `ChildProcess.close`。CDP launch 的 close/kill 和握手失败收尾必须回收本端 fd3/4 并有界等待实际 close，registry 在 close 后才移除；超时抛错、保留 profile/registry 证据。回归 `server/browser/chrome/launch.test.ts` 使用真实 Node 假 Chrome 和短暂继承 fd3/4 的辅助进程制造 exit 先于 close，另用 mock 验证 close 永不到及握手失败清理未知；`server/browser/cdp/connection.test.ts` 验证两端完整销毁。根进程 close 不证明所有 Chrome helper 或外部资源已消失，需单独进程审计。原 S4-actions 功能 32 pass 但缺 close 的 `ok:false` 记录不得被补验覆盖。

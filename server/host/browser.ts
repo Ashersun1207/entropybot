@@ -133,6 +133,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   const idleMs = () => browserIdleMs(cfg, { cloudHome: Boolean(CLOUD_HOME) });
   const chromeEngine = new ChromeEngine({
     dataDir: DATA_DIR,
+    home: process.env.OMB_TEST_BROWSER_HOME,
     host,
     egressPort: (key) => browserEgress.open(key),
     egressNotice: (key) => browserEgress.takeNotice(key),

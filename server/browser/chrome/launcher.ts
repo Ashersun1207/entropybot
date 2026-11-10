@@ -307,4 +307,4 @@ function product(chrome: FoundChrome, identity?: ChromeIdentity): string {
   return chrome.source === "downloaded" || /for Testing|chrome-(?:linux|mac|win)/iu.test(chrome.path) ? "Chrome for Testing" : "Chromium";
 }
 
-export const chromeLauncher = new ChromeLauncher({ dataDir: DATA_DIR });
+export const chromeLauncher = new ChromeLauncher({ dataDir: DATA_DIR, home: process.env.OMB_TEST_BROWSER_HOME });

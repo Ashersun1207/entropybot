@@ -153,6 +153,7 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
     TMPDIR: fixtureTemp,
     HERMES_HOME: join(dataDir, ".hermes"),
     OMB_DATA_DIR: dataDir,
+    OMB_TEST_BROWSER_HOME: dataDir,
     OMB_PORT: String(port),
     OMB_WEBHOOK_PORT: String(port + 1),
     // A caller's FAKE_CLAUDE_MODE overrides this below to drive failure paths.
