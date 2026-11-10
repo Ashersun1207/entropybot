@@ -26,6 +26,11 @@
 - 真实 target-gone 探针在关闭 engine pinned active page 后，组合门曾出现 shutdown deadline exceeded/resource unknown；保留失败 fixture，不把辅助页 target-gone 通过当作集成 active-target-loss 关闭恢复已验。最终改为独立自有 background 页并确认 Target.getTargets 中已消失后，两个 e2e 的全部行为断言通过，但 teardown 仍 unknown：final-behavior-r2 为184通过/2失败/1 Linux-only skip，达到本原因两轮修复上限，阻断交回、不作最终提交。关闭路径/回执边界根因 unknown，未扩写 browser-engine 或验证生命周期，不抬 timeout、删目录或杀无关页凑绿。
 - 测试负例也要查夹具：Vitest `it.each` 的数组行会按列展开，`ids.map` 抛错被 helper 的保守 catch 吞掉可让负例假绿。改为 `{ ids }` 行并通过 strict types 与行为门。fake provider 不能对整个增强后的 user message 做 includes 匹配：合成历史召回中的 SEED 曾让 follow-up 返回 56 却没有浏览器动作；实际 `/ok` 请求断言抓到了此缺口。两次既有 list-during-human-hold 失败也必须保留，dispatch guard 仅作用 tools/call；见本轮失败回执，不降低既有断言或预算。
 
+## 重启提示：先区分错误行与真实恢复活动
+
+- 当前 `fe504fb03` 基线的普通 direct root 已在实际恢复派发时写入 `resumingAfterRestart`；旧发现的 `oldThreadHasError=false` 不能证明旧线程没有恢复提示。真实 SIGKILL/SIGTERM、同 data/旧线程、持久 running root 和受控恢复 gate 验证应先于产品修改。排队恢复尚未派发时不要求活动行；needs_input 继续等待用户，不能伪装执行中。保留原 T5 的 C-RERUN、twice-cut 和 outward-action 合同，不引入新持久终态或改变恢复策略。
+- 新控制夹具首轮误把普通 provider failure 当作无后续动作：现有 Chief incident 自动 retry/report 产生额外 root，按数组位置检查因此失败。只给该组合控制使用合成 Chief 身份避免无关上报，不修改产品策略；原失败保留。严格类型探针另发现 server e2e 引入 renderer TSX/alias 和未标类型的 HTTP JSON；把 React 投影留在既有组件 suite，服务测试使用 server records 与 typed API，不放宽 strict/JSX 配置。回归入口 `server/restart-notice.e2e.test.ts`、原样 `server/runtime-roots.e2e.test.ts` 和 `src/components/ToolActivity.notice.test.ts`；详见[验证说明](../verification/restart-notices.md)。此次未复现缺提示，建议只交付回归/文档，独立审查后再集成。
+
 ## 已遇到的问题
 
 | 编号 | 失败模式与教训 | 下一次必须检查 | 可执行证据入口 |

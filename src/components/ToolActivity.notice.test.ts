@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { noticeTool } from "../../server/chat-notices";
 
 const mode = vi.hoisted(() => ({ advanced: false }));
 vi.mock("@/lib/interface-mode", () => ({ useAdvancedMode: () => mode.advanced }));
@@ -10,7 +11,7 @@ const { setLocale } = await import("@/lib/i18n");
 
 const render = (tool: Parameters<typeof ToolActivity>[0]["tool"]) => renderToStaticMarkup(createElement(ToolActivity, { tool }));
 
-const resumed = { name: "Resuming after a restart", ok: true, nameCode: "chat.notice.resumingAfterRestart" };
+const resumed = noticeTool("chat.notice.resumingAfterRestart", undefined, { ok: true });
 const { heldMemberLine } = await import("../../server/room-holds");
 await import("../../server/server-line-packs");
 const held = (name: string, language?: string) => ({ name: heldMemberLine(name, language), ok: false });
@@ -21,6 +22,14 @@ afterEach(() => {
 });
 
 describe("a server notice in ToolActivity", () => {
+  it("projects the persisted recovery notice as a settled notice in English", () => {
+    setLocale("en");
+    const html = render(resumed);
+    expect(html).toContain("Resuming after a restart");
+    expect(html).not.toContain("Running");
+    expect(html).not.toContain('data-testid="tool-name"');
+  });
+
   it.each([false, true])("is worded in the person's language without its English name in the details (advanced: %s)", (advanced) => {
     mode.advanced = advanced;
     setLocale("pt-br");

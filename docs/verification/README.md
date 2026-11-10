@@ -357,6 +357,7 @@ desktop routing, cancellation, and computer authority cleanup.
 - [C1a paired chat preparation attribution](chat-preparation-attribution.md)
 - [C1 deep chat preparation stage attribution](chat-prep-stage-attribution.md)
 - [L1 core and on-demand capability boundary research](capability-boundary.md)
+- [Existing restart recovery notices and same-thread regression evidence](restart-notices.md)
 - [Optional Connected Apps outage isolation](optional-connectors-isolation.md)
 - [OpenAI-compatible provider error redaction and refusal-path review](provider-error-redaction.md)
 - [Browser stop target ownership and operation fences](browser-stop-owned-target.md)
