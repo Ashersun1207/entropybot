@@ -230,6 +230,12 @@
 - 流式字节累计不能相信 Content-Length；无/低报长度仍限制实际字节，超限立即取消并释放 reader，不先 text/json。缓冲区按需增长且封顶，完整有界输入才进行 fatal UTF-8 decode/JSON.parse；分块不能切坏多字节字符，来源不能默默截断。超时和卸载信号也必须覆盖 pending body read；取消 producer promise 不结束时不无限等待它。回归 `src/lib/bounded-json.test.ts`、`src/state/api-bounded.test.ts`、`src/state/api-background.test.ts`、`src/components/routines/CollectionUI.test.ts`；覆盖真实62 MB流超限、JSON.parse未调用、Content-Length误导、UTF-8、取消/timeout、释放锁及普通API兼容。新测试的首次类型检查只因HeadersInit推断失败，修正测试注解，未改strict。
 - 浏览器夹具另注入“真实200报告＋超限长度头”，要求固定错误且正文隐藏，再正常重试；与原真实403/404/篡改409及reload回归一起在最终修复提交重跑。此长度头是明确合成故障，不当成服务器真实超限响应或旧证据延伸。源码/回执/限制见 [采集UI验证](../verification/web-collection-ui.md)。本轮不改语言文件及其他owner的私有路径/copy polish，不改服务端产物上限或安全策略。
 
+## F2：catalog 参数更改必须同步验证两套 wire golden
+
+- `6c5d55812` 的 About me core B 有意新增 `memory_update` 选择器，但定向 call/proxy 验证未运行 catalog/bridge wire 门槛，遗留旧 golden。`48ab1be6094e3ae31038eea682ac35a7708f00d8` 上两份 wire suite 实际为29通过/59失败（catalog 31失败、bridge 28失败）；这是本地协议验证遗漏，不能回退已批准参数或归因上游。修复身份以本条所属提交为准。
+- 用测试头约定的 `UPDATE_AGENTS_CATALOG_GOLDENS=1` 同时刷新两份 suite；完整 JSON 仅改变 `memory_update.description`，新增 `inputSchema.properties.old_about_me_text` 和 `about_me_text`（各含 string type/description），无移除字段。27个普通 profile 及27个 bridged twin 均增加1,102个 UTF-8 wire字节，工具名/顺序/数量不变；将这三处还原后，全部54个旧 manifest SHA-256精确匹配，才确认无其他漂移。既有 compaction 继续省略 generous bounds，不新增 wire 上限字段。
+- 人工将两份 `BUDGET_BASELINE` 固定到各 profile 新实测字节，保持上下2%断言和 bridge saving/Entropybot门槛原样；旧基线本有容差偏移，因此基线数值差不能当本轮语义字节差。回归入口为 `server/drivers/agents-catalog-wire.test.ts`、`server/drivers/agents-bridge-wire.test.ts`，并重跑 proxy/call、体积/文档守卫及strict server types/范围lint。原始失败、刷新时仍有55项预算失败、逐profile字节/哈希差异和最终回执保存在主控私有 `engineering-foundation-evidence/f2-catalog-goldens/`；此修复仅关闭这项F2失败，完整13组回归仍须主控串行集成后执行，候选须独立复审。
+
 ## M1：About me 更正必须验证真实输入关系与协议边界
 
 - 初版夹具将 notes/profile 都设成同一句英文，只证明完整字面匹配；原始发现实际是中文笔记与英文 profile。独立复审 needs-changes 后，使用完全相同的三条原句复现 1 失败/13 通过（新用例五个 absence 断言失败）：notes 已 supersede，英文旧值仍进模型提示，后续学习又追加新值。不能拿同语言绿例或 notes 正确冒充跨表述关联。原始无选择器红例的源码/patch/回执先冻结为只读证据，历史提交不改。
