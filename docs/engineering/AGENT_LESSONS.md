@@ -2,6 +2,13 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## Memory journal undo：必须核对记录的 after 状态与存在性
+
+- 整文件 undo 只拿 before 写回会覆盖后来无关事实；created 分支无条件删除/清空、deleted 分支无条件恢复也一样。合成 journal 写入＋flush＋实际 revert 的修正基线为21失败/2通过，真实隔离 HTTP 旧项 undo 返回200而应409。hash(empty) 无法区分文件缺失与存在但为空；不能从当前状态反推缺失/坏 afterHash。
+- journal 先核对 existence＋记录 afterHash，再把相同期望传到 store 实际同步 write/delete 边界；checked write 不调用会补种 MEMORY.md 的 ensureWorkspace，避免拒绝前写入缺失 core。保留旧调用者 expectedHash/无条件写兼容；冲突固定安全提示，无全文/路径，无 phantom revert row，缓存/向量保持。仅单进程同步边界，无跨进程原子CAS、ABA或最终read后原生重入保证。
+- 原 core creation test 只 record(after=hello)＋ensureWorkspace，实际是seed；保留原失败证据，补写实际after字节后保留原全部断言。普通save会先seed core，真实created core测试须用journalTurnWrite包实际文件写，不能误把edited当created。首轮HTTP夹具假设新bot已有core导致ENOENT，已改由topic覆盖HTTP负例，core用实际journal wrapper；不放松产品检查。
+- 回归：`server/memory-revert-conflict.test.ts`、`server/memory-routes.test.ts`、`src/components/bot-settings/MemorySection.revert.test.ts`，连同既有journal/store/route/layer回归；边界注入在自有fs mock，不加产品测试hook。维护/安全范围与最终独立验收要求见[验证记录](../verification/memory-journal-revert-conflict.md)。这是undo准确性，不是通用遗忘或物理擦除。
+
 ## Browser stop consumer R2：入口检查不能代替实际派发屏障
 
 - whole-tree reviewer 对387返回NEEDS-CHANGES：stream enable的launch failure装入reset后，catch仍fallback status/open；另一个viewer进入launchReady后，同session新reset false也挡不住它之后的execute。上一轮477及两项真实browser关闭证明未覆盖这两个交错，不撤销已关闭的target/errorText/lateACK/close合同，也不追认whole-tree通过。

@@ -11,6 +11,8 @@ import {
   MEMORY_INDEX,
   MemoryStoreError,
   type MemoryDoc,
+  type MemoryExpectedState,
+  assertMemoryDocState,
   deleteMemoryDoc,
   hashMemoryText,
   readMemoryDoc,
@@ -324,6 +326,7 @@ export interface JournaledWriteOptions {
   via: string;
   threadId?: string;
   expectedHash?: string;
+  expectedState?: MemoryExpectedState;
 }
 
 export function journalMemoryWrite(
@@ -332,7 +335,7 @@ export function journalMemoryWrite(
   text: string,
   opts: JournaledWriteOptions,
 ): { doc: MemoryDoc; entry: MemoryJournalEntry | null } {
-  const result = writeMemoryDoc(botId, path, text, { expectedHash: opts.expectedHash });
+  const result = writeMemoryDoc(botId, path, text, { expectedHash: opts.expectedHash, expectedState: opts.expectedState });
   const entry = recordMemoryChange(botId, {
     path,
     actor: opts.actor,
@@ -345,7 +348,7 @@ export function journalMemoryWrite(
 }
 
 export function journalMemoryDelete(botId: string, path: string, opts: Omit<JournaledWriteOptions, "expectedHash">): MemoryJournalEntry | null {
-  const result = deleteMemoryDoc(botId, path);
+  const result = deleteMemoryDoc(botId, path, { expectedState: opts.expectedState });
   return recordMemoryChange(botId, { path, actor: opts.actor, via: opts.via, threadId: opts.threadId, before: result.before, after: null });
 }
 
@@ -358,15 +361,22 @@ export function revertMemoryChange(botId: string, entryId: string, opts: { threa
   if (!entry) return { ok: false, status: 404, error: "no such memory change" };
   if (!entry.canRevert) return { ok: false, status: 400, error: entry.revertUnavailableReason ?? "this change cannot be reverted" };
   try {
+    if ((entry.kind === "deleted" && entry.afterHash !== null)
+      || (entry.kind !== "deleted" && (typeof entry.afterHash !== "string" || !/^[a-f0-9]{64}$/.test(entry.afterHash)))) {
+      throw new MemoryStoreError("conflict", 409, "This journal entry has no valid after-state. Reread and review the current memory before undoing.");
+    }
+    const expectedState = { exists: entry.kind !== "deleted", hash: entry.afterHash ?? hashMemoryText("") };
+    assertMemoryDocState(readMemoryDoc(botId, entry.path), expectedState);
+    const revertOptions = { actor: "person" as const, via: "revert", threadId: opts.threadId, expectedState };
     if (entry.kind === "created") {
       if (entry.path === MEMORY_INDEX) {
-        const written = journalMemoryWrite(botId, entry.path, "", { actor: "person", via: "revert", threadId: opts.threadId });
+        const written = journalMemoryWrite(botId, entry.path, "", revertOptions);
         return { ok: true, entry: written.entry, doc: written.doc };
       }
-      const removed = journalMemoryDelete(botId, entry.path, { actor: "person", via: "revert", threadId: opts.threadId });
+      const removed = journalMemoryDelete(botId, entry.path, revertOptions);
       return { ok: true, entry: removed, doc: { path: entry.path, text: "", hash: hashMemoryText(""), exists: false } };
     }
-    const written = journalMemoryWrite(botId, entry.path, entry.before ?? "", { actor: "person", via: "revert", threadId: opts.threadId });
+    const written = journalMemoryWrite(botId, entry.path, entry.before ?? "", revertOptions);
     return { ok: true, entry: written.entry, doc: written.doc };
   } catch (error) {
     if (error instanceof MemoryStoreError) return { ok: false, status: error.status, error: error.message };

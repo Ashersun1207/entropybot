@@ -214,6 +214,17 @@ export function readMemoryDoc(botId: string, path: string): MemoryDoc {
   }
 }
 
+export interface MemoryExpectedState {
+  exists: boolean;
+  hash: string;
+}
+
+export function assertMemoryDocState(current: MemoryDoc, expected: MemoryExpectedState): void {
+  if (current.exists !== expected.exists || current.hash !== expected.hash) {
+    throw new MemoryStoreError("conflict", 409, "This memory changed since that journal entry. Reread and review the current memory before undoing.");
+  }
+}
+
 export interface MemoryWriteResult {
   path: string;
   before: string | null;
@@ -221,15 +232,19 @@ export interface MemoryWriteResult {
   hash: string;
 }
 
-/** Atomic, 0600 and redacted; `expectedHash` refuses (409) a save over a write the caller has not seen. */
+/** Atomic, 0600 and redacted. `expectedState` also distinguishes absence from an empty file.
+ * Checks and mutation are synchronous within this process; this is not a cross-process atomic compare-and-swap. */
 export function writeMemoryDoc(
   botId: string,
   path: string,
   text: string,
-  opts: { expectedHash?: string } = {},
+  opts: { expectedHash?: string; expectedState?: MemoryExpectedState } = {},
 ): MemoryWriteResult {
   const ref = parseMemoryPath(path);
-  ensureWorkspace(botId);
+  if (opts.expectedState) {
+    assertMemoryDocState(readMemoryDoc(botId, path), opts.expectedState);
+    mkdirSync(dirname(resolveMemoryPath(botId, path)), { recursive: true, mode: 0o700 });
+  } else ensureWorkspace(botId);
   if (ref.kind === "log") mkdirSync(join(workspaceDir(botId), "memory", "log"), { recursive: true, mode: 0o700 });
   const absolute = resolveMemoryPath(botId, path);
   const after = redactSecretsInText(text);
@@ -242,6 +257,7 @@ export function writeMemoryDoc(
     );
   }
   const current = readMemoryDoc(botId, path);
+  if (opts.expectedState) assertMemoryDocState(current, opts.expectedState);
   if (opts.expectedHash !== undefined && opts.expectedHash !== current.hash) {
     throw new MemoryStoreError(
       "conflict",
@@ -254,13 +270,14 @@ export function writeMemoryDoc(
   return { path, before: current.exists ? current.text : null, after, hash: hashMemoryText(after) };
 }
 
-export function deleteMemoryDoc(botId: string, path: string): { path: string; before: string | null } {
+export function deleteMemoryDoc(botId: string, path: string, opts: { expectedState?: MemoryExpectedState } = {}): { path: string; before: string | null } {
   const ref = parseMemoryPath(path);
   if (ref.kind === "index") {
     throw new MemoryStoreError("forbidden", 400, "MEMORY.md cannot be deleted — clear its text instead");
   }
   const absolute = resolveMemoryPath(botId, path);
   const current = readMemoryDoc(botId, path);
+  if (opts.expectedState) assertMemoryDocState(current, opts.expectedState);
   if (current.exists) unlinkSync(absolute);
   return { path, before: current.exists ? current.text : null };
 }

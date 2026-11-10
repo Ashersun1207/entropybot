@@ -249,6 +249,7 @@ describe("revertMemoryChange", () => {
     const bot = freshBot();
     const row = recordMemoryChange(bot, { path: MEMORY_INDEX, actor: "bot", via: "turn", before: null, after: "hello" });
     ensureWorkspace(bot);
+    writeFileSync(join(workspaceDir(bot), MEMORY_INDEX), "hello");
     await flushMemoryJournal(bot);
     expect(revertMemoryChange(bot, row!.id).ok).toBe(true);
     expect(existsSync(join(workspaceDir(bot), "MEMORY.md"))).toBe(true);

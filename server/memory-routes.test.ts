@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -56,7 +56,12 @@ describe("memory routes through an isolated HTTP fixture", () => {
   });
 
   afterAll(async () => {
-    await fixture?.close();
+    if (!fixture) return;
+    const { dataDir } = fixture.info;
+    await fixture.close();
+    expect(fixture.child.exitCode).toBe(0);
+    expect(existsSync(dataDir)).toBe(false);
+    console.log(JSON.stringify({ phase: "memory-http-fixture-close", exitCode: fixture.child.exitCode, signal: fixture.child.signalCode, fixtureRemoved: !existsSync(dataDir) }));
   });
 
   it("serves an overview with the budget, the folder, and the old whole-file fields", async () => {
@@ -159,6 +164,55 @@ describe("memory routes through an isolated HTTP fixture", () => {
     expect(reverted.body.entry).toMatchObject({ via: "revert", actor: "person", path: "memory/clients.md" });
     expect(readFileSync(join(workspace(), "memory", "clients.md"), "utf8")).toBe("# Clients\n- Acme (bot)\n");
     expect((await api("POST", `/api/bots/${botId}/memory/journal/nope/revert`)).status).toBe(404);
+  });
+
+  it("refuses historical undo through HTTP, preserving exact files and audit rows", async () => {
+    for (const scenario of ["edit", "create-topic", "delete-recreated", "delete-empty", "edit-missing", "create-missing"]) {
+      const created = await api("POST", "/api/bots", { name: `Undo ${scenario}`, memoryUpkeep: false });
+      expect(created.status).toBe(201);
+      const id = created.body.bot.id;
+      const path = "memory/conflict.md";
+      const absolute = join(fixture.info.dataDir, "workspaces", id, path);
+      const fileRoute = `/api/bots/${id}/memory/file`;
+      const save = async (text: string) => {
+        const result = await api("PUT", fileRoute, { path, text });
+        expect(result.status).toBe(200);
+        return result.body.entry;
+      };
+      if (scenario.startsWith("edit") || scenario.startsWith("delete")) await save("A: old fact\n");
+      const selected = scenario.startsWith("delete")
+        ? (await api("DELETE", `${fileRoute}?path=${encodeURIComponent(path)}`)).body.entry
+        : await save(scenario === "edit-missing" ? "" : "B: revised fact\n");
+      if (scenario.endsWith("missing")) rmSync(absolute);
+      else await save(scenario === "delete-empty" ? "" : "C: current unrelated 新事实\r\n");
+      await api("GET", `/api/bots/${id}/memory/journal`);
+      const journalPath = join(fixture.info.dataDir, "memory-journal", `${id}.ndjson`);
+      const journal = readFileSync(journalPath);
+      const before = existsSync(absolute) ? readFileSync(absolute) : null;
+      const refused = await api("POST", `/api/bots/${id}/memory/journal/${selected.id}/revert`);
+      expect(refused.status, scenario).toBe(409);
+      expect(refused.body).toEqual({ error: "This memory changed since that journal entry. Reread and review the current memory before undoing." });
+      await api("GET", `/api/bots/${id}/memory/journal`);
+      expect(existsSync(absolute) ? readFileSync(absolute) : null).toEqual(before);
+      expect(readFileSync(journalPath)).toEqual(journal);
+      console.log(JSON.stringify({ phase: "http-revert-conflict", scenario, beforeHash: before === null ? null : hashMemoryText(before.toString("utf8")), journalHash: hashMemoryText(journal.toString("utf8")), preserved: true }));
+    }
+  });
+
+  it("keeps latest undo and undo-of-revert audit chronology through HTTP", async () => {
+    const path = "memory/undo-latest.md";
+    const save = async (text: string) => (await api("PUT", `/api/bots/${botId}/memory/file`, { path, text })).body;
+    await save("A\n");
+    const edit = await save("B\n");
+    const undo = await api("POST", `/api/bots/${botId}/memory/journal/${edit.entry.id}/revert`);
+    expect(undo.status).toBe(200);
+    expect(undo.body).toMatchObject({ text: "A\n", entry: { via: "revert", kind: "edited" } });
+    const redo = await api("POST", `/api/bots/${botId}/memory/journal/${undo.body.entry.id}/revert`);
+    expect(redo.status).toBe(200);
+    expect(redo.body).toMatchObject({ text: "B\n", entry: { via: "revert", kind: "edited" } });
+    const rows = (await api("GET", `/api/bots/${botId}/memory/journal`)).body.entries.filter((row: { path: string }) => row.path === path);
+    expect(rows.map((row: { id: string }) => row.id)).toEqual([redo.body.entry.id, undo.body.entry.id, edit.entry.id, rows[3].id]);
+    expect(rows).toHaveLength(4);
   });
 
   it("validates the open target and never runs anything for a bad one", async () => {

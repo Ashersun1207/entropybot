@@ -1,5 +1,11 @@
 # 维护审查记录
 
+## 2026-11-10：M1 journal undo 有界候选
+
+- 基线 `d76d40da3ee5090e1b09071b4f5aef6989e3e173`；限定 journal/store 两份产品源码及相关tests/docs，无依赖、安装脚本、权限、网络、模型/提供方、schema、主控集成或真实数据变更。审查 selection→preflight→同步mutation→journal append 与 HTTP/UI refusal；安全文案无全文/私有路径，原allowlist/symlink/redaction保留。
+- 确认根因：旧undo无after-state校验，缺失和空文件hash相同；created/delete分支可能覆盖/删除后来事实。补可选existence＋hash条件与实际mutation边界复核，冲突不追加phantom row。维护债边界：跨进程/ABA/最终read后原生重入无原子CAS保证；不扩为一般遗忘或擦除。
+- 真实隔离HTTP、实际journal/fs边界、mounted UI及原layer/auth回归与size/docs/types/lint的准确argv、pre/post源码hash、退出码、fixture状态在本轮私有证据目录；[验证说明](../verification/memory-journal-revert-conflict.md)列入口与限制。原夹具失败与修正保留，最终数字/提交由外部handoff绑定，待独立复审后才可串行集成。这里只完成本任务增量审查，不冒充全仓/每周总控审计。
+
 ## 2026-11-06：第二轮首次增量维护
 
 - 触发：用户要求定期维护与经验沉淀；本轮接受前的首次专项。

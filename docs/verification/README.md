@@ -351,6 +351,7 @@ desktop routing, cancellation, and computer authority cleanup.
 - [M1a memory source and forgetting scope](memory-source-scope.md)
 - [M1b expired multiline retrieval](memory-expiry-retrieval.md)
 - [M1 general forgetting: retained sources and model visibility](memory-general-forgetting-scope.md)
+- [M1 journal undo conflicts and current-state preservation](memory-journal-revert-conflict.md)
 - [M1 complete-span tidy archival](memory-tidy-spans.md)
 - [M1 bounded tidy supersession](memory-tidy-supersession.md)
 - [M1 explicit current-item About me correction](memory-aboutme-correction.md)
