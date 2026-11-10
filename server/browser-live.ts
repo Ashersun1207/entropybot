@@ -317,6 +317,7 @@ export class BrowserLive {
   private readonly clocks = new Map<string, HoldClock>();
   private readonly holdLimits: HoldLimits;
   private readonly sessionResets = new Map<string, Promise<boolean>>();
+  private readonly unconfirmedResets = new Set<string>();
   /** Each watched browser's page dialogs, and the views that watch them. */
   private readonly dialogs = new Map<string, { watch: DialogWatch; views: Set<string> }>();
   private readonly devTools?: BrowserLiveDevTools;
@@ -591,11 +592,13 @@ export class BrowserLive {
     }
   }
 
-  /** Discards the session's daemon once; connecting waits for it, then starts a fresh one. */
+  /** Unknown reset outcomes must survive promise cleanup; only confirmed close permits discovery or launch. */
   private resetSession(viewer: Viewer, why: string): void {
-    if (this.sessionResets.has(viewer.session)) return;
+    if (!this.current(viewer) || this.sessionResets.has(viewer.session)) return;
+    this.unconfirmedResets.add(viewer.session);
     const env = browserRuntimeEnv({ ...viewer.spec.env, AGENT_BROWSER_SESSION: viewer.session });
-    const reset = closeBrowserSession(viewer.spec.command, env).then((closed) => {
+    const reset = Promise.resolve().then(() => closeBrowserSession(viewer.spec.command, env)).then((closed) => {
+      if (closed) this.unconfirmedResets.delete(viewer.session);
       if (closed) console.warn(`browser-live: reset ${viewer.session} after ${why}; reconnecting starts a fresh session`);
       else console.warn(`browser-live: reset of ${viewer.session} after ${why} did not finish; the next command retries it`);
       return closed;
@@ -605,10 +608,12 @@ export class BrowserLive {
   }
 
   private async connect(viewer: Viewer): Promise<number> {
-    // Wait out a reset or idle close in progress, so the probe meets a fresh daemon; checked on every attempt.
+    if (!this.current(viewer)) throw new BrowserLiveError("This browser view is no longer available.", 409);
+    if (this.unconfirmedResets.has(viewer.session) && !this.sessionResets.has(viewer.session)) this.resetSession(viewer, "an unconfirmed session reset");
     const resetting = this.sessionResets.get(viewer.session);
-    if (resetting) await resetting;
+    if (resetting && !await resetting) throw new BrowserLiveError("The browser reset could not be confirmed. Reconnect to retry closing this browser.", 503);
     await this.runtime.settled(viewer.session);
+    if (!this.current(viewer)) throw new BrowserLiveError("This browser view is no longer available.", 409);
     await this.runtime.launchReady(viewer.spec).catch((error: unknown) => {
       throw new BrowserLiveError(error instanceof Error ? error.message : "The browser is not ready yet.", 503);
     });
@@ -759,6 +764,7 @@ export class BrowserLive {
         const env = browserRuntimeEnv({ ...viewer.spec.env, AGENT_BROWSER_SESSION: viewer.session });
         if (!await closeBrowserSession(viewer.spec.command, env)) throw new Error("browser close failed");
       });
+      this.unconfirmedResets.delete(viewer.session);
       const note = { type: "error", retryable: true, message: restartedNote(viewer.spec.env?.AGENT_BROWSER_RESTORE_SAVE !== "never") };
       for (const other of this.viewers.values()) if (other.session === viewer.session) this.send(other, note);
       this.closeForSession(viewer.session);
@@ -872,6 +878,7 @@ export class BrowserLive {
         });
         this.control(viewer.session);
         await restarting;
+        this.unconfirmedResets.delete(viewer.session);
         this.closeForSession(viewer.session);
         return { ok: true };
       } catch { throw new BrowserLiveError("The browser could not restart. Wait for active work to finish and try again.", 409); }

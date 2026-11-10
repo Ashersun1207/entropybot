@@ -308,7 +308,22 @@ describe("authenticated browser viewer relay", () => {
     expect(execute.mock.calls[1]?.[1]).toEqual(["stream", "status", "--json", "--no-webmcp"]);
     expect(nativeClose).toHaveBeenCalledTimes(1);
   });
-  it("starts a fresh reset when the reconnect probe finds the daemon still stuck (#1383)", async () => {
+  it("does not launch over an unconfirmed reset when the reconnect probe reports disconnected", async () => {
+    const openS = () => live.open({ botId: "a", session: "s", owner: "a", isCurrent: () => true,
+      res: new ResponseFixture() as unknown as ServerResponse, spec: { command: "/engine", env: { AGENT_BROWSER_SESSION: "s" } } });
+    let finishReset!: (closed: boolean) => void;
+    nativeClose.mockImplementationOnce(() => new Promise(resolve => { finishReset = resolve; }));
+    execute.mockRejectedValueOnce(Object.assign(new Error("Command failed"), { stderr: "Missing X server or $DISPLAY" }));
+    await expect(openS()).rejects.toThrow("Reconnect to retry");
+    execute.mockResolvedValue(output({ ...ready, connected: false }));
+    const reconnecting = openS().then(() => "opened", error => error);
+    finishReset(false);
+    const result = await reconnecting;
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+    expect(execute.mock.calls.map(call => call[1][0])).not.toContain("open");
+    expect(result).not.toBe("opened");
+  });
+  it("retries owned close on a new reconnect after an unconfirmed reset (#1383)", async () => {
     const openS = () => live.open({ botId: "a", session: "s", owner: "a", isCurrent: () => true,
       res: new ResponseFixture() as unknown as ServerResponse, spec: { command: "/engine", env: { AGENT_BROWSER_SESSION: "s" } } });
     let finishReset!: (closed: boolean) => void;
@@ -316,13 +331,13 @@ describe("authenticated browser viewer relay", () => {
     execute.mockRejectedValueOnce(Object.assign(new Error("Command failed"), { stderr: "Missing X server or $DISPLAY" }));
     await expect(openS()).rejects.toThrow("Reconnect to retry");
     const reconnecting = openS();
-    // The daemon outlived the first close; the probe fails the same way and
-    // schedules another reset instead of reporting a healthy session.
-    execute.mockRejectedValueOnce(Object.assign(new Error("Command failed"), { stderr: "Missing X server or $DISPLAY" }));
-    nativeClose.mockResolvedValueOnce(true);
+    nativeClose.mockResolvedValueOnce(false);
     finishReset(false);
     await expect(reconnecting).rejects.toThrow("Reconnect to retry");
+    expect(execute).toHaveBeenCalledTimes(1);
+    await expect(openS()).rejects.toThrow("Reconnect to retry");
     expect(nativeClose).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledTimes(1);
   });
   it("has the page fill the panel of the view that asked last, once the bot's call ends, and the standard page when no view is left", async () => {
     const resize = vi.mocked(runtime.pageSizes.resize);
@@ -1276,5 +1291,115 @@ describe("opening a view while the bot holds the browser", () => {
     expect(JSON.parse(nativeInput.mock.calls.at(-1)![1].body)).toEqual({ action: "stream_status" });
     execute.mockRejectedValueOnce(Object.assign(new Error("spawn /engine ENOENT"), { code: "ENOENT" }));
     await expect(a.action({ type: "reload" })).rejects.toThrow(/browser engine is installed/);
+  });
+});
+
+describe("unconfirmed browser reset recovery", () => {
+  const connect = (res = new ResponseFixture(), current = () => true, session = "s", owner = "owner") => live.open({
+    botId: "a", session, owner, isCurrent: current, res: res as unknown as ServerResponse,
+    spec: { command: "/engine", env: { AGENT_BROWSER_SESSION: session } },
+  });
+  const startReset = async () => {
+    execute.mockRejectedValueOnce(Object.assign(new Error("Command failed"), { stderr: "Missing X server or $DISPLAY" }));
+    await expect(connect()).rejects.toThrow("Reconnect to retry");
+  };
+
+  it.each([false, true])("does not probe, enable or open after pending reset false even if status would report connected=%s", async connected => {
+    let settle!: (closed: boolean) => void;
+    nativeClose.mockImplementationOnce(() => new Promise(resolve => { settle = resolve; }));
+    await startReset();
+    execute.mockResolvedValue(output({ ...ready, enabled: false, connected }));
+    const pending = connect().catch(error => error);
+    settle(false);
+    expect(await pending).toMatchObject({ status: 503, message: "The browser reset could not be confirmed. Reconnect to retry closing this browser." });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+    expect(SocketFixture.instances).toHaveLength(0);
+  });
+
+  it("retains settled failures across viewers, retries once per explicit reconnect, and only launches after owned true", async () => {
+    nativeClose.mockResolvedValue(false);
+    await startReset();
+    for (const owner of ["owner-2", "owner-3"]) {
+      const failure = await connect(new ResponseFixture(), () => true, "s", owner).catch(error => error);
+      expect(failure).toMatchObject({ status: 503 });
+      expect(execute).toHaveBeenCalledTimes(1);
+    }
+    expect(nativeClose).toHaveBeenCalledTimes(3);
+    nativeClose.mockResolvedValueOnce(true);
+    execute.mockResolvedValue(output({ ...ready, connected: false }));
+    await connect();
+    expect(nativeClose).toHaveBeenCalledTimes(4);
+    expect(execute.mock.calls.map(call => call[1][0])).toEqual(["stream", "stream", "open"]);
+    expect(SocketFixture.instances).toHaveLength(1);
+    await connect(new ResponseFixture(), () => true, "s", "owner-4");
+    expect(nativeClose).toHaveBeenCalledTimes(4);
+  });
+
+  it.each(["throw", "reject"])("keeps a %s from owned close unknown and exposes only fixed retry guidance", async mode => {
+    const canary = "synthetic-private-path-and-secret";
+    if (mode === "throw") nativeClose.mockImplementation(() => { throw Error(canary); });
+    else nativeClose.mockRejectedValue(Error(canary));
+    await startReset();
+    const failure = await connect().catch(error => error);
+    expect(failure).toMatchObject({ status: 503, message: "The browser reset could not be confirmed. Reconnect to retry closing this browser." });
+    expect(String(failure)).not.toContain(canary);
+    expect(nativeClose).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledTimes(1);
+    nativeClose.mockResolvedValueOnce(true);
+    await connect();
+    expect(nativeClose).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not block a different session or its owner while retaining the failed session barrier", async () => {
+    nativeClose.mockResolvedValue(false);
+    await startReset();
+    await connect(new ResponseFixture(), () => true, "other", "other-owner");
+    expect(execute.mock.calls.at(-1)![2].env.AGENT_BROWSER_SESSION).toBe("other");
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+    await expect(connect()).rejects.toMatchObject({ status: 503 });
+    expect(nativeClose).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { state: "response closed", closed: false }, { state: "response closed", closed: true },
+    { state: "owner aborted", closed: false }, { state: "owner aborted", closed: true },
+    { state: "identity replaced", closed: false }, { state: "identity replaced", closed: true },
+  ])("sends no post-await command after $state and late close=$closed", async ({ state, closed }) => {
+    let settle!: (confirmed: boolean) => void;
+    nativeClose.mockImplementationOnce(() => new Promise(resolve => { settle = resolve; }));
+    await startReset();
+    const res = new ResponseFixture();let current = true;
+    const pending = connect(res, () => current).then(() => "opened", error => error);
+    if (state === "response closed") res.destroy();
+    else if (state === "owner aborted") live.closeForOwner("owner");
+    else current = false;
+    settle(closed);
+    expect(await pending).not.toBe("opened");
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(runtime.launchReady).toHaveBeenCalledTimes(1);
+    expect(SocketFixture.instances).toHaveLength(0);
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry owned close from an already stale reconnect", async () => {
+    nativeClose.mockResolvedValue(false);
+    await startReset();
+    await expect(connect(new ResponseFixture(), () => false)).rejects.toMatchObject({ status: 409 });
+    expect(nativeClose).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirmed manual restart clears failed reset state without an implicit reconnect close", async () => {
+    const viewer = await open({ session: "s" });
+    nativeClose.mockResolvedValue(false);
+    await startReset();
+    runtime.restart = vi.fn(async (_session, _owner, close) => { await close(); });
+    nativeClose.mockResolvedValueOnce(true);
+    await expect(viewer.action({ type: "restart" })).resolves.toEqual({ ok: true });
+    expect(nativeClose).toHaveBeenCalledTimes(2);
+    await connect();
+    expect(nativeClose).toHaveBeenCalledTimes(2);
   });
 });

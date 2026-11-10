@@ -359,6 +359,7 @@ desktop routing, cancellation, and computer authority cleanup.
 - [L1 core and on-demand capability boundary research](capability-boundary.md)
 - [Optional Connected Apps outage isolation](optional-connectors-isolation.md)
 - [OpenAI-compatible provider error redaction and refusal-path review](provider-error-redaction.md)
+- [Browser stop target ownership and operation fences](browser-stop-owned-target.md)
 - [Legacy browser close caller budget and R1 review contracts](browser-close-budget.md)
 
 ## Evidence

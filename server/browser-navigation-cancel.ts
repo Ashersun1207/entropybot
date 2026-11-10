@@ -7,33 +7,37 @@ export interface NavigationStop {
 
 export class BrowserNavigationCancelled extends Error {}
 
-export async function prepareNavigationStop(cdpUrl: string, pageUrl: string, connect: typeof connectCdp = connectCdp): Promise<NavigationStop | null> {
+/** targetId must come from the legacy engine's pinned active tab, never a page URL. */
+export async function prepareNavigationStop(cdpUrl: string, targetId: string, current: () => boolean, connect: typeof connectCdp = connectCdp): Promise<NavigationStop | null> {
   let cdp: Cdp | undefined;
   try {
+    if (!targetId) return null;
     cdp = await connect(cdpUrl, 1500);
     const result = await cdp.send("Target.getTargets");
-    const rawTargets = Array.isArray(result.targetInfos) ? result.targetInfos as Array<{ type?: string; url?: string; targetId?: string }> : [];
-    if (rawTargets.length > MAX_PAGES) { cdp.close();return null; }
-    const targets = rawTargets;
-    const matching = targets.filter(target => target.type === "page" && target.url === pageUrl && typeof target.targetId === "string");
-    if (matching.length !== 1) { cdp.close();return null; }
-    const attached = await cdp.send("Target.attachToTarget", { targetId: matching[0]!.targetId, flatten: true });
+    const targets = Array.isArray(result.targetInfos) ? result.targetInfos as Array<{ type?: string; targetId?: string }> : [];
+    if (targets.length > 1024 || targets.filter(target => target.type === "page" && target.targetId === targetId).length !== 1) { cdp.close();return null; }
+    const attached = await cdp.send("Target.attachToTarget", { targetId, flatten: true });
     if (typeof attached.sessionId !== "string") { cdp.close();return null; }
     const sessionId = attached.sessionId;
     const connection = cdp;
     let stopped: Promise<boolean> | undefined;
+    let closed = false;
+    const stop = async () => {
+      if (closed || !current()) return false;
+      try {
+        await connection.send("Page.stopLoading", {}, sessionId);
+        // The original RPC, budget or takeover may have invalidated this operation during the acknowledgement.
+        if (closed || !current()) return false;
+        const answer = await connection.send("Page.navigate", { url: "about:blank" }, sessionId);
+        return typeof answer.errorText !== "string" && typeof answer.frameId === "string" && !answer.isDownload;
+      } catch { return false; }
+    };
     return {
-      stop: () => stopped ??= connection.send("Page.stopLoading", {}, sessionId)
-        // The engine's own open waits for the page to finish loading. Navigating the interrupted tab to about:blank fires a
-        // load on that tab only, so the stale open can return and free the session's single-command lane.
-        .then(() => connection.send("Page.navigate", { url: "about:blank" }, sessionId))
-        .then(() => true, () => false),
-      close: () => connection.close(),
+      stop: () => stopped ??= stop(),
+      close: () => { closed = true;connection.close(); },
     };
   } catch { cdp?.close();return null; }
 }
-
-const MAX_PAGES = 1024;
 
 async function answeredWithin(work: Promise<unknown>, milliseconds: number): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -42,10 +46,11 @@ async function answeredWithin(work: Promise<unknown>, milliseconds: number): Pro
   } finally { clearTimeout(timer); }
 }
 
-export async function withNavigationCancellation<T>(signal: AbortSignal, prepare: () => Promise<NavigationStop | null>, work: () => Promise<T>, uncertain: () => void): Promise<T> {
-  signal.throwIfAborted();
-  const target = await prepare();
-  let dispatched = false;
+export async function withNavigationCancellation<T>(signal: AbortSignal | undefined, prepare: ((current: () => boolean) => Promise<NavigationStop | null>) | undefined, work: () => Promise<T>, uncertain: () => void, permitted: () => boolean = () => true): Promise<T> {
+  signal?.throwIfAborted();
+  if (!signal || !prepare) return work();
+  let active = true, dispatched = false, settled = false;
+  const target = await prepare(() => active && dispatched && !settled && permitted());
   let stopping: Promise<boolean> | undefined;
   let rejectCancellation!: (reason: unknown) => void;
   const cancelled = new Promise<never>((_resolve, reject) => { rejectCancellation = reject; });
@@ -58,13 +63,14 @@ export async function withNavigationCancellation<T>(signal: AbortSignal, prepare
   try {
     signal.throwIfAborted();
     dispatched = true;
-    running = work();
+    running = work().finally(() => { settled = true; });
     const result = await Promise.race([running, cancelled]);
     signal.throwIfAborted();
     return result;
   } catch (error) {
     if (signal.aborted && dispatched) {
-      const stopped = stopping ? await stopping : false;
+      const stopAnswered = stopping ? await answeredWithin(stopping, 1500) : false;
+      const stopped = stopAnswered && stopping ? await stopping : false;
       const answered = stopped && running ? await answeredWithin(running, 1000) : false;
       if (!stopped || !answered) {
         uncertain();
@@ -74,6 +80,7 @@ export async function withNavigationCancellation<T>(signal: AbortSignal, prepare
     }
     throw error;
   } finally {
+    active = false;
     signal.removeEventListener("abort", abort);
     target?.close();
   }

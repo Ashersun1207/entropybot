@@ -111,11 +111,15 @@ export function createBrowserHost(deps: BrowserHostDeps) {
       throw error instanceof RelayTimeout ? new TransportError(error.message) : error;
     }),
     steps: browserSteps,
-    prepareNavigation: async (session, spec, pageUrl) => {
+    prepareNavigation: async (session, spec, current) => {
       const env = browserRuntimeEnv({ ...spec.env, AGENT_BROWSER_SESSION: session });
-      const answer = await inRunningBrowser(spec.command, env, ["get", "cdp-url"], 1500);
-      const url = localDevToolsUrl(answer?.cdpUrl);
-      return url ? prepareNavigationStop(url, pageUrl) : null;
+      const answer = await inRunningBrowser(spec.command, env, ["tab", "list", "--pin-tab"], 1500);
+      const tabs = Array.isArray(answer?.tabs) ? answer.tabs as Array<{ active?: boolean; targetId?: unknown }> : [];
+      const active = tabs.filter(tab => tab.active === true);
+      if (tabs.length > 1024 || active.length !== 1 || typeof active[0]!.targetId !== "string") return null;
+      const endpoint = await inRunningBrowser(spec.command, env, ["get", "cdp-url"], 1500);
+      const url = localDevToolsUrl(endpoint?.cdpUrl);
+      return url ? prepareNavigationStop(url, active[0]!.targetId, current) : null;
     },
     onTiming: process.env.OMB_BROWSER_TIMING === "1" ? (timing) => console.info(formatBrowserTiming(timing)) : undefined,
   });

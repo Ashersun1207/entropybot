@@ -10,6 +10,7 @@ import { HARNESS_CALL_BUDGET_MS, HARNESS_PROXY_TIMEOUT_MS } from "./harness-budg
 import { RelayPorts } from "./browser-relay.ts";
 import { BrowserSteps, type StepCall, type StepContext } from "./browser-steps.ts";
 import { FakeRelay } from "./testing/fake-relay.ts";
+import { prepareNavigationStop } from "./browser-navigation-cancel.ts";
 
 const runtimes: BrowserRuntime[] = [];
 function runtime(options: ConstructorParameters<typeof BrowserRuntime>[0] = {}) {
@@ -1494,5 +1495,58 @@ describe("one time budget per bot call", () => {
       await value.closeAll();
       daemon.cleanup();
     }
+  });
+});
+
+describe("navigation cancellation operation fences", () => {
+  it.each(["settlement", "takeover", "budget"])("rejects a delayed stop ACK after %s and prevents an unsafe next lane", async reason => {
+    const dir = mkdtempSync(join(tmpdir(), "omb-stop-runtime-"));
+    const accepted = join(dir, "accepted"), release = join(dir, "release"), callLog = join(dir, "calls");
+    let currentOperation = () => true;
+    const ack = deferred<Record<string, unknown>>(), stopping = deferred();
+    const send = vi.fn(async (method: string) => {
+      if (method === "Target.getTargets") return { targetInfos: [{ type: "page", targetId: "engine-owned" }] };
+      if (method === "Target.attachToTarget") return { sessionId: "cdp-owned" };
+      if (method === "Page.stopLoading") { stopping.resolve();return ack.promise; }
+      return { frameId: "owned-frame" };
+    });
+    const engine = spec();
+    engine.args = ["-e", `
+      const fs=require('node:fs');const lines=require('node:readline').createInterface({input:process.stdin});
+      lines.on('line',line=>{const m=JSON.parse(line);if(!m.id)return;
+        const answer=result=>process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
+        if(m.method==='initialize')return answer({protocolVersion:'2024-11-05'});
+        fs.appendFileSync(process.env.CALL_LOG,m.params.name+'\\n');
+        if(m.params.name==='agent_browser_open'){
+          fs.writeFileSync(process.env.ACCEPTED,'1');
+          const wait=()=>fs.existsSync(process.env.RELEASE)?answer({content:[{type:'text',text:'old open settled'}]}):setTimeout(wait,5);return wait();
+        }
+        const wait=()=>fs.existsSync(process.env.ACCEPTED)&&!fs.existsSync(process.env.RELEASE)?setTimeout(wait,5):answer({content:[{type:'text',text:'about:blank'}]});wait();
+      });`];
+    engine.env.ACCEPTED = accepted;engine.env.RELEASE = release;engine.env.CALL_LOG = callLog;
+    const value = runtime({ requestTimeoutMs: 4000, recoveryCheckMs: 30, callBudgetMs: reason === "budget" ? 150 : 4000, followUpReserveMs: 0,
+      prepareNavigation: (_session, _spec, current) => {
+        currentOperation = current;
+        return prepareNavigationStop("ws://127.0.0.1:1234", "engine-owned", current, async () => ({ send, close: vi.fn() }));
+      },
+    });
+    const abort = new AbortController();
+    const pending = value.agentRpc("stop-fence", engine, "tools/call", { name: "agent_browser_open", arguments: { url: "https://fixture.invalid" } }, () => abort.signal.throwIfAborted(), undefined, abort.signal);
+    const outcome = pending.catch(error => error);
+    try {
+      await expect.poll(() => existsSync(accepted)).toBe(true);abort.abort();await stopping.promise;
+      let take: Promise<unknown> | undefined;
+      if (reason === "settlement") { writeFileSync(release, "1");await expect.poll(() => currentOperation()).toBe(false); }
+      if (reason === "takeover") take = value.take("stop-fence", "person").catch(error => error);
+      if (reason === "budget") { await outcome;expect(value.interrupted("stop-fence")).toBe(true); }
+      const next = value.agentRpc("stop-fence", engine, "tools/call", { name: "agent_browser_click", arguments: { selector: "#later-turn" } }).catch(error => error);
+      expect(readFileSync(callLog, "utf8")).not.toContain("agent_browser_click");
+      ack.resolve({});await outcome;
+      expect(send.mock.calls.map(([method]) => method)).not.toContain("Page.navigate");
+      expect(value.interrupted("stop-fence")).toBe(true);
+      await next;
+      expect(readFileSync(callLog, "utf8")).not.toContain("agent_browser_click");
+      if (take) { await take;expect(value.canControl("stop-fence", "person")).toBe(false); }
+    } finally { writeFileSync(release, "1");await value.closeAll();rmSync(dir, { recursive: true, force: true }); }
   });
 });

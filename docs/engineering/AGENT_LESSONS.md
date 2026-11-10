@@ -2,6 +2,24 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## Browser stop consumer R1：失败状态不能随 Promise finally 消失
+
+- 主控仅扩权 browser-live.ts 及既有 tests/docs 后，在原 reset manager 中增加按 session 保留的 unconfirmed barrier；pending false 拒绝该 reconnect 的 probe/enable/open，下一次显式 reconnect 只重试一次 owned close，true 后才继续，false/throw/reject 仍保留。已有 finally 可移除 pending Promise，但不能把未知状态当作新浏览器启动授权。confirmed manual/input restart 才清状态；其他 session 不受影响，不新增 timeout/自动循环/close 产品改动。
+- 原 public-entry 红例在第一轮修复转绿；完整 live suite135通过，包括14项新增 pending/settled/repeated false、eventual true、throw/reject、安全固定文案、其他session、关闭/owner abort/identity replacement 后迟到false/true、初始stale及manual确认恢复。旧 pending-false test 的拒绝/两次close断言保留，第二次close改由新显式reconnect触发，并加零probe断言。原红源/日志及脏基线保留，不复写追认。
+- 等待 shared reset 与 idle settle 后、准备浏览器前复核 viewer currentness；旧 viewer 关闭或身份替换不能让迟到 true 自动发 open。局部135与types通过不是最终组合验收；需冻结docs，重跑原13文件含真实direct/redirect完整rawprobe和实际stopped/registered=confirmed/exit0/childclose/fixtureclear，以及既有size/docs/types/lint。获批close三份产品字节和原cancel产品字节保持；完整最终树仍待独立复审。
+
+## Browser stop controlled composition：standalone close approval 不代替调用者合同
+
+- 新 checkout 以获独立 APPROVE 的 `fe486a958` 为起点，冻结输入前后 hash，原取消 source/tests 精确复制、README/lessons 保留双方条目；三份 close 产品源码和其他非共享获批路径保持原字节。原完整 direct/redirect pair 在组合树通过，包含 raw target lifecycle、同 profile control、真实 next-turn /ok 与 await teardown；历史 unknown fixture 不删除、不追认为已通过。
+- 所需 recovery consumer 核对发现额外阻断：BrowserLive 的 reset Promise 返回 false 后 connect 只 await、不检查 false；独立 execute 路径在 disconnected status 下发送 open，不受 browser-engine 的 pending command fence 自动保护。真实导入 public-entry 合成红例实际记录 stream/stream/open，原120项过滤不能算通过。产品修复须触及本轮范围外 browser-live.ts；本轮仅保留现有 test 文件中的失败合同，不改获批 close，不扩权限、不提交最终候选。agent/human restart 的 false/error 处理不能外推为 reconnect 分支已受保护；新组合完整树仍需独立复审。
+
+## Browser stop：目标身份与迟到 CDP 回执
+
+- URL 唯一性不是页签身份：A 从 U 跳到 V、B 成为唯一 U 时，旧 helper 会附着 B。取消必须从可信 legacy engine/session 边界取得稳定 targetId，并确认该边界不在目标消失后静默收养另一页。0.37.0 本地资源与隔离协议探针支持 `tab list --pin-tab`；不得把 native TabRegistry 的能力直接假定为 legacy 能力，也不另建 manager。
+- `Page.navigate` Promise resolved 仍可能含 `errorText`。停止 ACK 后也须重新检查操作 fence、原 RPC settlement、takeover、budget 与关闭状态；不能让迟到 ACK 无条件触发 about:blank。失败/断线/timeout 保留 unknown 与原 lane/recovery 语义，不能杀浏览器或关闭其他页凑可用性。回归：`server/browser-navigation-cancel.test.ts`、`server/browser-runtime.test.ts`；真实同 profile 双页及 fake provider 调度的后续动作见 `server/browser-navigation-stop.e2e.test.ts` 和 [验证边界](../verification/browser-stop-owned-target.md)。本候选仍待独立复审，不追认旧 pair 已接受。
+- 真实 target-gone 探针在关闭 engine pinned active page 后，组合门曾出现 shutdown deadline exceeded/resource unknown；保留失败 fixture，不把辅助页 target-gone 通过当作集成 active-target-loss 关闭恢复已验。最终改为独立自有 background 页并确认 Target.getTargets 中已消失后，两个 e2e 的全部行为断言通过，但 teardown 仍 unknown：final-behavior-r2 为184通过/2失败/1 Linux-only skip，达到本原因两轮修复上限，阻断交回、不作最终提交。关闭路径/回执边界根因 unknown，未扩写 browser-engine 或验证生命周期，不抬 timeout、删目录或杀无关页凑绿。
+- 测试负例也要查夹具：Vitest `it.each` 的数组行会按列展开，`ids.map` 抛错被 helper 的保守 catch 吞掉可让负例假绿。改为 `{ ids }` 行并通过 strict types 与行为门。fake provider 不能对整个增强后的 user message 做 includes 匹配：合成历史召回中的 SEED 曾让 follow-up 返回 56 却没有浏览器动作；实际 `/ok` 请求断言抓到了此缺口。两次既有 list-during-human-hold 失败也必须保留，dispatch guard 仅作用 tools/call；见本轮失败回执，不降低既有断言或预算。
+
 ## 已遇到的问题
 
 | 编号 | 失败模式与教训 | 下一次必须检查 | 可执行证据入口 |

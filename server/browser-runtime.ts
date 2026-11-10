@@ -353,9 +353,9 @@ export class BrowserRuntime {
   /** Strips held secrets (a filled password, a one-time code) from every tool result before the bot reads it. */
   private scrub: (text: string) => string;
   private onTiming?: (timing: BrowserTiming) => void;
-  private prepareNavigation?: (session: string, spec: BrowserSpawnSpec, pageUrl: string) => Promise<NavigationStop | null>;
+  private prepareNavigation?: (session: string, spec: BrowserSpawnSpec, current: () => boolean) => Promise<NavigationStop | null>;
 
-  constructor({ closeBrowser, applyViewport, launch, relayCommand, steps, scrub, onTiming, prepareNavigation, ...options }: Partial<BrowserRuntime["options"]> & { closeBrowser?: CloseBrowser; applyViewport?: ApplyViewport; launch?: BrowserLaunch; relayCommand?: RelayCommand; steps?: BrowserRuntime["steps"]; scrub?: (text: string) => string; onTiming?: (timing: BrowserTiming) => void; prepareNavigation?: (session: string, spec: BrowserSpawnSpec, pageUrl: string) => Promise<NavigationStop | null> } = {}) {
+  constructor({ closeBrowser, applyViewport, launch, relayCommand, steps, scrub, onTiming, prepareNavigation, ...options }: Partial<BrowserRuntime["options"]> & { closeBrowser?: CloseBrowser; applyViewport?: ApplyViewport; launch?: BrowserLaunch; relayCommand?: RelayCommand; steps?: BrowserRuntime["steps"]; scrub?: (text: string) => string; onTiming?: (timing: BrowserTiming) => void; prepareNavigation?: (session: string, spec: BrowserSpawnSpec, current: () => boolean) => Promise<NavigationStop | null> } = {}) {
     this.options = { ...BROWSER_CALL_DEFAULTS, takeoverTimeoutMs: 15_000, idleMs: 60_000, maxPending: 16, resultBudget: DEFAULT_BROWSER_RESULT_BUDGET, recoveryCheckMs: 30_000, ...options };
     this.closeBrowser = closeBrowser ?? (async () => false);
     this.applyViewport = applyViewport;
@@ -516,7 +516,6 @@ export class BrowserRuntime {
     const followUpMs = () => Math.min(this.options.requestTimeoutMs, deadline - Date.now());
     const phases: Partial<BrowserTiming> = {};
     const invoke = async () => {
-      signal?.throwIfAborted();
       const launchStarted = performance.now();
       let dispatched = false;
       if (method === "tools/call") await this.launchReady(spec);
@@ -575,24 +574,15 @@ export class BrowserRuntime {
         const engineTimeoutMs = Math.max(1, Math.min(this.options.requestTimeoutMs, deadline - Date.now() - this.options.followUpReserveMs));
         const relayed = method === "tools/call" && toolName !== undefined ? RELAYED_TOOLS.get(toolName) : undefined;
         const dispatch = () => {
-          signal?.throwIfAborted();
+          beforeDispatch?.();
+          if (method === "tools/call" && gate.owner !== null) throw new Error(BROWSER_CONTROL_REFUSAL);
           if (method === "tools/call") { dispatched = true; gate.dispatched++; }
           return relayed ? this.relayTool(session, spec, relayed, args, engineTimeoutMs) : entry.client.rpc(method, request, engineTimeoutMs);
         };
-        const prepare = this.prepareNavigation;
-        let result: unknown;
-        if (toolName === "agent_browser_open" && signal && prepare && !attachesToChrome(spec.env)) {
-          result = await withNavigationCancellation(signal, async () => {
-            const currentUrl = firstText(await entry.client.rpc("tools/call", { name: "agent_browser_get_url", arguments: {} }, Math.max(1, Math.min(followUpMs(), 1500)))).trim();
-            beforeDispatch?.();
-            const target = await prepare(session, spec, currentUrl);
-            return target ? { close: () => target.close(), stop: () => gate.owner === null && !gate.closing ? target.stop() : Promise.resolve(false) } : null;
-          }, () => {
-            beforeDispatch?.();
-            if (gate.owner !== null) throw new Error(BROWSER_CONTROL_REFUSAL);
-            return dispatch();
-          }, () => this.latchLostCall(session, toolName));
-        } else result = await dispatch();
+        const prepare = toolName === "agent_browser_open" && !attachesToChrome(spec.env) ? this.prepareNavigation : undefined;
+        let result = await withNavigationCancellation(signal, prepare ? current => prepare(session, spec, current) : undefined,
+          dispatch, () => this.latchLostCall(session, toolName ?? method),
+          () => gate.owner === null && !gate.closing && !gate.uncertain && Date.now() < deadline);
         phases.engineMs = performance.now() - engineStarted;
         beforeDispatch?.();
         if (method === "tools/list") {
