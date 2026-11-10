@@ -32,9 +32,15 @@ function temporaryProfile(args: string | undefined): string | null {
 const PS = process.platform === "darwin" ? "/bin/ps" : "ps";
 
 /** The C locale keeps `ps` start times in one fixed five-word form. */
-function execText(file: string, args: string[], env: NodeJS.ProcessEnv = {}, timeout = 5_000): Promise<string | null> {
+function execText(file: string, args: string[], env: NodeJS.ProcessEnv = {}, timeout = 5_000, deadline = Infinity): Promise<string | null> {
+  const remaining = Math.floor(Math.min(timeout, deadline - Date.now()));
+  if (remaining <= 0) return Promise.resolve(null);
   return new Promise((done) => {
-    execFile(file, args, { encoding: "utf8", timeout, windowsHide: true, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, LC_ALL: "C", ...env } }, (error, stdout) => done(error ? null : stdout));
+    let child: ReturnType<typeof execFile> | undefined;
+    const timer = setTimeout(() => { try { child?.kill("SIGKILL"); } catch {} child?.stdout?.destroy(); child?.stderr?.destroy(); done(null); }, remaining);
+    try {
+      child = execFile(file, args, { encoding: "utf8", timeout: remaining, killSignal: "SIGKILL", windowsHide: true, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, LC_ALL: "C", ...env } }, (error, stdout) => { clearTimeout(timer); done(error || Date.now() >= deadline ? null : stdout); });
+    } catch { clearTimeout(timer); done(null); }
   });
 }
 
@@ -52,19 +58,21 @@ function linuxArgs(pid: number): string {
   catch { return ""; }
 }
 
-async function processArgs(pid: number): Promise<string | null> {
+async function processArgs(pid: number, deadline = Infinity): Promise<string | null> {
+  if (Date.now() >= deadline) return null;
   if (process.platform === "linux") return linuxArgs(pid) || null;
-  return (await execText(PS, ["-ww", "-o", "args=", "-p", String(pid)]))?.trim() || null;
+  return (await execText(PS, ["-ww", "-o", "args=", "-p", String(pid)], {}, 5_000, deadline))?.trim() || null;
 }
 
 /** Linux reads /proc (an image without procps still works), one file at a time so a busy host keeps its descriptors. */
-async function processTable(withArgs = false): Promise<Map<number, ListedProcess> | null> {
-  if (process.platform === "win32") return null;
+async function processTable(withArgs = false, deadline = Infinity): Promise<Map<number, ListedProcess> | null> {
+  if (Date.now() >= deadline || process.platform === "win32") return null;
   const table = new Map<number, ListedProcess>();
   if (process.platform === "linux") {
     let names: string[];
     try { names = readdirSync("/proc"); } catch { return null; }
     for (const name of names) {
+      if (Date.now() >= deadline) return null;
       if (!/^\d+$/.test(name)) continue;
       try {
         const stat = readFileSync(`/proc/${name}/stat`, "utf8");
@@ -76,7 +84,7 @@ async function processTable(withArgs = false): Promise<Map<number, ListedProcess
     return table;
   }
   // lstart is always five words (Tue Oct 13 23:48:58 2026); args follow.
-  const listing = await execText(PS, ["-A", "-ww", "-o", `pid=,ppid=,pgid=,stat=,lstart=${withArgs ? ",args=" : ""}`]);
+  const listing = await execText(PS, ["-A", "-ww", "-o", `pid=,ppid=,pgid=,stat=,lstart=${withArgs ? ",args=" : ""}`], {}, 5_000, deadline);
   if (listing === null) return null;
   for (const line of listing.split("\n")) {
     const [pid, ppid, pgid, stat, ...rest] = line.trim().split(/\s+/);
@@ -86,13 +94,14 @@ async function processTable(withArgs = false): Promise<Map<number, ListedProcess
   return table;
 }
 
-async function processEnvironment(pid: number): Promise<Map<string, string> | null> {
+async function processEnvironment(pid: number, deadline = Infinity): Promise<Map<string, string> | null> {
+  if (Date.now() >= deadline) return null;
   let entries: string[];
   if (process.platform === "linux") {
     try { entries = readFileSync(`/proc/${pid}/environ`, "utf8").split("\0"); } catch { return null; }
   } else {
     // ps -E appends the environment to the arguments, space separated.
-    const listing = await execText(PS, ["-E", "-ww", "-o", "command=", "-p", String(pid)]);
+    const listing = await execText(PS, ["-E", "-ww", "-o", "command=", "-p", String(pid)], {}, 5_000, deadline);
     if (listing === null) return null;
     entries = listing.trim().split(/\s+/);
   }
@@ -102,27 +111,27 @@ async function processEnvironment(pid: number): Promise<Map<string, string> | nu
   }));
 }
 
-async function imageOf(pid: number): Promise<string | null> {
-  const row = await execText("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"]);
+async function imageOf(pid: number, deadline = Infinity): Promise<string | null> {
+  const row = await execText("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], {}, 5_000, deadline);
   return row === null ? null : /^"([^"]*)"/.exec(row.trim())?.[1]?.toLowerCase() ?? "";
 }
 
 /** agent-browser starts a daemon through the binary's resolved path with AGENT_BROWSER_DAEMON=1 and the session's name, so a
  * pid now running another program, command or session is not it. Read before the close: afterwards Chrome is re-parented. */
-export async function browserProcessTree(binaryPath: string, daemon: number, session: string): Promise<BrowserProcessTree | null> {
+export async function browserProcessTree(binaryPath: string, daemon: number, session: string, deadline = Infinity): Promise<BrowserProcessTree | null> {
   if (!Number.isInteger(daemon) || daemon <= 1 || daemon === process.pid || !processAlive(daemon)) return null;
   const paths = new Set([binaryPath]);
   try { paths.add(realpathSync(binaryPath)); } catch {}
   if (process.platform === "win32") {
     // Windows shows no environments, trees or start times: the image tells the daemon from a later program, and taskkill /T walks the tree.
-    const image = await imageOf(daemon);
+    const image = await imageOf(daemon, deadline);
     return image && [...paths].some((path) => basename(path).toLowerCase() === image) ? { daemon, members: new Map([[daemon, ""]]), groups: [], image } : null;
   }
-  const command = await processArgs(daemon);
+  const command = await processArgs(daemon, deadline);
   if (!command || ![...paths].some((path) => command === path || command.startsWith(`${path} `))) return null;
-  const env = await processEnvironment(daemon);
+  const env = await processEnvironment(daemon, deadline);
   if (env?.get("AGENT_BROWSER_DAEMON") !== "1" || env.get("AGENT_BROWSER_SESSION") !== session) return null;
-  const table = await processTable();
+  const table = await processTable(false, deadline);
   if (!table?.has(daemon)) return null;
   const children = new Map<number, number[]>();
   for (const [pid, entry] of table) children.set(entry.ppid, [...children.get(entry.ppid) ?? [], pid]);
@@ -136,7 +145,7 @@ export async function browserProcessTree(binaryPath: string, daemon: number, ses
   const groups = [...members.keys()].filter((pid) => table.get(pid)!.pgid === pid && pid !== own);
   const profiles: string[] = [];
   for (const group of groups) {
-    const profile = group === daemon ? null : temporaryProfile(await processArgs(group) ?? undefined);
+    const profile = group === daemon ? null : temporaryProfile(await processArgs(group, deadline) ?? undefined);
     if (profile) profiles.push(profile);
   }
   return { daemon, members, groups, profiles };
@@ -317,15 +326,15 @@ function survivors(tree: BrowserProcessTree, table: Map<number, ListedProcess>):
 }
 
 /** Windows soon gives a freed pid to a new process, which is never counted or killed as the daemon. */
-async function windowsDaemonRuns(tree: BrowserProcessTree): Promise<boolean | null> {
-  const image = await imageOf(tree.daemon);
+async function windowsDaemonRuns(tree: BrowserProcessTree, deadline = Infinity): Promise<boolean | null> {
+  const image = await imageOf(tree.daemon, deadline);
   return image === null ? null : !!image && image === tree.image;
 }
 
-export async function browserProcessesRunning(tree: BrowserProcessTree): Promise<boolean> {
-  if (process.platform === "win32") return await windowsDaemonRuns(tree) ?? processAlive(tree.daemon);
-  const table = await processTable();
-  if (!table) return [...tree.members.keys()].some(processAlive);
+export async function browserProcessesRunning(tree: BrowserProcessTree, deadline = Infinity): Promise<boolean> {
+  if (process.platform === "win32") return await windowsDaemonRuns(tree, deadline) ?? true;
+  const table = await processTable(false, deadline);
+  if (!table) return true;
   return survivors(tree, table).pids.length > 0;
 }
 
@@ -338,35 +347,46 @@ async function within(ms: number, done: () => Promise<boolean>): Promise<boolean
 
 /** The root gets TERM first, alone: the daemon saves sign-ins over its Chrome's DevTools connection, so Chrome must still run
  * (CONT wakes a stopped daemon). Past `graceMs` the tree is killed by process group. */
-export async function stopBrowserProcesses(tree: BrowserProcessTree, graceMs = 1_500): Promise<boolean> {
+export async function stopBrowserProcesses(tree: BrowserProcessTree, graceMs = 1_500, options: { deadline?: number; isCurrent?: () => boolean } = {}): Promise<boolean> {
+  const deadline = options.deadline ?? Date.now() + graceMs + 2_000;
+  const active = () => Date.now() < deadline && options.isCurrent?.() !== false;
+  const wait = async (until: number, done: () => Promise<boolean>) => {
+    while (active()) {
+      if (await done()) return active();
+      const remaining = Math.min(until, deadline) - Date.now();
+      if (remaining <= 0) return false;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(100, remaining)));
+    }
+    return false;
+  };
+  if (!active()) return false;
   if (process.platform === "win32") {
     // /T takes the daemon's Chrome too; only a pid still running the daemon's image is named.
-    if (await windowsDaemonRuns(tree)) await execText("taskkill", ["/PID", String(tree.daemon), "/T", "/F"]);
-    return within(2_000, async () => await windowsDaemonRuns(tree) === false);
+    if (await windowsDaemonRuns(tree, deadline) && active()) await execText("taskkill", ["/PID", String(tree.daemon), "/T", "/F"], {}, 5_000, deadline);
+    return wait(deadline, async () => await windowsDaemonRuns(tree, deadline) === false);
   }
-  const send = (target: number, signal: NodeJS.Signals) => { try { process.kill(target, signal); } catch {} };
-  const rootRuns = async () => {
-    const table = await processTable();
-    return table ? stillRuns(tree, table, tree.daemon) : processAlive(tree.daemon);
-  };
-  if (await rootRuns()) {
+  const send = (target: number, signal: NodeJS.Signals) => { if (active()) { try { process.kill(target, signal); } catch {} } };
+  const table = await processTable(false, deadline);
+  if (!table || !active()) return false;
+  if (stillRuns(tree, table, tree.daemon)) {
     send(tree.daemon, "SIGTERM");
     send(tree.daemon, "SIGCONT");
-    await within(graceMs, async () => !await rootRuns());
+    const rootUntil = Math.min(Date.now() + graceMs, Date.now() + Math.max(0, deadline - Date.now()) / 2);
+    await wait(rootUntil, async () => {
+      const now = await processTable(false, Math.min(rootUntil, deadline));
+      return !!now && !stillRuns(tree, now, tree.daemon);
+    });
   }
   let gone = false;
-  for (let pass = 0; pass < 2 && !gone; pass++) {
-    const table = await processTable();
-    if (!table) {
-      for (const pid of tree.members.keys()) send(pid, "SIGKILL");
-    } else {
-      const left = survivors(tree, table);
-      if (!left.pids.length) { gone = true; break; }
-      for (const group of left.groups) send(-group, "SIGKILL");
-      for (const pid of left.pids) if (!left.groups.includes(table.get(pid)!.pgid)) send(pid, "SIGKILL");
-    }
-    gone = await within(1_000, async () => !await browserProcessesRunning(tree));
+  for (let pass = 0; pass < 2 && !gone && active(); pass++) {
+    const now = await processTable(false, deadline);
+    if (!now || !active()) return false;
+    const left = survivors(tree, now);
+    if (!left.pids.length) { gone = true; break; }
+    for (const group of left.groups) send(-group, "SIGKILL");
+    for (const pid of left.pids) if (!left.groups.includes(now.get(pid)!.pgid)) send(pid, "SIGKILL");
+    gone = await wait(Math.min(deadline, Date.now() + 1_000), async () => !await browserProcessesRunning(tree, deadline));
   }
-  if (gone) for (const dir of tree.profiles ?? []) { try { rmSync(dir, { recursive: true, force: true }); } catch {} }
-  return gone;
+  if (gone && active()) for (const dir of tree.profiles ?? []) { if (!active()) return false; try { rmSync(dir, { recursive: true, force: true }); } catch {} }
+  return gone && active();
 }

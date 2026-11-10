@@ -327,6 +327,18 @@ describe("closing this data dir's browsers nothing uses", () => {
     expect(closeIdle).toHaveBeenCalledTimes(4);
   });
 
+  it("subtracts owned listing time from the shared shutdown allowance", async () => {
+    vi.useFakeTimers();
+    home(["bot-a", "bot-b"]);
+    vi.mocked(runningBrowserSessionNames).mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 750)); return ["bot-a", "bot-b"];
+    });
+    const closing = sweep().value.closeAll(1_000);
+    await vi.advanceTimersByTimeAsync(750);
+    await closing;
+    expect(vi.mocked(closeBrowserSession).mock.calls.map(([, , timeout]) => timeout)).toEqual([250, 250]);
+  });
+
   it("stops a browser of this data dir whose engine was killed, at boot and while daemons run, and no one else's", async () => {
     const orphan = (session: string): { session: string; tree: BrowserProcessTree } => ({ session, tree: { daemon: 42, members: new Map([[42, "t"]]), groups: [42] } });
     home([]);

@@ -48,6 +48,12 @@
 
 - 独立复审退回 R1–R4：域名兼容要按实际部署主/次账号覆盖 normalize、stored access、pair 和拒绝发送负例；connector 安装器改名必须追到真实 e2e 的 env/容器/卷/身份断言，不能只测脚本文本；Linux 策略内容、builder 资源、hook 根路径和加载/卸载名称需一起核对。归档 workflow 契约通过只证明历史文件，不证明当前启用的发布 gate。源码补齐不等于 Linux/Docker 实测；缺执行环境或可信镜像时显式保留平台阻断，不能机械给旧镜像 digest 换仓库名。
 
+## Legacy browser close 调用者总预算
+
+- 排队后才建立截止、native close 用完全部预算后再给 fallback 独立 grace，会让局部超时失去调用者意义。基线 `98b25c17` 的合成回归为 2 红/1 绿；enqueue 起固定截止传入 list/discovery/native/disappearance/fallback，owned tree 保留 fallback 时间，closeAll 首次 list 也扣时。到期、进程表失败和未确认 command close 均保守 false；旧命令 close 未确认时保留 session fence，不留独立五秒 KILL timer。不得用根 PID gone 或计数代替 tree/stdio 确认。
+- 首轮产品检查 114 通过/3 失败/2 平台跳过：半预算产生小数 `execFile.timeout`，Node 同步拒绝，先创建的 timer 又访问未初始化 child。整数截断并处理同步拒绝；新增近截止和悬挂 ps 回归。第二轮 136 通过/1 失败/2 跳过剩新 fake-clock fixture 只推进 0ms，后续零延时枚举尚未执行；修正夹具推进 1ms，不改产品、既有断言或预算。类型检查另发现 mock 把可选 deadline 误写必需，修正测试类型；20 秒工具超时的首次 types 无 post receipt，保留 incomplete。
+- 回归入口 `server/browser-close-budget.test.ts`、`server/browser-process-budget.test.ts` 与既有 engine/process/lifecycle suites；真实 owned Node 子进程覆盖非零/timeout/exit 先于 stdio close。一次既有 packaged 0.37 独立 close 边界捕获 5 成员/2 组，224.3ms 返回 true，随后 tree absent 与空 inventory 才删本次目录。未含冻结 cancellation candidate；direct/redirect＋完整 shared raw probe 必须在获审组合上另验，原 native false 原因/inner fallback wait 仍 unknown。无真实模型、用户 Chrome、Keychain、依赖或安装动作。检查与维护/安全审查限制见 [验证说明](../verification/browser-close-budget.md)，集成前仍须独立产品安全复审；阻塞 I/O、墙钟调整、Windows/Linux 平台不在本次保证内。
+
 ## Chrome 子进程关闭边界
 
 - Node 24 的额外 stdio pipe 是 Duplex；`exit` 只证明根进程已退出，`end()` 只结束写半边，均不等于 `ChildProcess.close`。CDP launch 的 close/kill 和握手失败收尾必须回收本端 fd3/4 并有界等待实际 close，registry 在 close 后才移除；超时抛错、保留 profile/registry 证据。回归 `server/browser/chrome/launch.test.ts` 使用真实 Node 假 Chrome 和短暂继承 fd3/4 的辅助进程制造 exit 先于 close，另用 mock 验证 close 永不到及握手失败清理未知；`server/browser/cdp/connection.test.ts` 验证两端完整销毁。根进程 close 不证明所有 Chrome helper 或外部资源已消失，需单独进程审计。原 S4-actions 功能 32 pass 但缺 close 的 `ok:false` 记录不得被补验覆盖。

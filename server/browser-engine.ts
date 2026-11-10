@@ -80,30 +80,46 @@ function daemonControlEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv | null {
   return controlEnv;
 }
 
-function runBrowserCommand(binaryPath: string, env: NodeJS.ProcessEnv, args: string[], deadline: number, capture = false): Promise<{ ok: boolean; output: string }> {
+const pendingBrowserCommands = new Map<string, Set<ReturnType<typeof spawn>>>();
+
+type BrowserCommandResult = { ok: boolean; output: string; closed: boolean; outcome: "exit" | "timeout" | "spawn" | "overflow" };
+function runBrowserCommand(binaryPath: string, env: NodeJS.ProcessEnv, args: string[], deadline: number, capture = false): Promise<BrowserCommandResult> {
+  const key = browserDaemonFile(env, ".pid");
+  if (Date.now() >= deadline || pendingBrowserCommands.has(key)) return Promise.resolve({ ok: false, output: "", closed: false, outcome: "timeout" });
   return new Promise((done) => {
     let settled = false;
     let output = "";
-    const finish = (ok: boolean) => { if (!settled) { settled = true; done({ ok, output }); } };
+    let outcome: BrowserCommandResult["outcome"] = "exit";
+    let closed = false;
+    let timer: NodeJS.Timeout;
+    let killTimer: NodeJS.Timeout;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer); clearTimeout(killTimer);
+      done({ ok, output, closed, outcome });
+    };
     let child: ReturnType<typeof spawn>;
     try { child = spawnBotWork(() => spawn(binaryPath, args, { env, stdio: capture ? ["ignore", "pipe", "ignore"] : "ignore", windowsHide: true })); }
-    catch { return finish(false); }
-    let exited = false;
-    let killTimer: NodeJS.Timeout | undefined;
-    const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      killTimer = setTimeout(() => { if (!exited) child.kill("SIGKILL"); }, 5_000);
-      killTimer.unref?.();
-      finish(false);
-    }, Math.max(1, deadline - Date.now()));
-    timer.unref?.();
+    catch { outcome = "spawn"; return finish(false); }
+    const pending = new Set([child]);
+    pendingBrowserCommands.set(key, pending);
+    const kill = () => { try { child.kill("SIGKILL"); } catch {} child.stdout?.destroy?.(); };
+    const remaining = deadline - Date.now();
+    killTimer = setTimeout(() => { outcome = "timeout"; kill(); }, Math.max(0, remaining - Math.min(100, remaining / 4)));
+    timer = setTimeout(() => finish(false), Math.max(0, remaining));
     child.stdout?.on("data", (chunk: Buffer) => {
+      if (output.length > 262_144) return;
       output += String(chunk);
-      if (output.length > 262_144) { clearTimeout(timer); child.kill(); finish(false); }
+      if (output.length > 262_144) { outcome = "overflow"; kill(); }
     });
-    child.on("error", () => { exited = true; clearTimeout(timer); clearTimeout(killTimer); finish(false); });
-    // exit can precede the last piped stdout chunk; close follows stdio.
-    child.on("close", (code) => { exited = true; clearTimeout(timer); clearTimeout(killTimer); finish(code === 0); });
+    child.on("error", () => { outcome = "spawn"; });
+    // Node's close follows exit and stdio; an unconfirmed child keeps this session fenced even after timeout.
+    child.on("close", (code) => {
+      closed = true;
+      if (pendingBrowserCommands.get(key) === pending) pendingBrowserCommands.delete(key);
+      finish(outcome === "exit" && code === 0 && Date.now() < deadline);
+    });
   });
 }
 
@@ -129,45 +145,58 @@ const closingBrowsers = new Map<string, Promise<boolean>>();
 export function closeBrowserSession(binaryPath: string, env: NodeJS.ProcessEnv, timeoutMs = 15_000): Promise<boolean> {
   const session = env.AGENT_BROWSER_SESSION;
   if (!session || !/^[A-Za-z0-9_.-]{1,96}$/.test(session)) return Promise.resolve(false);
-  const key = browserDaemonFile(env, ".pid");
-  const attempt = (closingBrowsers.get(key) ?? Promise.resolve(true)).then(() => closeOnce(binaryPath, env, session, timeoutMs)).catch(() => false).finally(() => {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  const snapshot = { ...env };
+  const key = browserDaemonFile(snapshot, ".pid");
+  const identity = () => { try { return readFileSync(key, "utf8").trim(); } catch { return null; } };
+  const requested = identity();
+  const current = () => identity() === requested;
+  const attempt = (closingBrowsers.get(key) ?? Promise.resolve(true)).then(() => Date.now() < deadline && current() ? closeOnce(binaryPath, snapshot, session, deadline, current) : false).catch(() => false).finally(() => {
     if (closingBrowsers.get(key) === attempt) closingBrowsers.delete(key);
   });
   closingBrowsers.set(key, attempt);
-  return attempt;
+  return new Promise((done) => {
+    const timer = setTimeout(() => done(false), Math.max(0, deadline - Date.now()));
+    void attempt.then((ok) => { clearTimeout(timer); done(ok); });
+  });
 }
 
-async function closeOnce(binaryPath: string, env: NodeJS.ProcessEnv, session: string, timeoutMs: number): Promise<boolean> {
+async function closeOnce(binaryPath: string, env: NodeJS.ProcessEnv, session: string, deadline: number, current: () => boolean): Promise<boolean> {
   const closeEnv = daemonControlEnv(env);
-  if (!closeEnv) return false;
-  const deadline = Date.now() + timeoutMs;
+  if (!closeEnv || pendingBrowserCommands.has(browserDaemonFile(env, ".pid"))) return false;
   // `close` to a stopped session starts a daemon only to stop it again and leaves its .config file behind.
   const running = await runningBrowserSessions(binaryPath, closeEnv, deadline);
-  if (!running) return false;
+  if (!running || Date.now() >= deadline || !current()) return false;
   if (!running.includes(session)) return true;
   const pidFile = browserDaemonFile(env, ".pid");
   const daemonPid = () => { try { return readFileSync(pidFile, "utf8").trim(); } catch { return null; } };
   const closing = daemonPid();
   // Read first: once the daemon exits, its Chrome is re-parented and can no longer be found under it.
-  const tree = closing === null ? null : await browserProcessTree(binaryPath, Number(closing), session).catch(() => null);
-  if ((await runBrowserCommand(binaryPath, closeEnv, ["close"], deadline)).ok) {
+  const tree = closing === null ? null : await browserProcessTree(binaryPath, Number(closing), session, deadline).catch(() => null);
+  if (Date.now() >= deadline || !current()) return false;
+  const nativeDeadline = tree ? deadline - Math.min(2_000, (deadline - Date.now()) / 2) : deadline;
+  const command = await runBrowserCommand(binaryPath, closeEnv, ["close"], nativeDeadline);
+  if (!command.closed) return false;
+  if (command.ok) {
     // Native close answers before the daemon exits, and Chrome's helper processes can outlive the answer.
-    while (Date.now() < deadline) {
-      const sessions = await runningBrowserSessions(binaryPath, closeEnv, deadline);
+    while (Date.now() < nativeDeadline) {
+      const sessions = await runningBrowserSessions(binaryPath, closeEnv, nativeDeadline);
       if (!sessions) return false;
       const listed = sessions.includes(session) && daemonPid() === closing;
-      if (!listed && !(tree && await browserProcessesRunning(tree))) return true;
-      await new Promise((resolve) => setTimeout(resolve, Math.min(25, Math.max(1, deadline - Date.now()))));
+      if (!listed && !(tree && await browserProcessesRunning(tree, deadline))) return Date.now() < deadline;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(25, Math.max(0, nativeDeadline - Date.now()))));
     }
   }
-  // The tree came only from a pid file still naming this session's daemon, so a reused pid kills nothing.
-  return tree ? stopBrowserProcesses(tree) : false;
+  // A missing pid file is normal after native close; a replacement file never authorizes destructive fallback.
+  const same = () => daemonPid() === closing || daemonPid() === null;
+  return tree && Date.now() < deadline && same() ? stopBrowserProcesses(tree, 1_500, { deadline, isCurrent: same }) : false;
 }
 
 /** Starts a session's browser with its launch settings in `env`, or keeps the running one on its page: `open` without a URL. */
 export async function startBrowserSession(binaryPath: string, env: NodeJS.ProcessEnv, timeoutMs = 30_000): Promise<boolean> {
   const session = env.AGENT_BROWSER_SESSION;
   if (!session || !/^[A-Za-z0-9_.-]{1,96}$/.test(session)) return false;
+  if (pendingBrowserCommands.has(browserDaemonFile(env, ".pid"))) return false;
   await releaseBrowserProfile(env.AGENT_BROWSER_PROFILE, binaryPath, env.AGENT_BROWSER_EXECUTABLE_PATH);
   return (await runBrowserCommand(binaryPath, env, ["open", "--json", "--no-webmcp"], Date.now() + timeoutMs)).ok;
 }

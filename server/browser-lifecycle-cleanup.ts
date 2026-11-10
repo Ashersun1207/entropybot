@@ -472,10 +472,11 @@ export class BrowserSweep {
   async closeAll(timeoutMs = 4_000): Promise<void> {
     clearInterval(this.#timer);
     this.#timer = undefined;
+    const deadline = Date.now() + Math.max(0, timeoutMs);
     const binaryPath = this.#engine();
-    const owned = binaryPath ? await this.#owned(binaryPath, timeoutMs).catch(() => null) : null;
+    const owned = binaryPath ? await this.#owned(binaryPath, Math.max(0, deadline - Date.now())).catch(() => null) : null;
     await Promise.all((owned ?? []).map(async (session) => {
-      if (!await closeBrowserSession(binaryPath!, browserRuntimeEnv({ AGENT_BROWSER_SESSION: session }), timeoutMs)) {
+      if (!await closeBrowserSession(binaryPath!, browserRuntimeEnv({ AGENT_BROWSER_SESSION: session }), Math.max(0, deadline - Date.now()))) {
         console.warn(`browser ${session}: could not close its browser at shutdown`);
       }
     }));
