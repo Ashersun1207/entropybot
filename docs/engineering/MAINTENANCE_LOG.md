@@ -1,5 +1,11 @@
 # 维护审查记录
 
+## 2026-11-10：M1 journal undo R1 持久元数据一致性
+
+- 独立复审对75fcbfaf2为NEEDS-CHANGES，暂停集成。根因是readMemoryJournal的宽松可读shape被当作完整可信运行时contract，afterHash检查遗漏kind/before/beforeHash相互关系，restore的空串fallback放大缺数据影响。先在原提交产品字节上以合成NDJSON＋实际reader/revert/HTTP复现并保留原基线/206证据，再限定修改memory-journal.ts与既有tests/docs；memory-store.ts及其mutation gate不变。
+- 安全/维护复核selection→canRevert不可用拒绝→一致性predicate→current state→store mutation→append。已知kind、null/STRING区分与hash匹配在mutation前；固定409无全文/私有路径，不做journal repair/migration，不改reader成404、不引入新持久策略。原400不可用、授权/层/path/symlink/secret/capacity及legacy caller保持；duplicate ID选择不改，不提供记录真实性保证。
+- 回归包括持久坏row、exact bytes/rows/baseline/cache/vector保留、实际HTTP409与empty版本/undo chronology，入口及红例分类见[验证说明](../verification/memory-journal-revert-conflict.md)。最终相同17文件含size/docs、strict server/app/lint与source/deps/Node/runner/argv/UTC/exit/fixture hash在私有r1证据归档；只在全部通过后提交，whole-final-tree对d76的新独立复审通过前不集成。同步单进程检查不等于OS CAS/ABA/最终read后原生重入/擦除。无依赖/安装/网络/模型/Keychain/真实数据操作；不冒充全仓安全审计。
+
 ## 2026-11-10：M1 journal undo 有界候选
 
 - 基线 `d76d40da3ee5090e1b09071b4f5aef6989e3e173`；限定 journal/store 两份产品源码及相关tests/docs，无依赖、安装脚本、权限、网络、模型/提供方、schema、主控集成或真实数据变更。审查 selection→preflight→同步mutation→journal append 与 HTTP/UI refusal；安全文案无全文/私有路径，原allowlist/symlink/redaction保留。

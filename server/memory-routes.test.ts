@@ -199,6 +199,33 @@ describe("memory routes through an isolated HTTP fixture", () => {
     }
   });
 
+  it("refuses inconsistent persisted journal metadata through an actual HTTP request", async () => {
+    const path = "memory/inconsistent-http.md";
+    await api("PUT", `/api/bots/${botId}/memory/file`, { path, text: "A: retained old fact\r\n" });
+    const edited = await api("PUT", `/api/bots/${botId}/memory/file`, { path, text: "B: current fact\r\n" });
+    expect(edited.status).toBe(200);
+    await api("GET", `/api/bots/${botId}/memory/journal`);
+    const journalPath = join(fixture.info.dataDir, "memory-journal", `${botId}.ndjson`);
+    const original = readFileSync(journalPath, "utf8");
+    const current = readFileSync(join(workspace(), path));
+    for (const patch of [{ before: null }, { kind: "unknown-operation" }, { kind: "created" }]) {
+      const lines = original.trimEnd().split("\n").map((line) => {
+        const row = JSON.parse(line);
+        return JSON.stringify(row.id === edited.body.entry.id ? { ...row, ...patch } : row);
+      });
+      writeFileSync(journalPath, lines.join("\n") + "\n");
+      const journal = readFileSync(journalPath);
+      const response = await api("POST", `/api/bots/${botId}/memory/journal/${edited.body.entry.id}/revert`);
+      await api("GET", `/api/bots/${botId}/memory/journal`);
+      const after = readFileSync(join(workspace(), path));
+      console.log(JSON.stringify({ phase: "http-inconsistent-journal", patch, status: response.status, docPreserved: after.equals(current), journalPreserved: readFileSync(journalPath).equals(journal), fixtureHash: hashMemoryText(after.toString("utf8")), journalHash: hashMemoryText(journal.toString("utf8")) }));
+      expect(response.status).toBe(409);
+      expect(response.body).toEqual({ error: "This journal entry is inconsistent. Reread and review the current memory before undoing." });
+      expect(after).toEqual(current);
+      expect(readFileSync(journalPath)).toEqual(journal);
+    }
+  });
+
   it("keeps latest undo and undo-of-revert audit chronology through HTTP", async () => {
     const path = "memory/undo-latest.md";
     const save = async (text: string) => (await api("PUT", `/api/bots/${botId}/memory/file`, { path, text })).body;

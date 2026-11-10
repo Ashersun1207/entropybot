@@ -356,14 +356,28 @@ export type RevertResult =
   | { ok: true; entry: MemoryJournalEntry | null; doc: MemoryDoc }
   | { ok: false; status: number; error: string };
 
+function isMemoryHash(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+function hasConsistentRevertState(entry: MemoryJournalEntry): entry is MemoryJournalEntry & (
+  | { kind: "created"; before: null }
+  | { kind: "edited" | "deleted"; before: string }
+) {
+  if (entry.kind === "created") return entry.before === null && entry.beforeHash === null && isMemoryHash(entry.afterHash);
+  if (entry.kind !== "edited" && entry.kind !== "deleted") return false;
+  return typeof entry.before === "string" && isMemoryHash(entry.beforeHash)
+    && hashMemoryText(entry.before) === entry.beforeHash
+    && (entry.kind === "deleted" ? entry.afterHash === null : isMemoryHash(entry.afterHash));
+}
+
 export function revertMemoryChange(botId: string, entryId: string, opts: { threadId?: string } = {}): RevertResult {
   const entry = readMemoryJournal(botId, MAX_ROWS).find((row) => row.id === entryId);
   if (!entry) return { ok: false, status: 404, error: "no such memory change" };
   if (!entry.canRevert) return { ok: false, status: 400, error: entry.revertUnavailableReason ?? "this change cannot be reverted" };
   try {
-    if ((entry.kind === "deleted" && entry.afterHash !== null)
-      || (entry.kind !== "deleted" && (typeof entry.afterHash !== "string" || !/^[a-f0-9]{64}$/.test(entry.afterHash)))) {
-      throw new MemoryStoreError("conflict", 409, "This journal entry has no valid after-state. Reread and review the current memory before undoing.");
+    if (!hasConsistentRevertState(entry)) {
+      throw new MemoryStoreError("conflict", 409, "This journal entry is inconsistent. Reread and review the current memory before undoing.");
     }
     const expectedState = { exists: entry.kind !== "deleted", hash: entry.afterHash ?? hashMemoryText("") };
     assertMemoryDocState(readMemoryDoc(botId, entry.path), expectedState);
@@ -376,7 +390,7 @@ export function revertMemoryChange(botId: string, entryId: string, opts: { threa
       const removed = journalMemoryDelete(botId, entry.path, revertOptions);
       return { ok: true, entry: removed, doc: { path: entry.path, text: "", hash: hashMemoryText(""), exists: false } };
     }
-    const written = journalMemoryWrite(botId, entry.path, entry.before ?? "", revertOptions);
+    const written = journalMemoryWrite(botId, entry.path, entry.before, revertOptions);
     return { ok: true, entry: written.entry, doc: written.doc };
   } catch (error) {
     if (error instanceof MemoryStoreError) return { ok: false, status: error.status, error: error.message };

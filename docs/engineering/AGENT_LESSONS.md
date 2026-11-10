@@ -4,6 +4,9 @@
 
 ## Memory journal undo：必须核对记录的 after 状态与存在性
 
+- R1 独立复审 `ses_e3a1e53a5ffeKGCfC8hqUgieNL` 对75fcbfaf2退回：持久NDJSON的TS类型不能替代runtime校验。旧206通过未覆盖unknown kind、缺失/null/wrong-type before、created矛盾before和beforeHash缺失/坏格式/不匹配；matching afterHash仍可授权清空/删除/错误恢复。修复前实际reader/revert与HTTP红例保留28失败/5通过/35过滤：direct21次成功并变更、3次TypeError、3项原已409仅安全文案不同，另HTTP200清空。原d76红例与206证据不追认、不覆盖。
+- R1在canRevert=false原400拒绝之后、document读取/修改之前验证kind与before/beforeHash/afterHash关系；created须null/null，edited/deleted须STRING before与matching合法hash，deleted afterHash须null，其余合法hash。移除restore空串fallback，保留empty STRING控制及store实际mutation gate，坏row可读但undo固定409、不静默丢row变404、不修journal。负例核对exact bytes/rows、turn-boundary baseline、cache/vector，正例保留empty前态、create/edit/delete/core与undo-of-revert；import edited/redacted/overcap仍400。最终仍须相同17文件含guards、strict server/app/lint冻结验收与whole-tree对d76新独立复审；同步单进程限制不扩大为CAS/ABA/原生重入/物理擦除保证。
+
 - 整文件 undo 只拿 before 写回会覆盖后来无关事实；created 分支无条件删除/清空、deleted 分支无条件恢复也一样。合成 journal 写入＋flush＋实际 revert 的修正基线为21失败/2通过，真实隔离 HTTP 旧项 undo 返回200而应409。hash(empty) 无法区分文件缺失与存在但为空；不能从当前状态反推缺失/坏 afterHash。
 - journal 先核对 existence＋记录 afterHash，再把相同期望传到 store 实际同步 write/delete 边界；checked write 不调用会补种 MEMORY.md 的 ensureWorkspace，避免拒绝前写入缺失 core。保留旧调用者 expectedHash/无条件写兼容；冲突固定安全提示，无全文/路径，无 phantom revert row，缓存/向量保持。仅单进程同步边界，无跨进程原子CAS、ABA或最终read后原生重入保证。
 - 原 core creation test 只 record(after=hello)＋ensureWorkspace，实际是seed；保留原失败证据，补写实际after字节后保留原全部断言。普通save会先seed core，真实created core测试须用journalTurnWrite包实际文件写，不能误把edited当created。首轮HTTP夹具假设新bot已有core导致ENOENT，已改由topic覆盖HTTP负例，core用实际journal wrapper；不放松产品检查。
