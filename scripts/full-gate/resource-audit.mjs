@@ -103,16 +103,18 @@ export async function beginResourceAudit({ root, home, binding, output, registry
     const tracked = new Set([...entries, ...(previous?.processes ?? [])].map(row => row.pid));
     snapshot.processes = rows.filter(row => tracked.has(row.pid) || inside(home, userDataDirOf(row))).map(row => ({ pid: row.pid, ppid: row.ppid, startTime: row.startTime, args: row.args }));
     for (const entry of entries) {
+      const observed = rows.find(row => row.pid === entry.pid);
       if (entry.kind === "verification-process-group") {
+        if (observed && observed.startTime !== entry.startTime) {
+          snapshot.groups.push({ pgid: entry.pgid, present: null });
+          snapshot.issues.push(`registry process identity unavailable or stale: ${entry.pid}`);
+          continue;
+        }
         const present = groupPresence(entry.pgid);
         snapshot.groups.push({ pgid: entry.pgid, present });
         if (present === null || entry.status === "unknown") snapshot.issues.push(`group confirmation unknown: ${entry.pgid}`);
-        if (entry.status === "stopped") {
-          if (rows.some(row => row.pid === entry.pid && row.startTime !== entry.startTime)) snapshot.issues.push(`process identity changed: ${entry.pid}`);
-          continue;
-        }
+        if (entry.status === "stopped") continue;
       }
-      const observed = rows.find(row => row.pid === entry.pid);
       if (!observed || observed.startTime !== entry.startTime) snapshot.issues.push(`registry process identity unavailable or stale: ${entry.pid}`);
     }
     return snapshot;
@@ -148,7 +150,7 @@ export function validateResourceAudit(artifact, binding) {
   for (const snapshot of [artifact.before, artifact.after]) {
     const groups = snapshot.registries.flatMap(r => r.entries).filter(row => row.kind === "verification-process-group");
     insist(groups.every(row => row.gateNonce === artifact.gateNonce && artifact.domain === GROUP_DOMAIN && JSON.stringify(row.binding) === JSON.stringify(binding)), "process history binding mismatch");
-    insist(groups.length === (snapshot.groups?.length ?? 0) && groups.every(row => snapshot.groups.some(g => g.pgid === row.pgid && typeof g.present === "boolean")), "process group observations missing");
+    insist(groups.length === (snapshot.groups?.length ?? 0) && groups.every(row => snapshot.groups.some(g => g.pgid === row.pgid && typeof g.present === "boolean")), "resource audit process group observations missing or unknown");
     insist(groups.every(row => row.status !== "unknown"), "process history unknown");
   }
   unchanged(artifact.before.source, artifact.after.source);

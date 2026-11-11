@@ -56,7 +56,7 @@ export function groupPresence(pgid: number): boolean | null {
   catch (error) { return (error as NodeJS.ErrnoException).code === "ESRCH" ? false : null; }
 }
 
-export function startGroupHistory(child: ChildProcess, capability: GroupCapability | undefined, creator: string): GroupHistory {
+export function startGroupHistory(child: ChildProcess, capability: GroupCapability | undefined, creator: string, list: typeof listProcesses = listProcesses): GroupHistory {
   if (!capability?.processBinding) return { ready: Promise.resolve(), async finish() {} };
   const file = join(groupHistoryDirectory(capability), `${randomUUID()}.json`);
   if (!child.pid || child.pid <= 1) throw new Error("Process history requires a spawned PID");
@@ -70,18 +70,25 @@ export function startGroupHistory(child: ChildProcess, capability: GroupCapabili
   };
   persist();
   const ready = (async () => {
-    const rows = await listProcesses();
+    const rows = await list();
     row.startTime = rows?.find(p => p.pid === row.pid)?.startTime ?? null;
     row.ownerStartTime = rows?.find(p => p.pid === process.pid)?.startTime ?? null;
     if (!row.startTime || !row.ownerStartTime) row.status = "unknown";
     persist();
   })();
-  return { ready, async finish(stopped) {
-    await ready;
-    if (row.status === "unknown") return;
-    if (row.status === "stopped") { if (!stopped) { row.status = "unknown"; persist(); } return; }
-    const rows = await listProcesses();
-    row.status = stopped && rows && !rows.some(p => p.pid === row.pid) && groupPresence(row.pgid) === false ? "stopped" : "unknown";
-    persist();
+  let completion = ready;
+  return { ready, finish(stopped) {
+    const next = completion.then(async () => {
+      await ready;
+      if (row.status === "unknown") return;
+      if (row.status === "stopped") { if (!stopped) { row.status = "unknown"; persist(); } return; }
+      try {
+        const rows = await list();
+        row.status = stopped && rows && !rows.some(p => p.pid === row.pid) && groupPresence(row.pgid) === false ? "stopped" : "unknown";
+        persist();
+      } catch (error) { row.status = "unknown"; persist(); throw error; }
+    });
+    completion = next.catch(() => {});
+    return next;
   } };
 }

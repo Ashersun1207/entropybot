@@ -2,6 +2,13 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## F2 durable group history R1：异步终态与 probe 前身份检查
+
+- 独立审查 `ses_e35789528ffequ09437rb8vVXZ` 对 `71954de6357ff8e861bca0768661e5e37a071e41` 返回两项P2。改产品前，在原clean提交公开API实际复现2失败：owned child已退出并reaped，`Promise.all([finish(false), finish(true)])`最后持久化stopped；valid-MAC stale startTime的live owned leader使audit unknown，但两次signal-0 probe先于身份比较。旧493绿例未覆盖并发完成与调用顺序，不能追认为这两个不变量已成立；没有证明live group获接受或新的release bypass。
+- 每次finish单独排队而非coalesce首个Promise；ready和前次完成后重查终态，unknown不可恢复，stopped可降unknown。completion inventory拒绝也先持久化unknown再向调用者reject，不让后续true覆盖失败。公开测试以实际owned child startTime/退出为基础，控制异步inventory完成时机，覆盖false/true、true/false的同时/延迟观察及重复stop/unknown；测试注入不替代POSIX真实进程证据。
+- audit发现present leader时先比较startTime；stale/unreadable保持unknown且零process.kill调用，再谈groupPresence。leader缺席仍须signal-0检查同group孤儿，原false-stopped live/leaderless负例不删。MAC沿用同capability secret，不是独立信任权威；原三处blocker、completeCleanup=false及servergen/unscoped/direct/escaped等限制保留，无用户接受风险/审批声明。
+- R1第一轮36项为35通过/1失败：旧stale负例收到`process group observations missing`但原regex要求audit/history。保留失败回执，第二轮明确未probe的presence=null并给原validator错误加resource audit上下文，保持boolean观察要求和原拒绝断言，不放宽为clear。最终clean committed源码/依赖hash、实际red与公开green、全部冻结检查见外层 `f2-durable-group-identity/review-r1/`；独立复审后才可由主控集成，quality ledger不动。
+
 ## F2：durable group history 必须与 lease 目录分离
 
 - `assertGateLeases` 对 capability.directory 每个条目要求 UUID.json 和有效 MAC；新 process history 必须放 canonical owned home 的 sibling `verification-processes/`（0700），不能在 leases 内加目录或放宽断言。`readGroupHistory` 返回认证记录与显式文件路径；audit 两次发现并保留路径 union，不能用最终空目录掩盖已观察的删除。

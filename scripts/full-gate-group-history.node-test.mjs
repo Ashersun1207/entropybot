@@ -74,6 +74,65 @@ test("public history persists start/owner/source identity and terminal stop; lea
   assert.equal(readGroupHistory(f.capability).identities[0].status, "unknown");
 });
 
+for (const order of [[false, true], [true, false]]) for (const delayed of [false, true]) test(`concurrent finish ${order} with ${delayed ? "delayed" : "immediate"} inventory preserves terminal unknown`, async t => {
+  const f = fixture(t); const p = await owned(t);
+  let release;
+  let observing;
+  const held = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { observing = resolve; });
+  let calls = 0;
+  const inventory = async () => {
+    const rows = await listProcesses();
+    if (++calls > 1 && delayed) { observing(); await held; }
+    return rows;
+  };
+  const history = startGroupHistory(p.child, f.capability, "concurrent-finish", inventory);
+  await history.ready; await p.stop();
+  assert.equal(groupPresence(p.child.pid), false);
+  const first = history.finish(order[0]);
+  if (delayed) await started;
+  const second = history.finish(order[1]);
+  release();
+  await Promise.all([first, second]);
+  assert.equal(readGroupHistory(f.capability).identities[0].status, "unknown");
+  await Promise.all([history.finish(true), history.finish(true), history.finish(false)]);
+  await history.finish(true);
+  assert.equal(readGroupHistory(f.capability).identities[0].status, "unknown");
+});
+
+test("rejected completion inventory persists unknown before the next queued stop", async t => {
+  const f = fixture(t); const p = await owned(t);
+  let calls = 0;
+  const history = startGroupHistory(p.child, f.capability, "failed-inventory", async () => {
+    if (++calls > 1) throw new Error("synthetic completion inventory failure");
+    return listProcesses();
+  });
+  await history.ready; await p.stop();
+  const outcomes = await Promise.allSettled([history.finish(false), history.finish(true)]);
+  assert.equal(outcomes[0].status, "rejected"); assert.equal(outcomes[1].status, "fulfilled");
+  await history.finish(true);
+  assert.equal(readGroupHistory(f.capability).identities[0].status, "unknown");
+});
+
+for (const status of ["pending", "stopped"]) for (const identity of ["stale", "unreadable"]) test(`${status} record with ${identity} present leader causes zero audit probes; control survives`, async t => {
+  const f = fixture(t); const p = await owned(t); const control = await owned(t);
+  const history = startGroupHistory(p.child, f.capability, "guarded-probes"); await history.ready;
+  resign(f.capability, readGroupHistory(f.capability).files[0], row => {
+    row.status = status;
+    if (identity === "stale") row.startTime += "-stale";
+  });
+  const original = process.kill; const calls = [];
+  process.kill = function(pid, signal) { calls.push({ pid, signal }); return original.call(process, pid, signal); };
+  let result;
+  try {
+    const list = async () => (await listProcesses()).map(row => identity === "unreadable" && row.pid === p.child.pid ? { ...row, startTime: null } : row);
+    result = await (await beginResourceAudit({ ...f, list })).finish();
+  } finally { process.kill = original; }
+  assert.equal(result.status, "unknown"); assert.deepEqual(calls, []);
+  assert.throws(() => validateResourceAudit(result, f.binding), /audit|observations/);
+  assert.equal((await listProcesses()).find(row => row.pid === control.child.pid)?.startTime, control.row.startTime);
+});
+
 test("GateCommandRunner creates discoverable history after audit begins, then confirms actual disappearance", async t => {
   const f = fixture(t); const audit = await beginResourceAudit(f);
   const runner = new GateCommandRunner({ processCapability: f.capability, handleSignals: false });

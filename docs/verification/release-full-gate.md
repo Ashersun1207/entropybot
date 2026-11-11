@@ -835,3 +835,60 @@ transport, two spawn hooks, audit and staging source bindings. No dependencies,
 lockfiles, workflow, trust/asset/reviewer approvals, network, installs, builds,
 user data or terminating-signal algorithm change. Existing installed dependencies
 are symlinked; no installation is attempted.
+
+### Durable history independent review R1
+
+Reviewer `ses_e35789528ffequ09437rb8vVXZ` returned two P2 findings against
+`71954de6357ff8e861bca0768661e5e37a071e41`. Public API probes on that unchanged,
+clean commit reproduced both before source changes: after an owned child exited
+and was reaped, concurrent `finish(false)` and `finish(true)` left its history
+stopped; a valid-MAC stale start identity for an actual live owned leader produced
+an unknown audit but made two signal-0 group probes before the identity check.
+This demonstrates a history terminal-state race and incorrect probe ordering.
+It does not demonstrate acceptance of a live group; the independent audit and
+unconditional release/resource blockers are separate safeguards.
+
+Completion operations now serialize individually, including later false outcomes
+when a true completion was queued first. Each checks terminal state after ready
+and earlier operations finish. Unknown never reopens; stopped may degrade to
+unknown. Completion inventory rejection persists unknown and still rejects to
+the caller. An optional inventory function on the public history API permits
+controlled asynchronous observations in regression tests; production uses the
+unchanged process observer. The tests initialize and reap real owned children,
+then cover both boolean call orders with immediate and delayed observations,
+repeated stops/unknown and an inventory rejection followed by another completion.
+
+The audit compares any present leader's start identity before calling
+groupPresence. Stale identity records keep unknown group presence and make zero
+process.kill calls; unreadable process identities also remain unknown before
+any probe. Both pending and stopped stale/unreadable cases retain a live unrelated
+control. Leader absence still requires a group-presence probe so a leaderless
+same-group descendant cannot be hidden by a false stopped claim. The observer
+adds no terminating signal. Existing false-stopped and fixture ownership guards
+remain required.
+
+The first repair run had 35 passes and one failure among 36 focused assertions:
+the original stale-history rejection assertion expected an audit/history error,
+while the validator emitted `process group observations missing`. That failed
+run remains retained. The second round records skipped stale probes as unknown
+presence and adds `resource audit` context to the validator error. Its requirement
+for complete boolean group observations and the original rejection assertion
+remain intact; no unknown evidence becomes clear.
+
+R1 frozen validation targets 502 Node assertions (493 prior plus nine R1 cases),
+55 existing gate/lifecycle/scope assertions, eight size/docs guards, scoped lint,
+tools and strict-runner scoped TypeScript, 320 public pins, 17 CLI records/13
+original reports and the existing install/bootstrap fixtures. Exact actual
+outcomes, source/selected dependency hashes, pre/post SHA/tree/clean status,
+commands/environments, UTC times and logs are retained separately in
+`private/engineering-foundation-evidence/f2-durable-group-identity/review-r1/`.
+All source is committed before frozen checks. The earlier evidence remains
+unchanged. Two scoped repair rounds are the limit; independent re-review is
+required before controller integration. The quality ledger stays controller-owned.
+
+The confirmation domain, source closure file count, capability-secret HMAC trust
+scope and all three unconditional blockers remain unchanged. This is no risk
+waiver or user approval. Server generations, unscoped/direct spawners, escaped
+resources, same-UID interference, start-time resolution, record-count and platform
+limits still apply. There are no supervisor budget, lease algorithm, product,
+workflow, dependency, install/signature policy or approval-root changes.
