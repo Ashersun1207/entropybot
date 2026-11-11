@@ -1,0 +1,330 @@
+{
+  "schemaVersion": 1,
+  "status": "unapproved-read-only-evidence",
+  "sourceBaseline": "d5ddb3bba024df2a8848b14750aa75497227d9b5",
+  "sourceTree": "8ce19f7d1bb73aa58e26bc6c23d6dc6c729d7408",
+  "consumer": "none; outside producer trust closure",
+  "approval": false,
+  "cryptographicVerificationPerformed": false,
+  "signatureVerification": "unavailable-toolgap",
+  "verifierSearch": {
+    "utc": "2026-11-11T10:22:36.517402+00:00",
+    "checks": [
+      {
+        "path": "/usr/bin/gpg",
+        "exists": false,
+        "symlink": false,
+        "executable": false
+      },
+      {
+        "path": "/usr/bin/gpgv",
+        "exists": false,
+        "symlink": false,
+        "executable": false
+      },
+      {
+        "path": "/usr/bin/sq",
+        "exists": false,
+        "symlink": false,
+        "executable": false
+      },
+      {
+        "path": "/usr/local/bin/gpg",
+        "exists": false,
+        "symlink": false,
+        "executable": false
+      },
+      {
+        "path": "/usr/local/bin/gpgv",
+        "exists": false,
+        "symlink": false,
+        "executable": false
+      },
+      {
+        "path": "/usr/local/bin/sq",
+        "exists": false,
+        "symlink": false,
+        "executable": false
+      },
+      {
+        "path": "/opt/homebrew/bin/gpg",
+        "exists": false,
+        "symlink": false,
+        "executable": false
+      },
+      {
+        "path": "/opt/homebrew/bin/gpgv",
+        "exists": false,
+        "symlink": false,
+        "executable": false
+      },
+      {
+        "path": "/opt/homebrew/bin/sq",
+        "exists": false,
+        "symlink": false,
+        "executable": false
+      }
+    ],
+    "executed": false
+  },
+  "officialPublication": [
+    {
+      "repository": "nodejs/node",
+      "commit": "77e63793adc78164cd3b5b5147d0c7ef02b543c2",
+      "tree": "5cf0d28c91de1bd85b9c04b0643b8a38e633a66e",
+      "commitURL": "https://github.com/nodejs/node/commit/77e63793adc78164cd3b5b5147d0c7ef02b543c2",
+      "readmeURL": "https://raw.githubusercontent.com/nodejs/node/77e63793adc78164cd3b5b5147d0c7ef02b543c2/README.md",
+      "readmeSha256": "08884b12cde6dfd5ca9ea53ff85913b310381298c267f84aa5d421c93fc61da1",
+      "readmeGitBlob": "3b7d93827ae99ff451a4ff9016dbd254cd5776b8",
+      "githubCommitVerificationMetadata": {
+        "verified": true,
+        "reason": "valid",
+        "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq9CcQCRC1aQ7uu5UhlAAANO8QAGMMrHTKhQ2YbqzbvsfN/zuB\nSlCWcvw9R4mH9zyz1T1yPwiEpmhpksIyUC9vEn5S3E+ReY6E1u+9XTw1ApJrE3DD\n1+EPuEYk5FNzDTFkVh2WqGnxqUX34yVF8u0VdkGCZO50bFI4mfYIfGYyNE8SYOWg\nP+uC8PxAAbrpZWd0fBSZHM0xeWSEx+k6QDOgK6E4pQZfcH7mYv2QBKV7gDCmwwDx\nQJykYDtAtS6pJYdviUGQOretet6Zn7dr7WMA6eTMGtdkexkb0GCkMr2AbxaA6UhT\nsB/B9iEzPeX9NFCrl4ZXmFCmS7zDkF0udiSZ5+PJy30XZQxmYBiQFN1OAp+r8jcp\nA5trvXJAh1lbE0noP72tfIdvlfPgOEJNEWgAosPU1aOrQk5HAsqYoVuS2/+Tp66v\naJn0mCB9KnXO2laIQDCXoOHwljATabxFozJUKIqnL04M9QfwzcTMAMlb+rqYNK4N\n0ySoit+ndhfIv1nKfPUgGVyXcT94EWbsLVizzb92s89qmj8QI3OrxMpH8d1MdNo2\nVxYU8lB8nichLQuhaPc+oNxofWYiSCkj/PL+FxYaOdLFw3dexZ8FKwBkudg8ESSg\n6chMMpt2droha4craWMfaXiBnMBtynRIWOpSDtLOiILRIoEIkMeQ4pPhuj3AI+I4\nhFLjURoYm7aupM3Az8Fh\n=utne\n-----END PGP SIGNATURE-----\n",
+        "payload": "tree 5cf0d28c91de1bd85b9c04b0643b8a38e633a66e\nparent e8c1160d202f324122689c9a7f24905bb73839e2\nauthor Aviv Keller <me@aviv.sh> 1794385679 -0500\ncommitter GitHub <noreply@github.com> 1794385679 +0000\n\nlib: enable web worker api by default\n\nSigned-off-by: avivkeller <me@aviv.sh>\nPR-URL: https://github.com/nodejs/node/pull/65323\nRefs: https://github.com/nodejs/node/pull/64894\nRefs: https://github.com/nodejs/node/issues/43583\nReviewed-By: Filip Skokan <panva.ip@gmail.com>\nReviewed-By: G\u00fcrg\u00fcn Day\u0131o\u011flu <hey@gurgun.day>\nReviewed-By: Matteo Collina <matteo.collina@gmail.com>",
+        "verified_at": "2026-11-11T08:28:00Z"
+      },
+      "readmeHTTP": {
+        "url": "https://raw.githubusercontent.com/nodejs/node/77e63793adc78164cd3b5b5147d0c7ef02b543c2/README.md",
+        "started": "2026-11-11T10:22:37.654777+00:00",
+        "redirects": [],
+        "proxy": "disabled",
+        "capBytes": 2097152,
+        "socketTimeoutSeconds": 20,
+        "elapsedCheckSeconds": 60,
+        "method": "GET",
+        "status": 200,
+        "finalURL": "https://raw.githubusercontent.com/nodejs/node/77e63793adc78164cd3b5b5147d0c7ef02b543c2/README.md",
+        "headers": {
+          "Connection": "close",
+          "Content-Length": "43029",
+          "Cache-Control": "max-age=300",
+          "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+          "Content-Type": "text/plain; charset=utf-8",
+          "ETag": "\"b7adb30cd6f857efd06354d965e08ab72513973c4993d4e786d1c1ffc0c2eac3\"",
+          "Strict-Transport-Security": "max-age=31536000",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "deny",
+          "X-XSS-Protection": "1; mode=block",
+          "X-GitHub-Request-Id": "91B8:550AD:212EAB:276B9D:6AF441ED",
+          "x-github-edge-region": "southeastasia",
+          "Accept-Ranges": "bytes",
+          "Date": "Wed, 11 Nov 2026 10:22:38 GMT",
+          "Via": "1.1 varnish",
+          "X-Served-By": "cache-sin-wsap440052-SIN",
+          "X-Cache": "MISS",
+          "X-Cache-Hits": "0",
+          "X-Timer": "S1794392558.987603,VS0,VE256",
+          "Vary": "Authorization,Accept-Encoding",
+          "Access-Control-Allow-Origin": "*",
+          "Cross-Origin-Resource-Policy": "cross-origin",
+          "X-Fastly-Request-ID": "58d987f6c192fdabf5ea7849e1e440bf7c1000f1",
+          "Expires": "Wed, 11 Nov 2026 10:27:38 GMT",
+          "Source-Age": "0"
+        },
+        "bytes": 43029,
+        "sha256": "08884b12cde6dfd5ca9ea53ff85913b310381298c267f84aa5d421c93fc61da1",
+        "finished": "2026-11-11T10:22:38.333349+00:00"
+      }
+    },
+    {
+      "repository": "nodejs/release-keys",
+      "commit": "481637f813e912c4aa3622d7964ab426c97b8e8d",
+      "tree": "ff100f7e33b8131f81544f555fd51c57b1a33de7",
+      "commitURL": "https://github.com/nodejs/release-keys/commit/481637f813e912c4aa3622d7964ab426c97b8e8d",
+      "readmeURL": "https://raw.githubusercontent.com/nodejs/release-keys/481637f813e912c4aa3622d7964ab426c97b8e8d/README.md",
+      "readmeSha256": "caee8c460eee4240f17e11290032b71ee1a5ba06fdbc106db4b77d097b5cca49",
+      "readmeGitBlob": "5a37aafa77aa739e07b8400f451e3df2d7d11d3b",
+      "githubCommitVerificationMetadata": {
+        "verified": true,
+        "reason": "valid",
+        "signature": "-----BEGIN PGP SIGNATURE-----\n\niQHMBAABCgA2FiEEiQwI24V5Fi/uDfnbi+q0389VXvQFAmqW5AUYHHJhZmFlbC5u\ndW51QGhvdG1haWwuY29tAAoJEIvqtN/PVV70+CcL/1GeqQQi3/VeLpW22P+tM3C7\nTfm7VnNQ5HHNjs4JOcUNBoZEVO8sRWRpPnZs2VtIGGwI7yG98vp8rhDZrraSjWJ7\nM27CNu3HDSzDbl71ah3ier3Ura5rp4udNz2EdWu5Kari2d+7OGhMCrPNKR2RbUXT\nDlvJqbzNvEpvSVnMaSTpUFCR74O6C5r8qCq+j4R064iO4n9DwjWBjqQV5eIjuJRk\nDfQjF+nhQGaxDZ58lWTYs6kdn4qKxSfpVX6LydgwcvWFvMH62yrKZgtYI5U6eLdB\nC64mMLZ3Y+fw0zuR3cMgsLdbpqN6nZMIhHrvy+gp8yy6NFyFGl5jwxHrr2EThIPl\npf69CpAgLXxdcP1rK45QVL2o5r3xKibIYHF6Rf8No4Osa3NbqBO0gTBJ4BhrBxXs\nc+lwqh3oxaASwTAyXkM2pztxNsGU6RNRCebcqPSXJHZ3pDvjNESuMATJU2UQbHMH\ngQIt9/Yw4BBso++fWjVHKx3GWLlIiiN7E+9m8KVUPA==\n=sWXW\n-----END PGP SIGNATURE-----",
+        "payload": "tree ff100f7e33b8131f81544f555fd51c57b1a33de7\nparent 5b7f55f4a7e35d1176d27a6b81b0c3c3b794216b\nauthor RafaelGSS <rafael.nunu@hotmail.com> 1788273669 -0300\ncommitter RafaelGSS <rafael.nunu@hotmail.com> 1788273669 -0300\n\nkeyring: update expiry for RafaelGSS key (#59)\n\nPrimary key and encryption subkey now expire 2027-06-04. Key also pushed to keyserver.ubuntu.com and keys.openpgp.org.\n\nFixes: https://github.com/nodejs/release-keys/issues/57\n",
+        "verified_at": "2026-09-01T14:42:11Z"
+      },
+      "readmeHTTP": {
+        "url": "https://raw.githubusercontent.com/nodejs/release-keys/481637f813e912c4aa3622d7964ab426c97b8e8d/README.md",
+        "started": "2026-11-11T10:22:39.802663+00:00",
+        "redirects": [],
+        "proxy": "disabled",
+        "capBytes": 2097152,
+        "socketTimeoutSeconds": 20,
+        "elapsedCheckSeconds": 60,
+        "method": "GET",
+        "status": 200,
+        "finalURL": "https://raw.githubusercontent.com/nodejs/release-keys/481637f813e912c4aa3622d7964ab426c97b8e8d/README.md",
+        "headers": {
+          "Connection": "close",
+          "Content-Length": "6069",
+          "Cache-Control": "max-age=300",
+          "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+          "Content-Type": "text/plain; charset=utf-8",
+          "ETag": "\"13943dffd9c8858a2227230fa1bcee0337b056af3dd4715d9b09dc17953eab26\"",
+          "Strict-Transport-Security": "max-age=31536000",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "deny",
+          "X-XSS-Protection": "1; mode=block",
+          "X-GitHub-Request-Id": "7F0A:B4945:81C02C:88A253:6AF441F0",
+          "x-github-edge-region": "fra",
+          "Accept-Ranges": "bytes",
+          "Date": "Wed, 11 Nov 2026 10:22:40 GMT",
+          "Via": "1.1 varnish",
+          "X-Served-By": "cache-sin-wsat1880077-SIN",
+          "X-Cache": "MISS",
+          "X-Cache-Hits": "0",
+          "X-Timer": "S1794392560.141390,VS0,VE783",
+          "Vary": "Authorization,Accept-Encoding",
+          "Access-Control-Allow-Origin": "*",
+          "Cross-Origin-Resource-Policy": "cross-origin",
+          "X-Fastly-Request-ID": "8d74e00ba50b2171c6093c7badd18dc5a575843c",
+          "Expires": "Wed, 11 Nov 2026 10:27:40 GMT",
+          "Source-Age": "0"
+        },
+        "bytes": 6069,
+        "sha256": "caee8c460eee4240f17e11290032b71ee1a5ba06fdbc106db4b77d097b5cca49",
+        "finished": "2026-11-11T10:22:40.972133+00:00"
+      }
+    }
+  ],
+  "key": {
+    "publishedFullFingerprint": "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356",
+    "publishedName": "Antoine du Hamel",
+    "rawArmor": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmDMEaGA63BYJKwYBBAHaRw8BAQdAo/yU+MutacFmmn0CEX495goNrBxR24235XLM\ncvHYjfq0L0FudG9pbmUgZHUgSGFtZWwgPGR1aGFtZWxhbnRvaW5lMTk5NUBnbWFp\nbC5jb20+iI4EExYKADYWIQRb6KP2yKXAHRBsCtggsaOQsWjTVgUCaGA63AIbAwQL\nCQgHBBUKCQgFFgIDAQACHgUCF4AACgkQILGjkLFo01afgwEA/sLHqsj7ml2vyDoT\nKDPE8n9a80ZOh14OfnlOe0cCZA8BAMEOOk7QFI69DIlV1nMiqcFCqQFoSzBU2LkI\nR17p/j4NtDNBbnRvaW5lIGR1IEhhbWVsIDxhbnRvaW5lLmR1aGFtZWxAcGxhdGZv\ncm1hdGljLmRldj6IjgQTFgoANhYhBFvoo/bIpcAdEGwK2CCxo5CxaNNWBQJpsCMx\nAhsDBAsJCAcEFQoJCAUWAgMBAAIeAQIXgAAKCRAgsaOQsWjTVr/sAPwIBsG8g6ND\nzoNRTX1wPKBvfZg1NP7tYCyM5sxQfrpuLAEA05AhG4xBILfhL/f0pqR5jXfxg6gz\nT6WfeVeS6zeHZwe4OARoYDrcEgorBgEEAZdVAQUBAQdAQVmtih8AO3ryBQMR/22x\nWHVKLjAbCiH2cMxNH+iy1RQDAQgHiHgEGBYKACAWIQRb6KP2yKXAHRBsCtggsaOQ\nsWjTVgUCaGA63AIbDAAKCRAgsaOQsWjTVu8oAP9Bc+QY+9FikX3YvMgWAqiDlVOy\no0y6UIZGBMSQlF80wAD/d34LqtVIVe9oe5NO3xA75+6Ew8tGeAjUq/ovagr5dAU=\n=JsVv\n-----END PGP PUBLIC KEY BLOCK-----\n",
+    "http": {
+      "url": "https://raw.githubusercontent.com/nodejs/release-keys/481637f813e912c4aa3622d7964ab426c97b8e8d/keys/5BE8A3F6C8A5C01D106C0AD820B1A390B168D356.asc",
+      "started": "2026-11-11T10:23:30.998189+00:00",
+      "redirects": [],
+      "proxy": "disabled",
+      "capBytes": 2097152,
+      "socketTimeoutSeconds": 20,
+      "elapsedCheckSeconds": 60,
+      "method": "GET",
+      "status": 200,
+      "finalURL": "https://raw.githubusercontent.com/nodejs/release-keys/481637f813e912c4aa3622d7964ab426c97b8e8d/keys/5BE8A3F6C8A5C01D106C0AD820B1A390B168D356.asc",
+      "headers": {
+        "Connection": "close",
+        "Content-Length": "924",
+        "Cache-Control": "max-age=300",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        "Content-Type": "text/plain; charset=utf-8",
+        "ETag": "\"6cc78de295ae6d5610b5096b5f692be747d94de9f710799c5992c8608a571bc9\"",
+        "Strict-Transport-Security": "max-age=31536000",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "deny",
+        "X-XSS-Protection": "1; mode=block",
+        "X-GitHub-Request-Id": "B3F6:14EF97:7E7A43:855D49:6AF44222",
+        "x-github-edge-region": "fra",
+        "Accept-Ranges": "bytes",
+        "Date": "Wed, 11 Nov 2026 10:23:31 GMT",
+        "Via": "1.1 varnish",
+        "X-Served-By": "cache-sin-wsat1880031-SIN",
+        "X-Cache": "MISS",
+        "X-Cache-Hits": "0",
+        "X-Timer": "S1794392611.351689,VS0,VE338",
+        "Vary": "Authorization,Accept-Encoding",
+        "Access-Control-Allow-Origin": "*",
+        "Cross-Origin-Resource-Policy": "cross-origin",
+        "X-Fastly-Request-ID": "612a6543217d42b49871ff7c6336018f24c0861c",
+        "Expires": "Wed, 11 Nov 2026 10:28:31 GMT",
+        "Source-Age": "0"
+      },
+      "bytes": 924,
+      "sha256": "5115095e2f8010c75da052ecb1cfb3af630e084f0f8daa93a863557b01b0f90a",
+      "finished": "2026-11-11T10:23:31.735751+00:00"
+    },
+    "identity": {
+      "method": "RFC4880 v4 SHA1(0x99 || uint16be(body length) || primary public key packet body); identity only, no signature cryptography",
+      "primaryFingerprint": "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356",
+      "issuerClaimMatches": true,
+      "packets": [
+        {
+          "tag": 6,
+          "offset": 0,
+          "bodyOffset": 2,
+          "bodyBytes": 51,
+          "bodySha256": "6e076a1d67552ab67cffea5b650d4a540ffce21f74055f787d3f3785363975d1",
+          "version": 4,
+          "fingerprint": "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356",
+          "algorithm": 22,
+          "creationTimeUnixUntrusted": 1751136988
+        },
+        {
+          "tag": 13,
+          "offset": 53,
+          "bodyOffset": 55,
+          "bodyBytes": 47,
+          "bodySha256": "2b76cfec47d1321f595c81e42129a249b592a3cf2827a36eed7a2f46914271af"
+        },
+        {
+          "tag": 2,
+          "offset": 102,
+          "bodyOffset": 104,
+          "bodyBytes": 142,
+          "bodySha256": "d66760f6fdc3c07796cf90a799914b28d4bc48ed630a350f80dde6a12bb81972"
+        },
+        {
+          "tag": 13,
+          "offset": 246,
+          "bodyOffset": 248,
+          "bodyBytes": 51,
+          "bodySha256": "00407cf2dc4b288355643320401bab73e33e5c8cd2935091590d15f752c80d8e"
+        },
+        {
+          "tag": 2,
+          "offset": 299,
+          "bodyOffset": 301,
+          "bodyBytes": 142,
+          "bodySha256": "16b582513d5c2f5acce3375bf8220dc9b68ff28f991c2972be534cd6c5fbe090"
+        },
+        {
+          "tag": 14,
+          "offset": 443,
+          "bodyOffset": 445,
+          "bodyBytes": 56,
+          "bodySha256": "62f74110d4ae430a424da058fa70a31a6413a77e403a3f2656abc0cd58857b07",
+          "version": 4,
+          "fingerprint": "0A178CD0FE03CB4F8780980A039F94E89826F891",
+          "algorithm": 18,
+          "creationTimeUnixUntrusted": 1751136988
+        },
+        {
+          "tag": 2,
+          "offset": 501,
+          "bodyOffset": 503,
+          "bodyBytes": 120,
+          "bodySha256": "09b4c9feb6cb5fd3a30e8944a73980520457d87b519aca46c8a689177b539a93"
+        }
+      ],
+      "signatureVerification": "unavailable-toolgap",
+      "cryptographicVerificationPerformed": false,
+      "revocationExpirySubkeyBindingsAndCreationTimes": "untrusted; not cryptographically validated",
+      "gitBlob": "d7d9090d3b37bbaee829a490609543b9e096c3dc",
+      "rawSha256": "5115095e2f8010c75da052ecb1cfb3af630e084f0f8daa93a863557b01b0f90a",
+      "rawBytes": 924,
+      "commit": "481637f813e912c4aa3622d7964ab426c97b8e8d",
+      "keyTree": "99a6415900960df9a5cd98df2cafa179b8e9915f"
+    }
+  },
+  "priorInputs": {
+    "node-SHASUMS256.txt": {
+      "sha256": "aec92ae945293821c22aed4c37b97741688254bac353b861fc9fb25b81ce4567",
+      "bytes": 3171
+    },
+    "node-SHASUMS256.txt.sig": {
+      "sha256": "0dc0feb73ffcafe5875a7f34f3aa9a51787f68d85a1bde8a49e27257ad74ea07",
+      "bytes": 119
+    },
+    "node-SHASUMS256.txt.asc": {
+      "sha256": "cbff095ae2d793bc0ffed794e7ef4a6609f7157a0fcb3b051176c09e3320e4a2",
+      "bytes": 3449
+    }
+  },
+  "evidenceDirectory": "private/engineering-foundation-evidence/f2-node-release-key/ (outer workspace; not a trust root)",
+  "limits": [
+    "Official GitHub publication is candidate trust input; independent root acceptance remains pending.",
+    "GitHub commit verification is service metadata only; no commit signature verified locally.",
+    "RFC4880 fingerprint hashing establishes packet identity only, not signature authenticity.",
+    "Revocation, expiry, self-signatures, subkey binding and timestamp claims not cryptographically validated.",
+    "No GPG state, user home, shared agent, downloaded executable or library used.",
+    "No production policy, pins, workflow, sourceHashes, bootstrap or asset trust changed."
+  ]
+}

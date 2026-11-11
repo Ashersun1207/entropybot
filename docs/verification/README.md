@@ -7,6 +7,7 @@ validation, task pinning, bounded transcripts, wait states, and redaction as
 external MCP clients and scripts.
 
 - [Darwin arm64 verified bootstrap staging (fixture only)](full-gate-bootstrap-staging.md)
+- [Node 24.22.2 official release key publication and identity (unapproved)](node-release-signature.md)
 
 ## Launch
 

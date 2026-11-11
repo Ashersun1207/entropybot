@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## F2：官方密钥发布与指纹匹配不等于签名验证
+
+- 官方 nodejs/node 与 nodejs/release-keys 的固定提交先公布完整 fingerprint，再取后者 exact-commit armored blob；原始 README/key 字节、Git blob 和 RFC4880 primary packet fingerprint 一致，只建立候选 trust input。issuer key ID 不授权 key，GitHub verification 字段只是服务元数据；expiry/revocation/subkey binding/时间未验，不把 SHA-1 身份计算称密码学签名成功。见[发布密钥证据](../verification/node-release-signature.md)。
+- 九个获准固定路径均无 gpg/gpgv/sq，明确 unavailable-toolgap，不装库、不自写签名算法、不读用户 GPG 状态。首次 recursive tree 请求触达2 MiB即拒绝；改取非递归树，不提高上限。初始 HTTP 回执被重试覆盖是留证限制，明确保留该事实，不能追认完整请求证据。
+- 本任务禁止实际 Node/pnpm 执行，因此只做离线数据身份/319 pins 字节对比及 clean commit 检查；八项 Vitest guards 和公开 JavaScript verifyPins 仍由主控在最终提交补验。候选 JSON 无 consumer，生产审批、信任根、政策和 archive/SRI 原事实保持；质量台账不由本子任务收尾。
+
 ## F2：原始 archive 的 bin 不能当作 lifecycle hook
 
 - 精确 registry archive SHA-512 同时匹配 lock SRI 与 metadata 后，Electron 43.7.9 原始 manifest 确认没有 scripts 字段；install-electron 仅是 bin 映射。原 manifest、install.js、checksums.json 与声明的本地 node_modules 路径三个文件逐字节相同，不能把缺 hook 推定成本地篡改，也不能自动补显式 provisioning。安装 policy 的旧 unknown 状态不在此审查候选中激活或改写。
