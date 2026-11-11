@@ -49,7 +49,7 @@ function approvedTool(value: unknown, paths: typeof posix, origins: string[]): R
   requireValue(url.protocol === "https:" && !url.username && !url.password && !url.hash && !url.search && origins.includes(url.origin), "tool archive origin unapproved");
   return tool;
 }
-export function validateInstallPolicy(value: unknown, binding: InstallBinding): InstallTarget {
+function validatePolicyStructure(value: unknown, binding: InstallBinding): InstallTarget {
   validateInstallBinding(binding);
   const policy = record(value);
   requireValue(policy.schemaVersion === 1 && policy.registry === "https://registry.npmjs.org/" && policy.pnpmVersion === "10.33.0", "unsupported policy or package-manager version");
@@ -66,7 +66,20 @@ export function validateInstallPolicy(value: unknown, binding: InstallBinding): 
   const hashes = record(policy.sourceHashes);
   requireValue(["package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml"].every(k => sha256(hashes[k])), "manifest/workspace/lock approvals missing");
   requireValue(policy.bootstrap !== null && policy.bootstrap !== undefined, "pre-JavaScript bootstrap approval missing");
-  // This implementation cannot establish bootstrap or native hook network history from caller-supplied fields.
+  return target as InstallTarget;
+}
+export function validateBootstrapPolicy(value: unknown, binding: InstallBinding): InstallTarget {
+  const policy = record(value);
+  requireValue(policy.classification === "reviewed-owned-fixture-staging" && binding.platform === "darwin" && binding.arch === "arm64", "unsupported bootstrap staging profile");
+  const target = validatePolicyStructure(value, binding);
+  const bootstrap = record(policy.bootstrap);
+  requireValue(bootstrap.provisioning === "reviewed-fixture-inventory-not-extraction-proof" && bootstrap.nodeDistribution === "node" && bootstrap.pnpmDistribution === "pnpm", "reviewed fixture provisioning relationship missing");
+  requireValue(target.node.version === "24.22.2" && target.corepack === undefined, "unsupported staging toolchain");
+  return target;
+}
+export function validateInstallPolicy(value: unknown, binding: InstallBinding): InstallTarget {
+  validatePolicyStructure(value, binding);
+  // Caller fields cannot establish bootstrap or native hook network history.
   throw new Error("Full gate installation blocked: bootstrap and lifecycle qualification are not implemented");
 }
 export function requireInstallation(value: unknown, binding: InstallBinding, policy: unknown): never {

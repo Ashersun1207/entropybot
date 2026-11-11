@@ -8,7 +8,7 @@ export const TRUST_ENTRIES = [
   "scripts/full-gate/action-sources.json", "scripts/full-gate/policy.json", "scripts/full-gate/install-policy.json", "scripts/full-gate/platform-declarations.json", "scripts/full-gate/disposition-trust.json",
   "vite.config.ts", "cloudflare/composio-broker/vitest.config.ts", "cloudflare/control-plane/vitest.config.ts",
   "server/testing/setup.ts", "src/testing/all-locales.ts", "cloudflare/control-plane/test/setup.ts",
-  "scripts/install-git-hooks.mjs", "scripts/testing/verification-server-preload.ts", "server/message-search.worker.ts",
+  "scripts/full-gate/verified-bootstrap-darwin.sh", "scripts/install-git-hooks.mjs", "scripts/testing/verification-server-preload.ts", "server/message-search.worker.ts",
   "cloudflare/control-plane/wrangler.jsonc", "scripts/testing/ci-retry-runner.ts",
   "scripts/check-patches.mjs", "scripts/entropybot-release.mjs", "scripts/testing/vitest-shard-weights.json", "scripts/testing/ci-retry-list.json",
   "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "cloudflare/control-plane/package.json",

@@ -6,6 +6,8 @@ tools in `scripts/mcp-server.ts`, so verification uses the same URL
 validation, task pinning, bounded transcripts, wait states, and redaction as
 external MCP clients and scripts.
 
+- [Darwin arm64 verified bootstrap staging (fixture only)](full-gate-bootstrap-staging.md)
+
 ## Launch
 
 Start a fixture in one terminal:

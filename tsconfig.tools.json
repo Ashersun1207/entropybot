@@ -4,6 +4,7 @@
     "scripts/patch-gate-process.ts",
     "scripts/full-gate/install-policy.ts",
     "scripts/full-gate/install-observation.ts",
+    "scripts/full-gate/bootstrap-stage.ts",
     "scripts/verification-receipt/bridge.ts",
     "scripts/testing/verification-lifecycle.ts",
     "scripts/testing/verification-external-stop.ts",

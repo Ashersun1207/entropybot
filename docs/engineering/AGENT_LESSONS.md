@@ -8,6 +8,12 @@
 - Node 24.22.2 的官方 darwin-arm64 archive 与官方 checksum 一致，独立 regular bin/node 字节已哈希，但 archive 的三个 symlink 仍按本轮 no-links 规则拒绝 provisioning。pnpm 10.33.0 原始 bin/dist 字节仅受 registry metadata SRI 绑定，不冒称 root-lock 依赖。已下载签名但未验证可信 key；bundled executable hash、独立审批、实际运行和完整历史分别记录。
 - 原 collector 的 Node checksum parser 忽略合法 source/Windows 路径，首次退出1；保留原脚本/日志和未下载 Node archive 的事实，修正后完整解析 manifest，限制全部 gzip 展开字节，合成覆盖 SRI mismatch/traversal/oversize/duplicate/symlink。证据及限制见[原始工具链候选](../verification/pristine-toolchain.md)。仅 docs/data，无安装、下载代码执行、信任根/317 pins/77 dispositions/15 jobs/5 steps 改动，须独立审查与主控串行整合。
 
+## F2 bootstrap staging：先证明 owned canary 实际可触发
+
+- Darwin arm64 staging 只运行 reviewed fixture stand-ins；先验完整 archive/distribution/source inventory，再选择绝对 Node/direct pnpm，回执独立 kind bootstrap-stage、installation not-attempted、complete false。完整关系、信任初始环境/OS loader/runner 和不保证 TOCTOU/内核截止的范围见[验证说明](../verification/full-gate-bootstrap-staging.md)。生产 policy 和 active workflow 保持阻断，不能把 fixture 版本标签或 complete 字段当实际工具链审批。
+- 首次 exploratory 为32通过/2失败：/bin/bash --posix 未读 ENV，Darwin 在脚本前清掉 DYLD_INSERT_LIBRARIES；首轮有前后快照的修正为33通过/1失败，Darwin 也清掉自造 DYLD 前缀。根因是错误假定 OS 保留变量，不是候选已受脚本保护。第二轮使用实际 /bin/sh interactive ENV 正控及 retained LD_PRELOAD 拒绝探针；不运行 dylib，不虚构脚本拒绝已被 OS 清除的变量。BASH_ENV、ENV、Node preload 均用 owned 文件先确认 canary 可实际执行，再确认 env -i 路径未触发。两轮修复上限不重置。
+- 回归入口 `scripts/full-gate-bootstrap.node-test.mjs` 覆盖正例启动、独立归档/工具/完整runtime/source/config/lock篡改、missing/extra、links/FIFO/坏root、空审批和production consumer伪造complete拒绝。证据在外层 f2-verified-bootstrap；baseline仅能力缺失，未测红例或提速。现有本地Node只作测试runtime，未读取或批准其可执行字节；真正hosted第一段JS、实际archive extraction/native/workspace hooks/assets/resource资格和独立审查仍由主控继续。
+
 ## F2：Actions 身份必须绑定完整提交和实际 lifecycle
 
 - `scripts/full-gate.node-test.mjs` 的旧 active-workflow 合同明确接受 github-script 的 mutable tag，且不检查 checkout/setup/upload 的 action 身份。修改前八个真实 workflow 负例均因 missing expected exception 失败：四个 mutable refs、short SHA、未审仓库/提交与 lifecycle action 替换。固定40位 SHA 后，合同同时检查固定仓库/提交、步骤位置和源目录，不能仅把旧 tag 断言换成任意新字符串。

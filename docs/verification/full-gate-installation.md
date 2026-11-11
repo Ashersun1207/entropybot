@@ -1,5 +1,9 @@
 # Full gate installation prerequisite
 
+The [Darwin arm64 fixture staging pilot](full-gate-bootstrap-staging.md) adds a
+verified owned stand-in launch and a distinct incomplete bootstrap-stage receipt.
+It leaves every production installation qualification boundary below blocked.
+
 Status: **blocked**. This increment closes the guessed three-field receipt path;
 it does not qualify an installation or enable the full gate. The production
 policy has no target toolchain approvals, bootstrap approval, source hash approvals
