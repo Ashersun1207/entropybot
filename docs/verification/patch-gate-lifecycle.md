@@ -57,4 +57,6 @@ node node_modules/vitest/vitest.mjs run --root "$PWD" --config "$PWD/vite.config
 - INIT 不能抢在 preload 监听之前发送；先由实际 ChildProcess 发 awaiting-init，再交付绑定身份。Node 24 的 INIT 前 IPC disconnect 曾出现 exit/stderr close 而无 ChildProcess close，生产不得将其替换成已确认关闭。回归：managed entry 负例与 lifecycle INIT timeout。
 - 不存在的可选 CLI 会明确 spawn 拒绝且无 PID，这与 INIT 后失败不同；仅前者可按未执行的空资源确认。登记异常须接管已产生的实际句柄，unknown 不可重新完成；旧代停止和 close 的交接也必须禁止并发新 spawn。回归：`scripts/testing/verification-lifecycle.test.ts` 的实际登记失败、spawn 拒绝、旧代和 close 竞态。
 
+CLI 夹具使用独立临时 root，手工复制的入口必须带齐传递依赖。durable history 接线后，夹具还需 `server/verification-group-history.ts` 和 `server/browser/chrome/processes.ts`；缺少前者曾在原21项中造成13项实际失败。CLI suite 保留原21项并增加两个删除依赖的真实启动负例，正常正例仍须执行顺序suite并确认HOME回收。修改这类验证依赖后，除定向suite外还须运行上面的完整 `--verify`；局部process/lifecycle通过不能替代公开入口。失败与修复的源码/工具哈希、argv/env、前后状态和日志保存在外层 `private/engineering-foundation-evidence/f2-ci-patch-regression/`。公开GitHub日志API对run43021327404返回403，因此本地重现不能直接确认远端stack；Linux仍需集成后的实际CI验收。
+
 这些经验由隔离 macOS/Node 24 实测支持；尚不构成 Windows、任意第三方逃逸资源或同 UID 恶意代码的验证。

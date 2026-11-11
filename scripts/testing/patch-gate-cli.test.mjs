@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, symlinkSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { basename } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { validateNodeReport, validateVitestReport, verifyPatchBehavior } from "../check-patches.mjs";
@@ -28,6 +28,18 @@ it("awaits the real CLI and uses its source root, filtered environment and seque
   expect(f.readState()).toMatchObject({ cwd: f.root, leaked: false });
   expect(existsSync(f.readState().home)).toBe(false);
   expect(f.nextStarted()).toBe(true);
+});
+
+it.each(["server/verification-group-history.ts", "server/browser/chrome/processes.ts"])("real CLI fails before running suites when %s is missing", async file => {
+  const f = gateFixture("valid");
+  rmSync(`${f.root}/${file}`);
+  const result = await f.cli().done;
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain("ERR_MODULE_NOT_FOUND");
+  expect(result.stderr).toContain(`${f.root}/${file}`);
+  expect(result.stdout).not.toContain("Patch behavior gate OK");
+  expect(existsSync(`${f.root}/observed.json`)).toBe(false);
+  expect(f.nextStarted()).toBe(false);
 });
 
 it("executes the CLI through a symlink instead of silently treating it as an import", async () => {

@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## F2 普通 CI：真实 patch CLI 夹具必须覆盖新增传递依赖
+
+- `1df9deeb8` 的隔离 Node 24.22.2 原始 `scripts/testing/patch-gate-cli.test.mjs` 实跑为8通过/13失败；首因是复制到临时 root 的 `verification-process-scope.ts` 找不到 `server/verification-group-history.ts`，真实 CLI 也无法启动，随后出现报告、HOME、等待超时的连锁失败。此前502 Node、55 gate/lifecycle/scope和8 guards未包含这21项，不能推定完整公开补丁门通过。Ubuntu run43021327404仅确认补丁步骤退出1；公开日志API返回403，未直接取得远端底层stack，不将本地重现追认为远端错误的逐字证明。
+- 最小修复只补夹具复制清单中的 history helper及其 `server/browser/chrome/processes.ts` 依赖；原21项断言保留，另加两个真实CLI删除依赖负例，分别要求module-not-found、exit1、未启动测试及无成功输出。原正常CLI正例必须执行至后续suite并完成HOME回收，不能只断言依赖文件名存在或错误字符串。
+- 同类验证变更须运行真实CLI suite及完整 `node scripts/check-patches.mjs --verify`，不能用局部process/lifecycle通过替代。原始红例和最终候选回执在外层 `private/engineering-foundation-evidence/f2-ci-patch-regression/`；本地Darwin证据与远端Linux资格分开，后者需主控集成、推送后的实际CI。本轮不改生产源码、算法、预算、重试、workflow或安装/资源阻断；quality任务仍由主控收尾。
+
 ## F2 durable group history R1：异步终态与 probe 前身份检查
 
 - 独立审查 `ses_e35789528ffequ09437rb8vVXZ` 对 `71954de6357ff8e861bca0768661e5e37a071e41` 返回两项P2。改产品前，在原clean提交公开API实际复现2失败：owned child已退出并reaped，`Promise.all([finish(false), finish(true)])`最后持久化stopped；valid-MAC stale startTime的live owned leader使audit unknown，但两次signal-0 probe先于身份比较。旧493绿例未覆盖并发完成与调用顺序，不能追认为这两个不变量已成立；没有证明live group获接受或新的release bypass。
