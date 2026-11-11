@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { digest } from "./full-gate/core.mjs";
+import { digest, source, unchanged } from "./full-gate/core.mjs";
 import { producerClosure, verifyPins } from "./full-gate/trust.mjs";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
@@ -23,6 +23,86 @@ function fixture(t) {
   const repin = file => { pins[file] = digest(readFileSync(join(root, file))); };
   return { root, pins, put, read, repin };
 }
+function tinySource(t) {
+  const root = mkdtempSync(join(tmpdir(), "fg-source-policy-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const git = args => execFileSync("git", args, { cwd: root, encoding: "utf8", env: { PATH: process.env.PATH, HOME: root, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" } }).trim();
+  writeFileSync(join(root, "file"), "synthetic source");
+  git(["init", "--quiet"]); git(["add", "."]);
+  git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture"]);
+  writeFileSync(join(root, ".git/info/exclude"), "server\n");
+  return { root, git, sha: git(["rev-parse", "HEAD"]) };
+}
+test("public source boundary accepts unchanged tiny repo without application roots", t => {
+  const f = tinySource(t); const before = source(f.root, f.sha);
+  unchanged(before, source(f.root, f.sha));
+  mkdirSync(join(f.root, "server"));
+  unchanged(before, source(f.root, f.sha));
+});
+for (const kind of ["file", "dangling symlink"]) test(`public source boundary rejects ignored worker ${kind}`, t => {
+  const f = tinySource(t); const before = source(f.root, f.sha);
+  mkdirSync(join(f.root, "server"));
+  const file = join(f.root, "server/message-search.worker.js");
+  if (kind === "file") writeFileSync(file, "throw new Error('ignored fixture');");
+  else symlinkSync("missing-worker.js", file);
+  assert.equal(f.git(["status", "--porcelain", "--untracked-files=all"]), "");
+  assert.throws(() => source(f.root, f.sha), /generated worker fallback/);
+  rmSync(file); unchanged(before, source(f.root, f.sha));
+});
+for (const suffix of ["ts", "tsx"]) test(`literal js import resolves reviewed ${suffix} source`, t => {
+  const f = fixture(t); const parent = "scripts/testing/verification-server-preload.ts";
+  const child = `scripts/testing/review-child.${suffix}`;
+  f.put(parent, f.read(parent) + '\nimport "./review-child.js";'); f.repin(parent);
+  assert.throws(() => producerClosure(f.root), /missing producer dependency/);
+  f.put(child, "export const fixture = true;");
+  assert.ok(producerClosure(f.root).includes(child));
+  assert.throws(() => verifyPins(f.root, f.pins), /missing or extra/);
+  f.repin(child); verifyPins(f.root, f.pins);
+  f.put(child, "export const fixture = false;");
+  assert.throws(() => verifyPins(f.root, f.pins), /altered/);
+});
+for (const suffixes of [["js", "ts"], ["js", "tsx"], ["ts", "tsx"]]) test(`js source ambiguity rejects ${suffixes.join(" and ")} even when pinned`, t => {
+  const f = fixture(t); const parent = "scripts/testing/verification-server-preload.ts";
+  f.put(parent, f.read(parent) + '\nimport "./review-child.js";'); f.repin(parent);
+  for (const suffix of suffixes) { const child = `scripts/testing/review-child.${suffix}`; f.put(child, "export default 1;"); f.repin(child); }
+  assert.throws(() => verifyPins(f.root, f.pins), /ambiguous/);
+});
+for (const [suffix, kind] of [["ts", "symlink"], ["ts", "directory"], ["js", "directory"]]) test(`js resolution rejects nonregular ${suffix} ${kind}`, t => {
+  const f = fixture(t); const parent = "scripts/testing/verification-server-preload.ts";
+  f.put(parent, f.read(parent) + '\nimport "./review-child.js";'); f.repin(parent);
+  const child = join(f.root, `scripts/testing/review-child.${suffix}`);
+  if (kind === "symlink") symlinkSync("missing-fixture.ts", child);
+  else mkdirSync(child);
+  assert.throws(() => producerClosure(f.root), /nonregular/);
+});
+test("single reviewed js executable is pinned without source substitution", t => {
+  const f = fixture(t); const parent = "scripts/testing/verification-server-preload.ts";
+  const child = "scripts/testing/review-child.js";
+  f.put(parent, f.read(parent) + '\nimport "./review-child.js";'); f.repin(parent);
+  f.put(child, "export default 1;");
+  assert.throws(() => verifyPins(f.root, f.pins), /missing or extra/);
+  f.repin(child); verifyPins(f.root, f.pins);
+  f.put(child, "export default 2;"); assert.throws(() => verifyPins(f.root, f.pins), /altered/);
+});
+for (const [specifier, unsupported] of [["js", "js.ts"], ["mjs", "mts"], ["cjs", "cts"]]) test(`no unsupported ${specifier} substitution`, t => {
+  const f = fixture(t); const parent = "scripts/testing/verification-server-preload.ts";
+  f.put(parent, f.read(parent) + `\nimport "./review-child.${specifier}";`); f.repin(parent);
+  f.put(`scripts/testing/review-child.${unsupported}`, "export default 1;");
+  assert.throws(() => producerClosure(f.root), /missing producer dependency/);
+});
+test("literal executable URL requires its exact filename", t => {
+  const f = fixture(t); const parent = "scripts/testing/verification-server-preload.ts";
+  f.put(parent, f.read(parent) + '\nnew URL("./review-child.js", import.meta.url);'); f.repin(parent);
+  f.put("scripts/testing/review-child.ts", "export default 1;");
+  assert.throws(() => producerClosure(f.root), /missing producer dependency/);
+});
+for (const kind of ["directory", "server symlink"]) test(`public source policy rejects ignored ${kind}`, t => {
+  const f = tinySource(t);
+  if (kind === "server symlink") symlinkSync("missing-server", join(f.root, "server"));
+  else mkdirSync(join(f.root, "server/message-search.worker.js"), { recursive: true });
+  assert.equal(f.git(["status", "--porcelain", "--untracked-files=all"]), "");
+  assert.throws(() => source(f.root, f.sha), /generated worker fallback|nonregular source server/);
+});
 const observed = [
   "scripts/testing/verification-server-preload.ts", "server/message-search.worker.ts",
   "cloudflare/control-plane/wrangler.jsonc", "cloudflare/control-plane/migrations/0001_better_auth_1_7_1.sql",
@@ -152,9 +232,13 @@ test("ignored generated worker cannot enter a clean source producer", t => {
   git(["init", "--quiet"]); git(["add", "."]);
   git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture"]);
   f.put(".git/info/exclude", "server/message-search.worker.js\n");
+  const sha = git(["rev-parse", "HEAD"]); const before = source(f.root, sha);
   f.put("server/message-search.worker.js", "throw new Error('ignored generated fixture');");
   assert.equal(git(["status", "--porcelain", "--untracked-files=all"]), "");
+  assert.throws(() => source(f.root, sha), /generated worker fallback/);
   assert.throws(() => verifyPins(f.root, f.pins), /generated worker fallback/);
+  rmSync(join(f.root, "server/message-search.worker.js")); unchanged(before, source(f.root, sha));
+  f.put("server/message-search.worker.js", "throw new Error('ignored generated fixture');");
   rmSync(join(f.root, "server/message-search.worker.ts"));
   assert.throws(() => producerClosure(f.root), /generated worker fallback/);
 });

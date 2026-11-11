@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { relative, resolve, win32 } from "node:path";
+import { assertSourceExecutables } from "./source-policy.mjs";
 
 export function reportFile(root, file) {
   insist(typeof root === "string" && typeof file === "string", "missing report path");
@@ -21,6 +22,7 @@ export function exact(actual, expected, label) {
 export function source(root, sha) {
   const git = args => execFileSync("git", args, { cwd: root, encoding: "utf8", timeout: 15000 }).trim();
   insist(/^[a-f0-9]{40}$/.test(sha) && git(["rev-parse", "HEAD"]) === sha, "wrong SHA");
+  assertSourceExecutables(root);
   insist(git(["status", "--porcelain", "--untracked-files=all"]) === "", "dirty source");
   const files = git(["ls-files", "-z"]).split("\0").filter(Boolean);
   return { sha, tree: git(["rev-parse", "HEAD^{tree}"]), hash: digest(files.map(file => `${file}\0${digest(readFileSync(resolve(root, file)))}`).join("\n")) };

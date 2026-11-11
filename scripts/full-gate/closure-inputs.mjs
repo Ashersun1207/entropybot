@@ -2,6 +2,7 @@ import { lstatSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { parse } from "yaml";
 import { insist } from "./core.mjs";
+import { assertSourceExecutables } from "./source-policy.mjs";
 
 export function sourcePath(root, file, directory = false) {
   insist(typeof file === "string" && file.length > 0 && !file.includes("\\") && !file.includes("\0"), "unsafe producer path");
@@ -64,6 +65,7 @@ export function configDependencies(root, file, bytes) {
   return files;
 }
 export function discoveredInputs(root) {
+  assertSourceExecutables(root);
   const workspace = parse(readFileSync(sourcePath(root, "pnpm-workspace.yaml"), "utf8"));
   insist(Array.isArray(workspace.packages) && workspace.packages.length > 0 && new Set(workspace.packages).size === workspace.packages.length, "invalid workspace packages");
   const directories = new Set([".", "cloudflare/composio-broker", "cloudflare/control-plane"]);
@@ -85,8 +87,5 @@ export function discoveredInputs(root) {
       }
     }
   }
-  // The source producer never accepts a compiled worker fallback, even if Git ignores it.
-  try { lstatSync(join(root, "server/message-search.worker.js")); }
-  catch (error) { if (error.code === "ENOENT") return files; throw error; }
-  throw new Error("Full gate blocked: generated worker fallback in source checkout");
+  return files;
 }

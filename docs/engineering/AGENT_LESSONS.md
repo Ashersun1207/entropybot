@@ -9,6 +9,12 @@
 - 回归入口 `scripts/full-gate-closure.node-test.mjs`：修改父pin后再引入新URL/子import、配置main/migration、workspace/config，避免所有负例只在旧父hash处拒绝；同时覆盖缺失/多余/篡改、递归新文件、symlink目录/点点别名、特殊文件与ignored生成入口。第1轮定向通过，安全自审补全路径别名与特殊文件后冻结最终验证，精确计数见私有回执。静态受支持语法不证明任意计算导入或配置执行闭包；验证器pins与完整SHA绑定的受测应用须分别说明。独立复审、主控串行整合和安装/平台资格仍未完成。
 - 冻结验证的首个守卫argv被Vitest 4.1.11以Unknown option --runner拒绝，尚未启动测试。私有guard配置改为通过test.runner指定原strict runner后8项守卫通过；未修改producer argv。现有producer相同CLI用法须主控另行资格验证/修复，不以fixture成功宣称生产执行可用；历史失败日志保留。
 
+## F2 closure R1：pin verifier 拒绝不代表 source snapshot 已阻断
+
+- 独立审查退回 `9277b1ab4`：生成worker策略只在closure发现执行，Git忽略的worker.js或dangling symlink仍能通过公开source(root,sha)；字面import的.js后缀又未映射到对应.ts/.tsx。修复前公开API红例39通过/4失败，保留在同一证据目录review-r1下；旧receipt的toolchain/probe哈希范围更窄，不补写追认。
+- 修复身份以本条提交为准：独立filesystem-only source-policy模块同时供core.source和closure使用，无循环依赖；source每次快照只检查已知worker覆盖路径及server组件，不要求tiny synthetic repo存在完整应用，也不遍历全图。.js字面import只允许js/ts/tsx唯一regular候选，多个候选即使全pin也拒绝；mjs/cjs和执行URL无后缀替换。新增helper使候选306 pins；生产信任根仍空。
+- 回归仍为 `scripts/full-gate-closure.node-test.mjs`，新增tiny repo正例、ignored文件/dangling/server symlink、恢复相同快照、repin父文件后的missing/unpinned/approved/tampered ts/tsx与纯js、歧义及nonregular候选。首轮组合382通过/1失败是fixture的server/ ignore pattern不匹配server symlink，先在status断言失败；仅改fixture为server pattern，保留失败回执，第二轮冻结验证。未改CLI owner的runner/platform/verdict等模块；静态闭包、真实平台/安装资格、最终串行整合与独立复审仍分别验收。
+
 ## 创建 toolScope：先核对实际请求和嵌套契约
 
 - November 9 `probe-scope.mjs` 留存最终文件的两个创建调用均未传 toolScope，然后 PATCH deny；不能把它当成 POST 失败证据。当前创建契约是 `settings.toolScope` / `settings.computer`，PATCH 才是顶层 toolScope；owner 创建路径忽略顶层这两个字段，不能把不受支持字段的 ignored 行为称为权限修复或 bypass。客户端 create-configured-bot 已使用嵌套 scope，保持 legacy alias、defaults、useDefaults 和 null 语义，不自动扩字段或拒绝未知顶层 key。

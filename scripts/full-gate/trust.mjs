@@ -14,6 +14,23 @@ export const TRUST_ENTRIES = [
   "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "cloudflare/control-plane/package.json",
   "tsconfig.json", "tsconfig.server.json", "tsconfig.tools.json", ".oxlintrc.json",
 ];
+function resolveDependency(root, path, sourceImport) {
+  const jsSource = sourceImport && path.endsWith(".js");
+  const extensionless = !/\.[^/]+$/.test(path);
+  const candidates = jsSource ? [path, path.slice(0, -3) + ".ts", path.slice(0, -3) + ".tsx"]
+    : extensionless ? [path, `${path}.ts`, `${path}.tsx`, `${path}/index.ts`] : [path];
+  const found = candidates.filter(candidate => {
+    let stat;
+    try { stat = lstatSync(join(root, candidate)); }
+    catch (error) { if (error.code === "ENOENT" || error.code === "ENOTDIR") return false; throw error; }
+    if (extensionless && candidate === path && stat.isDirectory()) { sourcePath(root, candidate, true); return false; }
+    sourcePath(root, candidate);
+    return true;
+  });
+  insist(found.length > 0, `missing producer dependency: ${path}`);
+  insist(found.length === 1, `ambiguous producer dependency: ${path}`);
+  return found[0];
+}
 export function producerClosure(root) {
   const pending = [...TRUST_ENTRIES, ...discoveredInputs(root)];
   for (const file of readdirSync(sourcePath(root, "scripts/full-gate", true))) {
@@ -29,16 +46,14 @@ export function producerClosure(root) {
     if (!/\.[cm]?[jt]sx?$/.test(file)) continue;
     const imports = /(?:\bfrom\s*|\bimport\s*(?:\(\s*)?)["'](\.[^"']+)["']/g;
     const urls = /\bnew\s+URL\s*\(\s*["'](\.[^"']+)["']\s*,\s*import\.meta\.url\s*\)/g;
-    const dependencies = [...bytes.matchAll(imports), ...[...bytes.matchAll(urls)].filter(match => /\.[\w]+$/.test(match[1]))];
-    for (const match of dependencies) {
-      const path = localPath(root, file, match[1]);
+    const dependencies = [
+      ...[...bytes.matchAll(imports)].map(match => ({ value: match[1], sourceImport: true })),
+      ...[...bytes.matchAll(urls)].filter(match => /\.[\w]+$/.test(match[1])).map(match => ({ value: match[1], sourceImport: false })),
+    ];
+    for (const { value, sourceImport } of dependencies) {
+      const path = localPath(root, file, value);
       if (file === "server/message-search-worker.ts" && path === "server/message-search.worker.js") continue;
-      const resolved = [path, `${path}.ts`, `${path}.tsx`, `${path}/index.ts`].find(candidate => {
-        try { return lstatSync(join(root, candidate)).isFile() || lstatSync(join(root, candidate)).isSymbolicLink(); }
-        catch (error) { if (error.code === "ENOENT" || error.code === "ENOTDIR") return false; throw error; }
-      });
-      insist(resolved, `missing producer dependency: ${path}`);
-      pending.push(resolved);
+      pending.push(resolveDependency(root, path, sourceImport));
     }
   }
   return [...found].sort();
