@@ -1,22 +1,70 @@
 import { test } from "node:test";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, mkdirSync, rmSync, realpathSync } from "node:fs";
+import { readFileSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync, symlinkSync, unlinkSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { digest, safeArgv, vitestResults, source, unchanged } from "../full-gate/core.mjs";
 import { createGateCapability } from "../testing/verification-lifecycle.ts";
 import { validateResourceAudit } from "../full-gate/resource-audit.mjs";
-import { applicationCommands, APPLICATION_GROUPS, diagnosticDispositions, reconcileDiagnostic, applicationCoverage } from "./application-contract.mjs";
+import { applicationCommands, APPLICATION_GROUPS, diagnosticDispositions, reconcileDiagnostic, applicationCoverage, loadSkipCatalog, SKIP_CATALOG_LIMIT } from "./application-contract.mjs";
 import { provisionDiagnosticCache } from "./application.mjs";
 import { inventory } from "./contract.mjs";
 const root = resolve(import.meta.dirname, "../..");
 const binding = { sourceSha: "a".repeat(40), runId: "42", attempt: "1" };
 const policy = JSON.parse(readFileSync(join(root, "scripts/full-gate/policy.json")));
-const catalog = JSON.parse(readFileSync(join(root, "scripts/macos-qualification/skip-declarations.json")));
+const { catalog } = loadSkipCatalog();
 const tests = catalog.entries.map((row, index) => ({ group: row.file.endsWith(".node-test.mjs") ? "electron-node" : `main-vitest-${String(index % 10 + 1).padStart(2, "0")}`, file: row.file, fullName: row.fullName, status: "skipped" }));
 const bundle = () => diagnosticDispositions(tests, catalog, root, binding);
-const check = (value, rows = tests) => reconcileDiagnostic(rows, value, binding, policy);
+const check = (value, rows = tests) => reconcileDiagnostic(rows, value, binding, policy, catalog);
+for (const kind of ["regular", "symlink", "oversized", "fifo"]) test(`public catalog loader ${kind} control under external watchdog`, () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "ma-catalog-")));
+  const path = join(home, "catalog.json");
+  try {
+    const original = join(root, "scripts/macos-qualification/skip-declarations.json");
+    if (kind === "regular") writeFileSync(path, readFileSync(original));
+    else if (kind === "symlink") symlinkSync(original, path);
+    else if (kind === "oversized") writeFileSync(path, Buffer.alloc(SKIP_CATALOG_LIMIT + 1, 32));
+    else execFileSync("/usr/bin/mkfifo", [path]);
+    const module = new URL("./application-contract.mjs", import.meta.url).href;
+    const code = `import {loadSkipCatalog} from ${JSON.stringify(module)}; console.log('before-read'); try { const loaded=loadSkipCatalog(${JSON.stringify(path)}); console.log('accepted:'+loaded.catalog.entries.length); } catch(error) { console.log('domain-reject:'+error.message); }`;
+    const argv = ["--input-type=module", "-e", code];
+    const env = { PATH: "/usr/bin:/bin", HOME: home, OMB_EVAL_LIVE: "0" };
+    const startedAt = new Date().toISOString();
+    const result = spawnSync(process.execPath, argv, {
+      cwd: root, env, encoding: "utf8", timeout: 3000, killSignal: "SIGKILL",
+    });
+    const finishedAt = new Date().toISOString();
+    assert.equal(result.error, undefined, `external watchdog/startup failure: ${result.stderr}`);
+    assert.equal(result.status, 0, result.stderr); assert.equal(result.signal, null);
+    assert.match(result.stdout, /before-read/);
+    if (kind === "regular") assert.match(result.stdout, /accepted:280/);
+    else {
+      assert.doesNotMatch(result.stdout, /accepted:/);
+      assert.match(result.stdout, /domain-reject:.*(?:ELOOP|bounded regular file|1 MiB)/);
+    }
+    assert.throws(() => process.kill(result.pid, 0), { code: "ESRCH" });
+    if (process.env.MAC_CATALOG_EVIDENCE) writeFileSync(join(process.env.MAC_CATALOG_EVIDENCE, `loader-${kind}.json`), JSON.stringify({ argv: [process.execPath, ...argv], cwd: root, env, startedAt, finishedAt, externalWatchdogMs: 3000, stdout: result.stdout, stderr: result.stderr, exitCode: result.status, signal: result.signal, pid: result.pid, reaped: true }, null, 2), { flag: "wx" });
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+test("catalog shape validates on load and the same parsed snapshot survives removal of its original path", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "ma-catalog-shape-")));
+  const path = join(home, "catalog.json");
+  try {
+    const bytes = readFileSync(join(root, "scripts/macos-qualification/skip-declarations.json"));
+    writeFileSync(path, bytes);
+    const loaded = loadSkipCatalog(path);
+    assert.equal(Buffer.isBuffer(loaded.bytes), true); assert.deepEqual(loaded.bytes, bytes);
+    assert.equal(digest(loaded.bytes), digest(bytes));
+    unlinkSync(path);
+    const dispositions = diagnosticDispositions(tests, loaded.catalog, root, binding);
+    assert.equal(reconcileDiagnostic(tests, dispositions, binding, policy, loaded.catalog).skipped, 280);
+    for (const value of [null, {}, { ...catalog, entries: null }, { ...catalog, entries: [null] }, { ...catalog, entries: [{ ...catalog.entries[0], sourceHash: "wrong" }] }]) {
+      writeFileSync(path, JSON.stringify(value));
+      assert.throws(() => loadSkipCatalog(path), /catalog.*shape/);
+    }
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
 test("historical 280 declarations bind unchanged sources, actual groups and all three honest classes", () => {
   const result = check(bundle());
   assert.equal(tests.length, 280);

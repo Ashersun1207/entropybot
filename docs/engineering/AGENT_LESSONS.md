@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## macOS catalog R1：同步父进程读取也须复用有界 nonblocking reader
+
+- 独立审查 `ses_e346b8c44ffemnMfVROLTeu1Lp` 对 `7bea3de220d610f65e96d1a0b3e17b9f784816c0` 返回P2：两处裸 readFileSync/JSON.parse 既接受symlink，也会在无writer FIFO的open阻塞父orchestrator，子命令截止保护不到此路径。原clean提交的公开reconcileDiagnostic在隔离复制模块中实际复现symlink接受和before-read后的FIFO挂起；外部3秒watchdog kill/reap，证据在macos-full-suite/review-r1。未证明正式gate绕过。
+- 两处读取统一经loadSkipCatalog复用原regularBytes（O_NOFOLLOW/O_NONBLOCK、descriptor regular-file/32MiB transport cap），追加1MiB catalog接受上限后才解析/校验shape；生成和reconcile显式传同一个catalog对象，不默认重读。原Buffer用于receipt hash，保留原字节。32MiB读取上限与1MiB解析接受上限分别记录，不冒称整个读取只分配1MiB或内核I/O绝对硬截止。
+- application.unit公开loader子进程控制覆盖regular/symlink/oversized/无writer FIFO，要求before-read、正确接受或domain reject、外部截止前正常exit、signal null与ESRCH/reaped；另验原始Buffer、坏shape和删除源路径后同对象生成/对账。历史280数据、A/B/C、workflow、资源预算、formal trust保持；只做一次因果修复，独立复审与新exact SHA远端attempt1仍由主控推进，质量台账不动。
+
 ## macOS 应用诊断：历史 skip 分类不能当当前运行结果
 
 - 安装/工具小闭环成功不代表完整应用回归；下一步沿用同一 hosted 诊断入口与安装路径，复用严格 builder/parser/资源审计，不绕过正式 full-gate 的 dispatch、安装资格、签名审查和资源阻断。诊断逐项 A/B/C 分类与正式同 run 签名 disposition 是两套接受契约，前者不授予 F2 权限。

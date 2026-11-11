@@ -4,6 +4,7 @@ import { digest, exact, insist, safeArgv } from "../full-gate/core.mjs";
 import { identity } from "../full-gate/dispositions.mjs";
 import { vitestCommand } from "../full-gate/vitest-command.mjs";
 import { gateBootstrapArgs } from "../testing/verification-lifecycle.ts";
+import { regularBytes } from "../full-gate/artifact-input.mjs";
 
 export const APPLICATION_GROUPS = [...Array.from({ length: 10 }, (_, i) => `main-vitest-${String(i + 1).padStart(2, "0")}`), "electron-node", "static-checks"];
 export function applicationCommands({ root, group, capability, out, files }) {
@@ -24,8 +25,26 @@ export function applicationCommands({ root, group, capability, out, files }) {
 }
 const assertionKey = row => JSON.stringify([row.file, row.fullName]);
 const concrete = value => typeof value === "string" && value.trim().length > 3 && !/^(unknown|unresolved|pending|todo|tbd)$/i.test(value);
+export const SKIP_CATALOG_LIMIT = 1024 * 1024;
+export function loadSkipCatalog(path = new URL("./skip-declarations.json", import.meta.url)) {
+  const bytes = regularBytes(path);
+  insist(bytes.length > 0 && bytes.length <= SKIP_CATALOG_LIMIT, "diagnostic catalog exceeds 1 MiB bound or is empty");
+  const catalog = JSON.parse(bytes.toString("utf8"));
+  insist(catalog?.schemaVersion === 1 && catalog.kind === "historical-source-bound-declarations-not-execution-or-acceptance"
+    && /^[a-f0-9]{64}$/.test(catalog.referenceSha256) && /^[a-f0-9]{40}$/.test(catalog.referenceRunHead)
+    && Array.isArray(catalog.entries) && catalog.entries.length > 0, "invalid diagnostic catalog shape");
+  const fields = ["file", "fullName", "class", "reason", "targetPlatform", "sourceHash", "evidenceRef", "missingCapability", "policyRef", "targetEvidence"].sort().join();
+  for (const entry of catalog.entries) {
+    insist(entry && Object.keys(entry).sort().join() === fields
+      && ["file", "fullName", "reason"].every(key => concrete(entry[key]))
+      && ["platform-specific", "environment-not-provisioned", "policy-prohibited"].includes(entry.class)
+      && ["darwin", "linux", "win32"].includes(entry.targetPlatform) && /^[a-f0-9]{64}$/.test(entry.sourceHash)
+      && entry.evidenceRef === `${entry.file}#sha256=${entry.sourceHash}`
+      && ["missingCapability", "policyRef", "targetEvidence"].every(key => entry[key] === null || concrete(entry[key])), "invalid diagnostic catalog entry shape");
+  }
+  return { bytes, catalog };
+}
 export function diagnosticDispositions(tests, catalog, root, binding) {
-  insist(catalog.schemaVersion === 1 && Array.isArray(catalog.entries), "invalid diagnostic declarations");
   insist(new Set(catalog.entries.map(assertionKey)).size === catalog.entries.length, "duplicate diagnostic declaration");
   const entries = tests.filter(t => t.status === "skipped").map(test => {
     const declaration = catalog.entries.find(row => assertionKey(row) === assertionKey(test));
@@ -35,7 +54,7 @@ export function diagnosticDispositions(tests, catalog, root, binding) {
   });
   return { kind: "macos-application-diagnostic-dispositions", ...binding, entries };
 }
-export function reconcileDiagnostic(tests, bundle, binding, policy, catalog = JSON.parse(readFileSync(new URL("./skip-declarations.json", import.meta.url), "utf8"))) {
+export function reconcileDiagnostic(tests, bundle, binding, policy, catalog) {
   insist(tests.length > 0 && new Set(tests.map(identity)).size === tests.length, "empty/duplicate test identities");
   insist(tests.every(t => ["passed", "skipped"].includes(t.status)), "failure/todo/nonterminal test");
   insist(bundle?.kind === "macos-application-diagnostic-dispositions" && ["sourceSha", "runId", "attempt"].every(k => bundle[k] === binding[k]) && binding.attempt === "1", "diagnostic disposition binding mismatch");

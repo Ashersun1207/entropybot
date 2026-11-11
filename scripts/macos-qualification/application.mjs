@@ -6,7 +6,7 @@ import { regularBytes } from "../full-gate/artifact-input.mjs";
 import { beginResourceAudit, validateResourceAudit } from "../full-gate/resource-audit.mjs";
 import { createGateCapability, assertGateLeases } from "../testing/verification-lifecycle.ts";
 import { environment, recordCommand, writeReport, sealReports } from "./contract.mjs";
-import { APPLICATION_GROUPS, applicationCommands, applicationCoverage, diagnosticDispositions, reconcileDiagnostic } from "./application-contract.mjs";
+import { APPLICATION_GROUPS, applicationCommands, applicationCoverage, diagnosticDispositions, reconcileDiagnostic, loadSkipCatalog } from "./application-contract.mjs";
 
 export function provisionDiagnosticCache(root, home) {
   const links = [".vite", ".vite-temp"].map(name => {
@@ -63,12 +63,13 @@ export async function applicationGroup({ root, reports, binding, group, before }
     }
     if (parsed) {
       receipt.files = parsed.files;
-      const catalog = JSON.parse(readFileSync(new URL("./skip-declarations.json", import.meta.url), "utf8"));
+      const { catalog, bytes } = loadSkipCatalog();
+      receipt.skipCatalogHash = digest(bytes);
       const policy = JSON.parse(readFileSync(new URL("../full-gate/policy.json", import.meta.url), "utf8"));
       writeReport(reports, `${group}-identities.json`, parsed.tests);
       const dispositions = diagnosticDispositions(parsed.tests, catalog, root, binding);
       writeReport(reports, `${group}-dispositions.json`, dispositions);
-      receipt.counts = reconcileDiagnostic(parsed.tests, dispositions, binding, policy);
+      receipt.counts = reconcileDiagnostic(parsed.tests, dispositions, binding, policy, catalog);
     }
     assertGateLeases(capability, receipt.files?.map(file => join(root, file)));
     receipt.success = true;
