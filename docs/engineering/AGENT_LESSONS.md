@@ -7,6 +7,7 @@
 - 独立供应链审查退回 `96817e8bd`：公开 producerClosure/verifyPins 在262 pins下接受 verification preload、message-search worker、Wrangler配置、migration和docs workspace manifest的实际篡改/删除，也接受额外生成worker。红例与前后SHA/tree/hash保存在外层私有 `engineering-foundation-evidence/f2-producer-closure/`；不追认旧绿例覆盖这些入口。
 - 修复身份以本条提交为准：显式入口加字面URL及transitive imports、workspace manifest/config发现、Wrangler main与递归migration目录；路径逐组件拒绝symlink/nonregular/escape。源码producer拒绝生成worker.js，即使Git忽略且status clean；不修改产品fallback。默认ci-retry-runner仅作为配置输入纳入，实际执行仍显式strict runner、不启重试。新候选305 pins，map不自引用，生产trust/reviewer/assets仍空。
 - 回归入口 `scripts/full-gate-closure.node-test.mjs`：修改父pin后再引入新URL/子import、配置main/migration、workspace/config，避免所有负例只在旧父hash处拒绝；同时覆盖缺失/多余/篡改、递归新文件、symlink目录/点点别名、特殊文件与ignored生成入口。第1轮定向通过，安全自审补全路径别名与特殊文件后冻结最终验证，精确计数见私有回执。静态受支持语法不证明任意计算导入或配置执行闭包；验证器pins与完整SHA绑定的受测应用须分别说明。独立复审、主控串行整合和安装/平台资格仍未完成。
+- 冻结验证的首个守卫argv被Vitest 4.1.11以Unknown option --runner拒绝，尚未启动测试。私有guard配置改为通过test.runner指定原strict runner后8项守卫通过；未修改producer argv。现有producer相同CLI用法须主控另行资格验证/修复，不以fixture成功宣称生产执行可用；历史失败日志保留。
 
 ## 创建 toolScope：先核对实际请求和嵌套契约
 

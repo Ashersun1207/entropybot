@@ -450,6 +450,11 @@ configuration execution, package lifecycle hooks, dependency resolution and othe
 generated executable overrides still require independent qualification before
 activation. Neither the literal walker nor 305 pins proves their complete closure.
 The manifest is metadata, does not hash itself, and provisions no release trust.
+Local guard qualification also found that installed Vitest 4.1.11 rejects the
+producer's existing runner CLI option before test execution. Guards passed using
+a private config with test.runner set to the original strict runner. Producer CLI
+compatibility remains a separate unresolved qualification; this closure-only
+candidate does not modify runner/platform execution or establish their usability.
 
 Before activation: supply reviewed asset digests and compatible assets, finish
 loopback mail/CA qualification and detached-resource auditing, obtain real
