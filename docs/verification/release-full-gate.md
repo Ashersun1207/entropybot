@@ -415,14 +415,41 @@ by placing files at those paths.
 
 `CANDIDATE_PRODUCER_FILES` exposes review-only SHA-256 pins from
 `scripts/full-gate/candidate-pins.json`. `APPROVED_PRODUCER_FILES` stays empty;
-the consumer still rejects before HTTP. `scripts/full-gate/trust.mjs` walks
-literal local import dependencies from explicit producer/config/static roots,
-includes setup, lockfile, policy and weighting inputs, and rejects new unpinned
-runner modules. This is a conservative literal-import closure, not a proof of
-arbitrary computed imports, package lifecycle hooks or all test dependencies.
-The final SHA and lockfile remain essential. Independently audit those dynamic
-execution paths and expand the trust roots before any activation. The manifest
-is metadata, not executable code, and does not hash itself.
+the consumer still rejects before HTTP. `scripts/full-gate/trust.mjs` and
+`scripts/full-gate/closure-inputs.mjs` cover explicit producer/config/static roots,
+literal local imports and literal file URLs relative to import.meta.url, including
+the verification server preload and message-search worker with their transitive
+imports. The source-checkout policy requires the TypeScript worker and rejects
+any sibling generated JavaScript fallback, including ignored files and dangling
+symlinks, before accepting pins. Product worker behavior is unchanged.
+
+Discovery includes every manifest named by the workspace packages list, executable
+config files and TypeScript configs at the repository/workspace and two Cloudflare
+project roots, Wrangler JSON/JSONC configs, their main entries and recursively all
+regular files under configured migration directories. Literal config runner fields
+also introduce dependencies. New inputs require new pins; missing roots, unsafe
+paths, symlink components and nonregular files reject. Workspace patterns and
+Wrangler TOML are unsupported and block until reviewed. JSONC accepts comments;
+other unsupported syntax rejects. This does not evaluate configuration code.
+The default CI retry runner is included as a config dependency; full-gate execution
+continues to select its strict runner explicitly, with no retries enabled.
+
+Review of `96817e8bd` reproduced acceptance of altered and deleted preload, worker,
+Wrangler config, migration and docs workspace manifest through the public pin
+verifier (262 pins), plus acceptance of an additional generated worker. The bounded
+closure candidate has 305 pins; new tests also update parent pins before checking
+new URL entries, imported children, config-derived main/migration inputs and new
+workspace/config discovery. These fixtures exercise observed coverage gaps; they
+do not establish arbitrary dynamic import closure or platform execution.
+
+Producer implementation/config pins identify reviewed verification machinery and
+its known execution inputs. They do not independently pin every tested application
+module or test: the clean final Git SHA/tree, tracked source byte snapshots and
+frozen lockfile bind that larger application. Computed imports/URLs, arbitrary
+configuration execution, package lifecycle hooks, dependency resolution and other
+generated executable overrides still require independent qualification before
+activation. Neither the literal walker nor 305 pins proves their complete closure.
+The manifest is metadata, does not hash itself, and provisions no release trust.
 
 Before activation: supply reviewed asset digests and compatible assets, finish
 loopback mail/CA qualification and detached-resource auditing, obtain real

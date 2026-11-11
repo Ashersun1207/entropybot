@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## F2：字面 import 闭包漏掉进程入口与配置派生输入
+
+- 独立供应链审查退回 `96817e8bd`：公开 producerClosure/verifyPins 在262 pins下接受 verification preload、message-search worker、Wrangler配置、migration和docs workspace manifest的实际篡改/删除，也接受额外生成worker。红例与前后SHA/tree/hash保存在外层私有 `engineering-foundation-evidence/f2-producer-closure/`；不追认旧绿例覆盖这些入口。
+- 修复身份以本条提交为准：显式入口加字面URL及transitive imports、workspace manifest/config发现、Wrangler main与递归migration目录；路径逐组件拒绝symlink/nonregular/escape。源码producer拒绝生成worker.js，即使Git忽略且status clean；不修改产品fallback。默认ci-retry-runner仅作为配置输入纳入，实际执行仍显式strict runner、不启重试。新候选305 pins，map不自引用，生产trust/reviewer/assets仍空。
+- 回归入口 `scripts/full-gate-closure.node-test.mjs`：修改父pin后再引入新URL/子import、配置main/migration、workspace/config，避免所有负例只在旧父hash处拒绝；同时覆盖缺失/多余/篡改、递归新文件、symlink目录/点点别名、特殊文件与ignored生成入口。第1轮定向通过，安全自审补全路径别名与特殊文件后冻结最终验证，精确计数见私有回执。静态受支持语法不证明任意计算导入或配置执行闭包；验证器pins与完整SHA绑定的受测应用须分别说明。独立复审、主控串行整合和安装/平台资格仍未完成。
+
 ## 创建 toolScope：先核对实际请求和嵌套契约
 
 - November 9 `probe-scope.mjs` 留存最终文件的两个创建调用均未传 toolScope，然后 PATCH deny；不能把它当成 POST 失败证据。当前创建契约是 `settings.toolScope` / `settings.computer`，PATCH 才是顶层 toolScope；owner 创建路径忽略顶层这两个字段，不能把不受支持字段的 ignored 行为称为权限修复或 bypass。客户端 create-configured-bot 已使用嵌套 scope，保持 legacy alias、defaults、useDefaults 和 null 语义，不自动扩字段或拒绝未知顶层 key。
