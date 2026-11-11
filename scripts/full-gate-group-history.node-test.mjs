@@ -133,6 +133,41 @@ for (const status of ["pending", "stopped"]) for (const identity of ["stale", "u
   assert.equal((await listProcesses()).find(row => row.pid === control.child.pid)?.startTime, control.row.startTime);
 });
 
+test("sealed Node-only PATH still inventories actual live owner and CLI identities", async t => {
+  const f = fixture(t);
+  const audit = await beginResourceAudit(f);
+  const script = `
+    import {spawn,execFile} from 'node:child_process';
+    import {once} from 'node:events';
+    import {readFileSync} from 'node:fs';
+    import {startGroupHistory,readGroupHistory} from ${JSON.stringify(new URL("../server/verification-group-history.ts", import.meta.url).href)};
+    const home=process.argv[1];
+    const capability=JSON.parse(readFileSync(home+'/verification-bootstrap.json','utf8'));
+    const child=spawn(process.execPath,['-e','setInterval(()=>{},1000);setTimeout(()=>process.exit(90),10000).unref()'],{detached:true,stdio:'ignore'});
+    const closed=once(child,'close');
+    await once(child,'spawn');
+    try {
+      const pathLookup=await new Promise(resolve=>execFile('ps',['-p',String(process.pid)],error=>resolve(error?.code??null)));
+      const history=startGroupHistory(child,capability,'sealed-path-fixture');
+      await history.ready;
+      const before=readGroupHistory(capability).identities;
+      child.kill('SIGTERM'); await closed; await history.finish(true);
+      console.log(JSON.stringify({pathLookup,before,after:readGroupHistory(capability).identities}));
+    } finally { if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await closed;} }
+  `;
+  const result = JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", script, f.home, f.root, f.output], {
+    env: { PATH: process.execPath.slice(0, process.execPath.lastIndexOf("/")), HOME: f.home, USERPROFILE: f.home }, encoding: "utf8", timeout: 15000,
+  }));
+  const observed = await audit.finish();
+  process.stdout.write(JSON.stringify({ scenario: "sealed-path-history", ...result, status: observed.status, issues: observed.issues }) + "\n");
+  if (process.platform === "darwin") assert.equal(result.pathLookup, "ENOENT");
+  assert.ok(result.before[0].startTime, "live child start identity must be observed with sealed PATH");
+  assert.ok(result.before[0].ownerStartTime, "live owner start identity must be observed with sealed PATH");
+  assert.equal(result.after[0].status, "stopped");
+  assert.equal(observed.status, "clear-observed-domain");
+  validateResourceAudit(JSON.parse(readFileSync(f.output)), f.binding);
+});
+
 test("GateCommandRunner creates discoverable history after audit begins, then confirms actual disappearance", async t => {
   const f = fixture(t); const audit = await beginResourceAudit(f);
   const runner = new GateCommandRunner({ processCapability: f.capability, handleSignals: false });
@@ -168,9 +203,42 @@ for (const mode of ["tampered", "forged", "stale", "lying-stopped", "unknown", "
   const audit = await beginResourceAudit(f);
   if (mode === "deleted") { await p.stop(); rmSync(file); }
   const result = await audit.finish(); assert.notEqual(result.status, "clear-observed-domain");
+  if (["tampered", "forged"].includes(mode)) {
+    assert.equal(result.after.historyInventoryFailure.code, "unauthenticated-process-history");
+    assert.equal(result.after.registryFailures.length, 0);
+    assert.equal(result.after.registries.length, 0);
+  }
   assert.throws(() => validateResourceAudit(result, f.binding), /audit|history/);
   assert.equal((await listProcesses()).find(row => row.pid === control.child.pid)?.startTime, control.row.startTime);
   if (["tampered", "forged"].includes(mode)) resign(f.capability, file, () => {});
+});
+
+for (const field of ["startTime", "ownerStartTime"]) test(`audit retains bounded authenticated ${field} rejection context without capability or extra payload fields`, async t => {
+  const f = fixture(t); const p = await owned(t);
+  const history = startGroupHistory(p.child, f.capability, "owned-fixture"); await history.ready;
+  const file = readGroupHistory(f.capability).files[0];
+  const canary = "synthetic-sensitive-diagnostic-canary";
+  resign(f.capability, file, row => { row[field] = null; row.creator = canary; row.extra = canary; });
+  const result = await (await beginResourceAudit(f)).finish();
+  assert.equal(result.status, "unknown");
+  assert.equal(result.registryFiles.length, 1);
+  for (const snapshot of [result.before, result.after]) {
+    assert.equal(snapshot.registries.length, 0);
+    assert.equal(snapshot.registryFailures.length, 1);
+    const rejected = snapshot.registryFailures[0];
+    assert.equal(rejected.file, file);
+    assert.equal(rejected.authenticated, true);
+    assert.equal(rejected.stage, "registry-identity");
+    assert.equal(rejected.code, "registry-identity-rejected");
+    assert.deepEqual(rejected.invalidFields, [field]);
+    assert.equal(rejected.identity[field], null);
+    assert.equal(rejected.identity.creator, "invalid");
+    assert.deepEqual(rejected.identity.binding, f.binding);
+    assert.equal(rejected.sha256.length, 64);
+  }
+  assert.equal(JSON.stringify(result).includes(canary), false);
+  assert.equal(JSON.stringify(result).includes(f.capability.secret), false);
+  assert.throws(() => validateResourceAudit(result, f.binding), /audit|history/);
 });
 
 test("invalid authenticated identity shapes, unsigned group arrays and foreign capability home cannot clear", async t => {

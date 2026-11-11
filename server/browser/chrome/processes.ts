@@ -122,7 +122,7 @@ export async function listProcesses(platform: NodeJS.Platform = process.platform
       return null;
     }
   }
-  const listing = await execText("ps", ["-A", "-ww", "-o", "pid=,ppid=,lstart=,args="]);
+  const listing = await execText(platform === "darwin" ? "/bin/ps" : "ps", ["-A", "-ww", "-o", "pid=,ppid=,lstart=,args="]);
   if (listing === null) return null;
   const found: ListedProcess[] = [];
   for (const line of listing.split("\n")) {

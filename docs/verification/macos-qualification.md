@@ -80,6 +80,40 @@ no old skips or dispositions are removed. Final summary distinguishes diagnostic
 pass/fail, missing capabilities and out of scope; it never grants installation
 qualification or authoritative F2 acceptance.
 
+## First hosted result and resource repair
+
+Actual hosted run `43035952201`, attempt 1, executed source
+`0ded53240d49376831017a066e37e92425605674` on macOS 15 arm64. Real frozen install,
+pnpm startup, Electron provisioning/cache ZIP/startup, normal HTTP job, all 55
+lifecycle tests, leases, dependency/source comparisons and artifact handling
+passed. The job failed only because the POSIX audit rejected one of ten registry
+records. It observed no residual processes; that does not establish complete
+cleanup or authorize ignoring the rejected record. The original artifact remains
+immutable (API artifact 13862159812, ZIP SHA-256
+`5bcfa37e803f8b1176202bd2471a919c0de67a5b779f950fa80c6eac561172b8`).
+
+A source-bound local reproduction of the same HTTP/lifecycle/audit path on 0ded
+reproduced the rejection. Its authenticated inner verification-scope record had
+null child and owner start times and terminal unknown. The sealed server PATH
+contains only the Node directory. Darwin inventory resolved `ps` through that
+PATH, so it could not spawn the OS reader. A live-child public API regression
+also reproduced ENOENT and both null identities, without any short-lived-process
+race. Darwin inventory now uses `/bin/ps` directly, retaining the sealed PATH.
+No identity requirement, terminal unknown, MAC/source binding or stale zero-probe
+rule is relaxed. Other platforms retain their existing implementation. The
+original hosted rejected frame was not retained; its exact contents cannot be
+retrospectively recovered from the local reproduction.
+
+Audit snapshots now retain `registryFailures`: fixed stage/error codes, file
+hash, and an authenticated identity projection with explicitly bounded allowed
+fields, including missing start/owner field names. Invalid/untrusted payloads
+and arbitrary error text are excluded; history enumeration errors retain only a
+fixed code. No capability key, whole frame, config/cache/store or arbitrary
+payload fields are uploaded. Rejected registries still make the audit unknown.
+Existing artifact size, regular-file and capability-secret checks still apply.
+This repair requires independent review and a new source-bound hosted attempt 1;
+the original failed run is not rerun or relabeled as success.
+
 Maintenance/security review of this scope covers fixed origins, extraction
 reuse, source/hash comparisons, action pins, constructed env, token separation,
 bounded execution and artifact handling. Public pnpm/Electron packages retain

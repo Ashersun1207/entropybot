@@ -26,6 +26,25 @@ function groupRegistered(row, home, file) {
     && /^[a-f0-9-]{36}$/.test(row.gateNonce) && ["pending", "stopped", "unknown"].includes(row.status);
 }
 function entryRegistered(row, home, file) { return row?.kind === "verification-process-group" ? groupRegistered(row, home, file) : registered(row, home); }
+function diagnosticIdentity(row) {
+  const start = value => value === null ? null : typeof value === "string" && /^(?:\d{1,24}|[A-Z][a-z]{2} [A-Z][a-z]{2} \d{1,2} \d{2}:\d{2}:\d{2} \d{4})$/.test(value) ? value : "invalid";
+  const text = (value, pattern) => typeof value === "string" && pattern.test(value) ? value : "invalid";
+  return {
+    kind: row.kind, pid: row.pid, pgid: row.pgid, ownerPid: row.ownerPid,
+    startTime: start(row.startTime), ownerStartTime: start(row.ownerStartTime),
+    creator: text(row.creator, /^(?:gate-command-runner|verification-scope:[a-f0-9-]{36})$/),
+    status: row.status, gateNonce: text(row.gateNonce, /^[a-f0-9-]{36}$/),
+    launchedAt: text(row.launchedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+    binding: {
+      sourceSha: text(row.binding.sourceSha, /^[a-f0-9]{40}$/), runId: text(row.binding.runId, /^[1-9]\d{0,19}$/),
+      attempt: text(row.binding.attempt, /^[1-9]\d{0,2}$/), group: text(row.binding.group, /^[a-zA-Z0-9-]{1,64}$/),
+    },
+  };
+}
+function registryFailureCode(error, stage) {
+  const known = { "Unauthenticated process history": "unauthenticated-process-history", "Invalid process history identity": "invalid-process-history-identity", "Unsafe verification process history path": "unsafe-process-history-path" };
+  return Object.hasOwn(known, error?.message) ? known[error.message] : ["ENOENT", "EACCES", "EPERM", "ELOOP", "EISDIR", "EINVAL"].includes(error?.code) ? error.code : `${stage}-rejected`;
+}
 function active(row) { return row.kind !== "verification-process-group" || row.status !== "stopped"; }
 function listed(row) {
   return row && Number.isSafeInteger(row.pid) && row.pid > 0 && Number.isSafeInteger(row.ppid) && row.ppid >= 0
@@ -68,7 +87,7 @@ export async function beginResourceAudit({ root, home, binding, output, registry
   const blindSpots = processCapability ? BLIND_SPOTS.map(s => s === "normal internal detached CLI groups not durably inventoried" ? "only capability-bound GateCommandRunner and VerificationProcessScope groups inventoried; other spawners and escaped descendants unconfirmed" : s) : BLIND_SPOTS;
   const startedAt = new Date().toISOString();
   const capture = async previous => {
-    const snapshot = { at: new Date().toISOString(), source: null, registries: [], processes: [], groups: [], issues: [] };
+    const snapshot = { at: new Date().toISOString(), source: null, registries: [], registryFailures: [], processes: [], groups: [], issues: [] };
     try { snapshot.source = source(root, binding.sourceSha); } catch { snapshot.issues.push("source identity unavailable or dirty"); }
     if (!POSIX.includes(platform)) { snapshot.issues.push(`independent process audit unsupported on ${platform}`); return snapshot; }
     if (processCapability) {
@@ -77,18 +96,34 @@ export async function beginResourceAudit({ root, home, binding, output, registry
         const declared = [...new Set([...registryFiles, ...readGroupHistory(processCapability).files])].sort();
         insist(declared.length <= 64 && declared.every(file => inside(home, file)), "process history file budget or home boundary exceeded");
         registryFiles = declared;
-      } catch { snapshot.issues.push("durable process history inventory unknown"); }
+      } catch (error) {
+        snapshot.historyInventoryFailure = { code: registryFailureCode(error, "history-inventory") };
+        snapshot.issues.push("durable process history inventory unknown");
+      }
     }
     for (const file of registryFiles) {
+      let stage = "registry-read";
+      let hash;
+      let authenticated;
       try {
         insist(realpathSync(file) === file, "registry symlink or noncanonical path");
         const bytes = regularBytes(file);
+        hash = digest(bytes);
+        stage = "registry-json";
         const parsed = JSON.parse(bytes);
-        const entries = parsed?.kind === "verification-process-group" ? [readGroupIdentity(processCapability, file)] : parsed;
+        stage = "history-authentication";
+        if (parsed?.kind === "verification-process-group") authenticated = readGroupIdentity(processCapability, file);
+        const entries = authenticated ? [authenticated] : parsed;
+        stage = "registry-identity";
         insist(!Array.isArray(parsed) || parsed.every(row => row?.kind !== "verification-process-group"), "unauthenticated group array");
         insist(Array.isArray(entries) && entries.every(row => entryRegistered(row, home, file)) && new Set(entries.map(row => row.pid)).size === entries.length, "invalid registry identity");
-        snapshot.registries.push({ file, sha256: digest(bytes), entries });
-      } catch { snapshot.issues.push(`registry inventory unknown: ${file}`); }
+        snapshot.registries.push({ file, sha256: hash, entries });
+      } catch (error) {
+        const problems = authenticated ? ["startTime", "ownerStartTime"].filter(key => typeof authenticated[key] !== "string" || !authenticated[key].length) : [];
+        snapshot.registryFailures.push({ file, stage, code: registryFailureCode(error, stage), ...(hash ? { sha256: hash } : {}), authenticated: Boolean(authenticated),
+          ...(authenticated ? { invalidFields: problems, identity: diagnosticIdentity(authenticated) } : {}) });
+        snapshot.issues.push(`registry inventory unknown: ${file}`);
+      }
     }
     let rows;
     let timer;
@@ -144,6 +179,7 @@ export function validateResourceAudit(artifact, binding) {
   insist(typeof artifact.home === "string" && isAbsolute(artifact.home) && Array.isArray(artifact.registryFiles), "resource audit inventory missing");
   for (const snapshot of [artifact.before, artifact.after]) {
     insist(snapshot && snapshot.source?.sha === binding.sourceSha && Array.isArray(snapshot.issues) && Array.isArray(snapshot.processes) && snapshot.processes.every(listed) && Array.isArray(snapshot.registries), "resource audit snapshot invalid");
+    insist(!snapshot.historyInventoryFailure && (snapshot.registryFailures === undefined || Array.isArray(snapshot.registryFailures) && snapshot.registryFailures.length === 0), "resource audit rejected registry context");
     insist(artifact.domain === GROUP_DOMAIN && snapshot === artifact.before ? snapshot.registries.every(r => artifact.registryFiles.includes(r.file)) : JSON.stringify(snapshot.registries.map(r => r.file)) === JSON.stringify(artifact.registryFiles), "resource audit registry coverage missing");
     insist(snapshot.registries.every(r => /^[a-f0-9]{64}$/.test(r.sha256) && Array.isArray(r.entries) && r.entries.every(row => entryRegistered(row, artifact.home, r.file))), "resource audit registry invalid");
   }

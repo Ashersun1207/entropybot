@@ -387,6 +387,12 @@
 - 回归入口 `node --test scripts/macos-qualification/contract.unit.mjs` 检查 mutable action、错误架构、空入口、吞失败、秘密传入、skip/rerun，以及真实本地 synthetic child 的 normal/nonzero/cancel recorder。下载物的执行只在一次性 hosted CI 内；本地单测通过不证明远端实跑。HTTP smoke 复用原服务与假引擎，生命周期套件和 POSIX audit 复用原实现；未知资源域保持 unknown/不完整，不能把有界 observed-domain-clear 提升为完整回收。
 - macOS permission UNIX socket 路径需短且规范，合成 HOME 使用拥有的 /private/tmp/mq-*；只有有界报告进入 RUNNER_TEMP artifact，不上传 HOME/store/cache 或 capability secret。Node setup action/host toolcache 是本诊断明确的初始信任边界，Node PGP 与 first-JavaScript 资格仍缺。此条属于候选源码经验，最终提交、检查计数、独立审查及首次 hosted 结果由主控交接单独记录。
 
+### macOS 首次实跑：sealed PATH 与进程身份读取
+
+- 实际 hosted run 43035952201/source 0ded 的 install、Electron、HTTP、55 lifecycle 均通过，但 audit 因第十条 registry 无法接受而 unknown；原始坏 frame 未上传，不能将没有观察到残留直接称为完整回收，也不能追认坏 frame 内容。0ded 上原样隔离 HTTP/lifecycle/audit 本地复现，公开 API 的活跃 owner/CLI 控制进一步证实：fixture 仅含 Node 的 PATH 找不到 ps（ENOENT），两个 startTime 都是 null，持久 unknown 保持终态。不是短命进程竞争或泄漏的证据。
+- 修复使 Darwin inventory 显式执行 /bin/ps，保持 sealed PATH，不改 fake 引擎、签名/安装边界、MAC、startTime、terminal unknown 或 stale 零 probe。回归 `scripts/full-gate-group-history.node-test.mjs` 新增实际 sealed PATH 活进程控制及两个脱敏诊断用例；复现、红例和修复后组合均绑定源码/依赖。首版单项红例把 audit 也放在 sealed 子进程，另触发找不到 git，已保留；修正为父进程做 audit 后仍独立复现 null 身份拒绝，再改生产读取器。
+- audit 失败必须保留有界原因。新 registryFailures 仅保存固定阶段/错误码、hash 和认证后允许的身份字段/缺失字段，拒绝未知字段、任意错误文案及 capability secret；枚举认证失败只有固定码。缺失 startTime、拒绝认证或 terminal unknown 仍阻断，completeCleanup:false 与 F2 总阻断保持。真实 hosted 修复效果只能由新源码、新 attempt 1 证明，旧失败 artifact 不覆盖。细节见 [macOS 合同](../verification/macos-qualification.md)。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
