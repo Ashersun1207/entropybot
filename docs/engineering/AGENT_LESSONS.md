@@ -8,6 +8,12 @@
 - 九个获准固定路径均无 gpg/gpgv/sq，明确 unavailable-toolgap，不装库、不自写签名算法、不读用户 GPG 状态。首次 recursive tree 请求触达2 MiB即拒绝；改取非递归树，不提高上限。初始 HTTP 回执被重试覆盖是留证限制，明确保留该事实，不能追认完整请求证据。
 - 本任务禁止实际 Node/pnpm 执行，因此只做离线数据身份/319 pins 字节对比及 clean commit 检查；八项 Vitest guards 和公开 JavaScript verifyPins 仍由主控在最终提交补验。候选 JSON 无 consumer，生产审批、信任根、政策和 archive/SRI 原事实保持；质量台账不由本子任务收尾。
 
+## F2：真实归档的数据准备不能借用 bootstrap 审批
+
+- `scripts/full-gate/prepare-toolchain-candidate.py` 只接受固定 Node runtime subset 与 pnpm complete runtime profiles；完整压缩哈希/SRI、全部成员与选中成员校验在输出创建前完成。Node 的三个精确已知链接只记省略，未知链接/目标、hardlink/special/扩展 header 一律拒绝；pnpm 全分发复制仍不批准 bundled native 字节。所有文件0600、目录0700，原0755仅作元数据，完整库存和显式省略绑定原归档。
+- 公开函数/CLI 回归为 `scripts/full-gate/prepare-toolchain-candidate-test.py`，含无writer FIFO独立进程截止、完整库存/模式、压缩/SRI/member mismatch、路径/重复/链接/展开上限、现有root/输出symlink、pnpm运行入口/分发缺失和disk failure保留。正例报告即使伪造complete仍被实际installation/bootstrap consumer拒绝；catalog期待值不获生产权限，Python utility不自动进入trust closure。第一轮合成测试通过，未测红基线不当作旧漏洞证据。
+- [验证边界](../verification/toolchain-preparation.md)：受信OS/Python/本地文件系统与无并发writer假设，不声称TOCTOU或内核I/O绝对截止。证据在外层f2-archive-preparation；真实归档仅离线复制一次，不执行任何候选。signature、runtime、安装/lifecycle/native和独立审查/串行集成分别阻断，质量任务由主控收尾。
+
 ## F2：原始 archive 的 bin 不能当作 lifecycle hook
 
 - 精确 registry archive SHA-512 同时匹配 lock SRI 与 metadata 后，Electron 43.7.9 原始 manifest 确认没有 scripts 字段；install-electron 仅是 bin 映射。原 manifest、install.js、checksums.json 与声明的本地 node_modules 路径三个文件逐字节相同，不能把缺 hook 推定成本地篡改，也不能自动补显式 provisioning。安装 policy 的旧 unknown 状态不在此审查候选中激活或改写。
