@@ -191,6 +191,8 @@
 - 回归 `scripts/full-gate-cli.node-test.mjs` 将生产命令 builder、适配器与 strict runner 复制到自有合成项目，用已装 4.1.11 实跑 main/broker/control-plane/platform 形态。retry sentinel 在 strict runner 拒绝，在 default/CI retry runner 对照成功；另测 config retry、name filter 和 passWithNoTests 拒绝。夹具首轮误以为 mergeConfig 会替换 include 数组，第二次缺复制 CI runner 及依赖，均保留失败后修正夹具，不改发现政策。原 main/broker 实际发现集合分别 2442/4，适配器集合相同。
 - 这只资格化所列 CLI 子集，控制面 Cloudflare plugin/实际 Linux/Windows/Actions、完整 producer、资产与全资源确认仍未资格化。命令收据仅增加三个固定配置路径白名单，原 entry/env/bootstrap 限制保持；既有允许的历史命令形式不追认为实际已执行。闭包/source 边界由独立 owner 修复，主控串行组合并重算 pins；详见[发布门限定验证](../verification/release-full-gate.md)。
 
+- CLI 与 approved closure 组合时，合成 config 的 runner literal 也必须遵守相同源码边界。`b12cfeccf` 的组合门实际为398通过/1失败；新 checkout 原样重现 `unsafe config dependency: vite.config.ts`，发生在 hashes→producerClosure，尚未启动内层 Vitest。夹具把 runner 绝对值转换为相对各自项目 root/config 目录的本地 literal，保留 root/broker/control-plane 正确解析、完整闭包 hashes、17次真实CLI及原负例，不放松 localPath 或生产代码。每次 run 的原始 JSON report 在删除自有 fixture 前复制并记录 hash，默认/CI retry 对照和严格 sentinel 均保留。修复仅测试/文档，313个生产 pins 不变；最终组合与独立审查记录见[发布门说明](../verification/release-full-gate.md)。
+
 ## F2 POSIX 独立资源观察：明确确认域并保留总阻断
 
 - `scripts/full-gate/resource-audit.mjs` 复用现有进程枚举、startTime 与 profile 参数识别及 ProcessRegistry 数据格式，实际 public producer 写 source/run/attempt/group 绑定 artifact；不另建生命周期 manager、不发 signal、不按进程表差集或 PID gone 宣称全清理。显式 registry 缺失/坏格式/身份 stale、未知或超时枚举、source drift 均 unknown；最终存活为 residual，局部清空最多 clear-observed-domain，completeCleanup 固定 false。

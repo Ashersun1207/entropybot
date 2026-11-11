@@ -622,3 +622,38 @@ reviewer/asset roots and unconditional full resource blockers remain. Scoped
 maintenance/security review found no dependency, lockfile, workflow, network,
 credential, install/build, product-config or unknown-process cleanup change.
 Independent review is required before integration.
+
+### CLI fixture and approved closure combination
+
+The controller combined independently approved CLI and closure candidates at
+`b12cfeccf`, with 313 review-only pins. Its combined run had 398 passes and one
+failure: the synthetic main config's absolute runner literal was rejected by the
+approved closure parser during hashes, before any inner Vitest launch. The clean
+combination-fix checkout reproduces that failure. This does not invalidate either
+candidate's earlier bounded checks or authorize relaxing path safety.
+
+The fixture now writes a local runner literal relative to each synthetic project
+root, which is also that original config's directory. Main uses the local scripts
+path; broker/control-plane traverse within the owned checkout to the same CI
+runner source. Both Vitest and the closure parser resolve those legitimate paths.
+Production adapters and explicit strict-runner dependencies remain unchanged.
+All source/dependency hashes, discovery and strict/default/CI controls remain.
+When evidence is requested, each generated report is copied beside its command
+record and bound by SHA-256 before the synthetic project is removed: the frozen
+smoke retains 17 command records and 13 original JSON reports.
+
+Final verification on the fixture-only candidate comprises all six combined
+Node suites (399 tests, including 56 closure, 14 resource and two CLI tests),
+eight original-config guards, scoped deny-warning lint, tools and strict-runner
+TypeScript, pin verification and diff checking. Exact final outcomes, clean
+source snapshots, executable dependency hashes, argv/environment/times/exits,
+baseline failure and logs are retained externally under
+`private/engineering-foundation-evidence/f2-cli-closure-combination/`.
+All 313 pinned production inputs and the pin manifest remain byte-identical to
+the combination baseline. Only the fixture and these bounded docs change.
+No dependencies, closure parser, source policy, production code, workflow,
+permissions, approval roots or full resource/platform blockers change. Scoped
+maintenance/security review found only owned synthetic report retention and
+relative config values, with no new network, credential or installation path.
+The same CLI-subset limits apply; independent review and controller serial
+integration remain required.

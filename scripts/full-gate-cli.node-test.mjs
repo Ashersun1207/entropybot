@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -47,14 +47,24 @@ test("installed Vitest accepts production commands, preserves setup/plugins/disc
       const finishedAt = new Date().toISOString();
       const record = { argv, cwd, env, before, after: hashes(), startedAt, finishedAt, exitCode: result.status, signal: result.signal, stdout: result.stdout, stderr: result.stderr };
       assert.deepEqual(record.after, before);
-      if (evidence) writeFileSync(join(evidence, `cli-${++serial}.json`), JSON.stringify(record, null, 2));
+      if (evidence) {
+        const name = `cli-${++serial}`;
+        const output = argv.find(argument => argument.startsWith("--outputFile="));
+        if (output) {
+          const bytes = readFileSync(output.slice("--outputFile=".length));
+          record.report = { file: `${name}-report.json`, sha256: createHash("sha256").update(bytes).digest("hex") };
+          writeFileSync(join(evidence, record.report.file), bytes);
+        }
+        writeFileSync(join(evidence, `${name}.json`), JSON.stringify(record, null, 2));
+      }
       assert.equal(result.error, undefined);
       return record;
     }
     const setup = join(root, "setup.mjs");
     writeFileSync(setup, `import { consumeGateCapability } from ${JSON.stringify(pathToFileURL(join(root, "scripts/testing/verification-lifecycle.ts")).href)}; if (!consumeGateCapability()) throw new Error('Worker bootstrap missing'); globalThis.fullGateSetup = 'loaded';\n`);
     function base(directory, runner = "") {
-      return `export default { root: ${JSON.stringify(directory)}, plugins: [{name:'owned-plugin', resolveId(id) { if(id === 'virtual:owned') return '\\0owned'; }, load(id) { if(id === '\\0owned') return 'export default 42'; }}], test: { include: ['owned/**/*.test.mjs'], setupFiles: [${JSON.stringify(setup)}]${runner ? `, runner: ${JSON.stringify(runner)}` : ""} } };\n`;
+      const runnerPath = runner && `./${relative(directory, runner).replaceAll("\\", "/")}`;
+      return `export default { root: ${JSON.stringify(directory)}, plugins: [{name:'owned-plugin', resolveId(id) { if(id === 'virtual:owned') return '\\0owned'; }, load(id) { if(id === '\\0owned') return 'export default 42'; }}], test: { include: ['owned/**/*.test.mjs'], setupFiles: [${JSON.stringify(setup)}]${runner ? `, runner: ${JSON.stringify(runnerPath)}` : ""} } };\n`;
     }
     const bases = [[root, "vite.config.ts"], [join(root, "cloudflare/composio-broker"), "cloudflare/composio-broker/vitest.config.ts"], [control, "cloudflare/control-plane/vitest.config.ts"]];
     for (const [directory, file] of bases) {
