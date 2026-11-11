@@ -185,6 +185,12 @@
 - 产品文案提交修改共享 `place.local` / `rail.thisComputer` 后，原生菜单与切换器的旧英文、葡语测试 pin 也须核对；本次按既有目录采用 Your computer / Seu computador，保留角色、排序、无 Forget 和回调断言。入口为 `electron/menu.test.mjs`、`electron/environments.node-test.mjs`、`electron/native-text.node-test.mjs`。
 - locale import-graph 守卫新增指出 `server/routine-manual-request.e2e.test.ts` 的传递目录依赖，以及 `scripts/entropybot-ci-workflow.test.ts` 中 workflow 命令的保守文本命中。两者加入 `scripts/ci-scope.mjs` 的 locale 子集；不增加豁免或放宽图守卫。后者自身不解析翻译，额外运行短契约测试以保留守卫的保守边界。第一轮图守卫转绿但精确子集清单断言未同步（343 通过/1 失败）；第二轮同步清单测试，不改原图断言。此修复仅为前置回归，不能据此声称完整 F2 回归或发布通过；集成前仍须独立审查。
 
+## F2 Vitest CLI：配置字段不等于受支持的 CLI flag
+
+- 实际 Vitest 4.1.11 在执行前拒绝 `--runner`；类型检查、argv 字符串测试和原本不带该 flag 的 guards 通过均不能证明 producer 命令可运行。通过固定 full-gate 配置适配器覆盖 `test.runner`，发现与执行共用配置，保留原项目 plugins/setup/include/exclude/sequence 和十个 main shard。`--execArgv=--import=…` 在实际 worker 中验证能力存在，不依赖 manager import 自动继承。
+- 回归 `scripts/full-gate-cli.node-test.mjs` 将生产命令 builder、适配器与 strict runner 复制到自有合成项目，用已装 4.1.11 实跑 main/broker/control-plane/platform 形态。retry sentinel 在 strict runner 拒绝，在 default/CI retry runner 对照成功；另测 config retry、name filter 和 passWithNoTests 拒绝。夹具首轮误以为 mergeConfig 会替换 include 数组，第二次缺复制 CI runner 及依赖，均保留失败后修正夹具，不改发现政策。原 main/broker 实际发现集合分别 2442/4，适配器集合相同。
+- 这只资格化所列 CLI 子集，控制面 Cloudflare plugin/实际 Linux/Windows/Actions、完整 producer、资产与全资源确认仍未资格化。命令收据仅增加三个固定配置路径白名单，原 entry/env/bootstrap 限制保持；既有允许的历史命令形式不追认为实际已执行。闭包/source 边界由独立 owner 修复，主控串行组合并重算 pins；详见[发布门限定验证](../verification/release-full-gate.md)。
+
 ## F2 POSIX 独立资源观察：明确确认域并保留总阻断
 
 - `scripts/full-gate/resource-audit.mjs` 复用现有进程枚举、startTime 与 profile 参数识别及 ProcessRegistry 数据格式，实际 public producer 写 source/run/attempt/group 绑定 artifact；不另建生命周期 manager、不发 signal、不按进程表差集或 PID gone 宣称全清理。显式 registry 缺失/坏格式/身份 stale、未知或超时枚举、source drift 均 unknown；最终存活为 residual，局部清空最多 clear-observed-domain，completeCleanup 固定 false。

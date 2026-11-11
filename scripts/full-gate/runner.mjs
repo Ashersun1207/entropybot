@@ -7,6 +7,7 @@ import { nodeResults } from "./node-results.mjs";
 import { proposedDispositions } from "./dispositions.mjs";
 import { preflight } from "./preflight.mjs";
 import { beginResourceAudit } from "./resource-audit.mjs";
+import { vitestCommand } from "./vitest-command.mjs";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ASSETS = "/opt/entropybot-full-gate";
@@ -44,7 +45,7 @@ export async function lane(group, env = process.env) {
   const home = realpathSync(mkdtempSync(join(env.RUNNER_TEMP, "fg-home-")));
   const childEnv = environment(home, `${ASSETS}/bin:${dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`);
   const { GateCommandRunner } = await import("../patch-gate-process.ts");
-  const { createGateCapability, gateBootstrapArgs, gateVitestWorkerArg, assertGateLeases } = await import("../testing/verification-lifecycle.ts");
+  const { createGateCapability, gateBootstrapArgs, assertGateLeases } = await import("../testing/verification-lifecycle.ts");
   const capability = createGateCapability(home);
   let serial = 0;
   const run = async (argv, cwd = ROOT, timeoutMs = 1500000) => {
@@ -84,8 +85,6 @@ export async function lane(group, env = process.env) {
     }
     const isMain = group.startsWith("main-vitest-");
     const cwd = group === "control-plane-vitest" ? join(ROOT, "cloudflare/control-plane") : ROOT;
-    const config = isMain ? "vite.config.ts" : group === "broker-vitest" ? "cloudflare/composio-broker/vitest.config.ts" : "vitest.config.ts";
-    const vitest = join(cwd, "node_modules/vitest/vitest.mjs");
     let files;
     let discovered;
     let argv;
@@ -103,13 +102,12 @@ export async function lane(group, env = process.env) {
       tests = parsed.tests;
       exact(parsed.files, files, "Node per-test file coverage");
     } else {
-      const list = [process.execPath, vitest, "list", "--filesOnly", "--json", "--config", config];
+      const command = vitestCommand({ root: ROOT, cwd, group, capability, out });
+      const { list } = command;
       discovered = JSON.parse(await run(list, cwd));
       insist(Array.isArray(discovered) && discovered.length > 0 && discovered.every(f => typeof f.file === "string" && !f.projectName), "invalid Vitest discovery");
       discovered = discovered.map(f => resolve(cwd, f.file).slice(ROOT.length + 1)).sort();
-      argv = [process.execPath, ...gateBootstrapArgs(capability), vitest, "run", "--config", config, "--runner", join(ROOT, "scripts/full-gate/strict-runner.ts"), gateVitestWorkerArg(capability), "--maxWorkers", isMain ? "2" : "1", "--reporter=json", `--outputFile=${join(out, "report.json")}`];
-      if (isMain) argv.push(`--shard=${Number(group.slice(-2))}/10`);
-      safeArgv(argv);
+      argv = command.argv;
       await run(argv, cwd, isMain ? 1500000 : group === "broker-vitest" ? 300000 : 600000);
       report = JSON.parse(readFileSync(join(out, "report.json"), "utf8"));
       const parsed = vitestResults(report, ROOT, group);

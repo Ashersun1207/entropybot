@@ -6,6 +6,7 @@ import { nodeResults } from "./node-results.mjs";
 import { PLATFORM_JOBS, executionEnvironment } from "./same-run.mjs";
 import { captureExecutionPaths } from "./execution-paths.mjs";
 import { beginResourceAudit } from "./resource-audit.mjs";
+import { vitestCommand } from "./vitest-command.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 function fileIdentity(path) {
@@ -45,10 +46,10 @@ export async function platformLane(jobName, env = process.env) {
   const home = realpathSync(mkdtempSync(join(env.RUNNER_TEMP, "fg-platform-")));
   const childEnv = { PATH: `${dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, "config"), XDG_CACHE_HOME: join(home, "cache"), OMB_EVAL_LIVE: "0", OMB_VITEST_WORKERS: "1", CI: "true", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", FULL_GATE_TARGET_PLATFORM: target.platform };
   const { GateCommandRunner } = await import("../patch-gate-process.ts");
-  const { createGateCapability, gateBootstrapArgs, gateVitestWorkerArg, assertGateLeases } = await import("../testing/verification-lifecycle.ts");
+  const { createGateCapability, gateBootstrapArgs, assertGateLeases } = await import("../testing/verification-lifecycle.ts");
   const capability = createGateCapability(home);
   const commands = [
-    { format: "vitest", argv: [process.execPath, ...gateBootstrapArgs(capability), installation.entry.path, "run", "--config", "scripts/full-gate/platform-vitest.config.mjs", "--runner", join(ROOT, "scripts/full-gate/strict-runner.ts"), gateVitestWorkerArg(capability), "--maxWorkers", "1", "--reporter=json", `--outputFile=${join(out, "platform-report.json")}`] },
+    { format: "vitest", argv: vitestCommand({ root: ROOT, cwd: ROOT, group: jobName, capability, out, platform: true }).argv },
     ...(nodeFiles.length ? [{ format: "node-events", argv: [process.execPath, ...gateBootstrapArgs(capability), "--test", "--test-concurrency=1", "--test-reporter=tap", `--test-reporter-destination=${join(out, "platform.tap")}`, `--test-reporter=${join(ROOT, "scripts/full-gate/node-reporter.mjs")}`, `--test-reporter-destination=${join(out, "platform-events.jsonl")}`, ...nodeFiles] }] : []),
   ];
   const audit = await beginResourceAudit({ root: ROOT, home, binding: { sourceSha: before.sha, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, group: jobName }, output: join(out, "platform-resource-audit.json") });

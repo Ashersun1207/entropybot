@@ -19,7 +19,7 @@ function scoped(scope, entry, binding, runRequired) {
 function controller(record, review) {
   insist(text(review?.controllerId) && record?.id === review.controllerId && record?.keyId === review.keyId, "provenance controller identity mismatch");
 }
-function testCommand(receipt) {
+export function testCommand(receipt) {
   const { argv, cwd } = receipt.command;
   const paths = receipt.platform === "win32" ? win32 : posix;
   const pathKey = value => {
@@ -51,7 +51,7 @@ function testCommand(receipt) {
         insist(text(value) && !value.startsWith("-"), "execution receipt missing Vitest option value");
         if (option === "--maxWorkers") insist(/^[12]$/.test(value), "execution receipt unsupported worker count");
         else {
-          const allowed = option === "--runner" ? ["scripts/full-gate/strict-runner.ts"] : ["vite.config.ts", "cloudflare/composio-broker/vitest.config.ts", "cloudflare/control-plane/vitest.config.ts", "scripts/full-gate/platform-vitest.config.mjs"];
+          const allowed = option === "--runner" ? ["scripts/full-gate/strict-runner.ts"] : ["vite.config.ts", "cloudflare/composio-broker/vitest.config.ts", "cloudflare/control-plane/vitest.config.ts", "scripts/full-gate/platform-vitest.config.mjs", "scripts/full-gate/main-vitest.config.mjs", "scripts/full-gate/broker-vitest.config.mjs", "scripts/full-gate/control-plane-vitest.config.mjs"];
           insist(allowed.some(file => pathKey(value) === pathKey(sourcePath(file))), "execution receipt unapproved Vitest configuration");
         }
       } else if (option === "--reporter=json") continue;

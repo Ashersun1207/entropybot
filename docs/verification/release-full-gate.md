@@ -570,3 +570,55 @@ record this prerequisite for review; controller integration remains separate.
 Maintenance/security review of this bounded increment found no new download,
 network, credential, installation, persistent service or unknown-process killing
 path. The existing closure audit and its separate owner remain independent work.
+
+## Installed Vitest CLI subset qualification (2026-11-11)
+
+Vitest **4.1.11** rejects the producer's former `--runner` option before test
+execution. The actual rejection is retained, including a repeat under Node
+24.22.2. Earlier guards that did not use that option retain their original scope
+and results. The production command builder now selects fixed main, broker and
+control-plane full-gate config adapters; each imports its original project config
+and overrides only `test.runner` through `strictConfig`. The existing platform
+config already sets that runner. Product Vite configs are unchanged. Discovery
+and execution share the same selected adapter. Main worker counts and all ten
+shard values remain unchanged. Receipt command validation adds only those three
+fixed config paths; its entry, bootstrap, environment and arbitrary-config
+rejections remain in force. Historical accepted command forms remain a separate
+validator compatibility surface, not newly qualified executions.
+
+The new Node CLI smoke test copies the production builder, configs, runner and
+bootstrap into an owned synthetic project and launches the installed executable.
+Its 17 real Vitest invocations cover four discovery commands, four passing run
+commands (15 synthetic assertions), four retry-sentinel failures, default and CI
+retry runner controls that allow the sentinel, and three strict-policy failures
+for config retry, name filtering and passWithNoTests. Positive tests require the
+original synthetic setup, a Vite plugin's virtual module, and capability presence
+inside the worker. Generated argv is passed to the same command validator used
+by execution receipts; arbitrary config substitutions reject. A merge contract
+asserts that only the runner changes, retaining include/exclude, setup, plugins,
+aliases, sequence and existing policy values. Real original main/broker discovery
+and their adapters have identical file sets: **2442 / 4** respectively. This is
+file discovery, not execution of those suites.
+
+The first two smoke attempts retained fixture failures: platform `mergeConfig`
+merges base include patterns instead of replacing them, and the CI runner control
+needed its actual source/dependency copied. Fixture corrections preserve that
+existing discovery behavior. No second production CLI incompatibility was found;
+`--execArgv` bootstrap is accepted and observed in actual workers. The focused F2,
+resource and new CLI test command has **343 passed, zero failed/skipped/todo**.
+Frozen candidate verification additionally covers original-config size/docs
+guards, scoped lint, strict-runner TypeScript, tools TypeScript and diff checking.
+Exact pre/post SHA/tree/status, tracked and executable dependency hashes, command
+argv/environment/times/exits and logs are retained under the external
+`private/engineering-foundation-evidence/f2-vitest-cli/` directory.
+
+This qualifies only the exercised CLI/config/bootstrap subset. Synthetic project
+plugins stand in for the real Cloudflare plugin; neither control-plane runtime,
+Linux/Windows execution, Actions nor full producer execution is qualified.
+The 269 candidate pins are review metadata on this baseline; the controller must
+recompute them after combining the independent closure candidate. The dispatch-only
+15 jobs, five verdict steps, 77 unresolved declarations, empty release trust,
+reviewer/asset roots and unconditional full resource blockers remain. Scoped
+maintenance/security review found no dependency, lockfile, workflow, network,
+credential, install/build, product-config or unknown-process cleanup change.
+Independent review is required before integration.
