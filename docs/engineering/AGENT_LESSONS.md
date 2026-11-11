@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## F2：原始 archive 的 bin 不能当作 lifecycle hook
+
+- 精确 registry archive SHA-512 同时匹配 lock SRI 与 metadata 后，Electron 43.7.9 原始 manifest 确认没有 scripts 字段；install-electron 仅是 bin 映射。原 manifest、install.js、checksums.json 与声明的本地 node_modules 路径三个文件逐字节相同，不能把缺 hook 推定成本地篡改，也不能自动补显式 provisioning。安装 policy 的旧 unknown 状态不在此审查候选中激活或改写。
+- Node 24.22.2 的官方 darwin-arm64 archive 与官方 checksum 一致，独立 regular bin/node 字节已哈希，但 archive 的三个 symlink 仍按本轮 no-links 规则拒绝 provisioning。pnpm 10.33.0 原始 bin/dist 字节仅受 registry metadata SRI 绑定，不冒称 root-lock 依赖。已下载签名但未验证可信 key；bundled executable hash、独立审批、实际运行和完整历史分别记录。
+- 原 collector 的 Node checksum parser 忽略合法 source/Windows 路径，首次退出1；保留原脚本/日志和未下载 Node archive 的事实，修正后完整解析 manifest，限制全部 gzip 展开字节，合成覆盖 SRI mismatch/traversal/oversize/duplicate/symlink。证据及限制见[原始工具链候选](../verification/pristine-toolchain.md)。仅 docs/data，无安装、下载代码执行、信任根/317 pins/77 dispositions/15 jobs/5 steps 改动，须独立审查与主控串行整合。
+
 ## F2：Actions 身份必须绑定完整提交和实际 lifecycle
 
 - `scripts/full-gate.node-test.mjs` 的旧 active-workflow 合同明确接受 github-script 的 mutable tag，且不检查 checkout/setup/upload 的 action 身份。修改前八个真实 workflow 负例均因 missing expected exception 失败：四个 mutable refs、short SHA、未审仓库/提交与 lifecycle action 替换。固定40位 SHA 后，合同同时检查固定仓库/提交、步骤位置和源目录，不能仅把旧 tag 断言换成任意新字符串。

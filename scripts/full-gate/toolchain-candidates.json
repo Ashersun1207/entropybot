@@ -1,0 +1,942 @@
+{
+  "schemaVersion": 1,
+  "status": "unapproved-read-only-evidence",
+  "sourceBaseline": "64ffeb6397e61dbdfb00e05036cbbb89fd4c76dd",
+  "sourceTree": "2050d28001c4a124f244da34f3c65b4fdea7b535",
+  "lockSha256": "b1d200592b36e631d7633bbecc433d15beed9c931fec54b833131f1f20fd2648",
+  "evidenceDirectory": "private/engineering-foundation-evidence/f2-pristine-toolchain/ (outer controller workspace; not a repo-relative trust root)",
+  "consumer": "none; audit catalog intentionally outside producer trust closure",
+  "approval": false,
+  "installationObserved": false,
+  "downloadedCodeExecuted": false,
+  "collector": {
+    "location": "private task evidence only; no repository tool introduced",
+    "sourceHashes": {
+      "collect-initial.py": "ef54869af34ef43ebae1823188032d8e60015620a6995ff2f00ca77f64f582e0",
+      "collect.py": "15ea61c67c7cd919f74e4f23e126cc40cda80946412d83f3cc73bbeab7459dbf",
+      "qualify.py": "c4c4127e1ed77bcf52c04ba4db0c5a2609a5a9d8c9447bf494422af47b943d99",
+      "synthetic_validation.py": "2b400da6888ad9e9a509439bf3f8ef5e116c0eb228f80af0f7ba33d4b19d740f",
+      "signature_info.py": "47b2895da9f30ce405132a3d6d78a04b7b98a9c23b972316f06c4755ca54b56e"
+    },
+    "networkOrigins": [
+      "https://registry.npmjs.org",
+      "https://nodejs.org"
+    ],
+    "redirectPolicy": "only these HTTPS hosts, port 443, no credentials; observed chains retained per request",
+    "caps": {
+      "npmArchiveBytes": 41943040,
+      "nodeArchiveBytes": 94371840,
+      "metadataBytes": 2097152,
+      "checksumManifestBytes": 131072,
+      "signatureBytes": 262144,
+      "socketTimeoutSeconds": 30,
+      "perFetchDeadlineSeconds": 180,
+      "tarEntryCount": 12000,
+      "perEntryBytes": 157286400,
+      "expandedBytesIncludingHeaders": 471859200
+    },
+    "archivePolicy": "never extractall or follow links; reject duplicate, traversal, backslash, absolute, foreign-prefix, symlink/special entries and size/count violations; hash selected regular streams only; Node link rejection retained, regular member digest cannot qualify provisioning"
+  },
+  "packages": [
+    {
+      "name": "electron",
+      "version": "43.7.9",
+      "status": "unapproved-read-only-evidence",
+      "metadataURL": "https://registry.npmjs.org/electron/43.7.9",
+      "archiveURL": "https://registry.npmjs.org/electron/-/electron-43.7.9.tgz",
+      "lockSRI": "sha512-wZkQ/R9F5Bv8dM5vX6vWboNo5ZCBC/IYQV195dtG9JvFAlNbebzlkWWSE5esgpCVy3rVYQ/g09GeknJwvQnS9A==",
+      "metadataSRI": "sha512-wZkQ/R9F5Bv8dM5vX6vWboNo5ZCBC/IYQV195dtG9JvFAlNbebzlkWWSE5esgpCVy3rVYQ/g09GeknJwvQnS9A==",
+      "actualSRI": "sha512-wZkQ/R9F5Bv8dM5vX6vWboNo5ZCBC/IYQV195dtG9JvFAlNbebzlkWWSE5esgpCVy3rVYQ/g09GeknJwvQnS9A==",
+      "archiveSha256": "b33139a341dec34c7ad4e15779f09951c6a8d95cd6b6b093ac03d9585c91b5c6",
+      "archiveBytes": 197709,
+      "archiveValidation": "regular-paths-only",
+      "hooksExecuted": false,
+      "versionObservedInArchive": true,
+      "licenseDeclared": "MIT",
+      "scripts": null,
+      "bin": {
+        "electron": "cli.js",
+        "install-electron": "install.js"
+      },
+      "engines": {
+        "node": ">= 22.12.0"
+      },
+      "sourceBinding": "root-lock-SRI",
+      "members": {
+        "package/install.js": {
+          "sha256": "3b9e0c3c9070edbdb732dc05ed23c6f1c6b7a404bd623033a2f0b71052534e93",
+          "bytes": 3564,
+          "mode": "0o755"
+        },
+        "package/checksums.json": {
+          "sha256": "4106482e1f7cb05e6e462576710efb2319f56b3b326c601254944e2c18ac8321",
+          "bytes": 8138,
+          "mode": "0o644"
+        },
+        "package/package.json": {
+          "sha256": "52e0fd164cd481c7cd56ad4cb7fa2d1a61f81180bb6d049d76efdf403fefd036",
+          "bytes": 744,
+          "mode": "0o644"
+        }
+      },
+      "metadataSha256": "f746054336b8b06351236c84aabcd73a1d1bf7125241120db8e586070f6cdff7",
+      "http": {
+        "started": "2026-11-11T08:37:57.442295+00:00",
+        "finished": "2026-11-11T08:37:57.981624+00:00",
+        "finalURL": "https://registry.npmjs.org/electron/-/electron-43.7.9.tgz",
+        "status": 200,
+        "redirects": []
+      },
+      "pristineLifecycle": "no-scripts-field; install-electron is bin mapping only",
+      "localComparison": {
+        "package.json": {
+          "declaredPath": "/Users/sun/Desktop/Codex/gorkbot/app/node_modules/.pnpm/electron@43.7.9/node_modules/electron/package.json",
+          "sha256": "52e0fd164cd481c7cd56ad4cb7fa2d1a61f81180bb6d049d76efdf403fefd036",
+          "archiveSha256": "52e0fd164cd481c7cd56ad4cb7fa2d1a61f81180bb6d049d76efdf403fefd036",
+          "equal": true
+        },
+        "install.js": {
+          "declaredPath": "/Users/sun/Desktop/Codex/gorkbot/app/node_modules/.pnpm/electron@43.7.9/node_modules/electron/install.js",
+          "sha256": "3b9e0c3c9070edbdb732dc05ed23c6f1c6b7a404bd623033a2f0b71052534e93",
+          "archiveSha256": "3b9e0c3c9070edbdb732dc05ed23c6f1c6b7a404bd623033a2f0b71052534e93",
+          "equal": true
+        },
+        "checksums.json": {
+          "declaredPath": "/Users/sun/Desktop/Codex/gorkbot/app/node_modules/.pnpm/electron@43.7.9/node_modules/electron/checksums.json",
+          "sha256": "4106482e1f7cb05e6e462576710efb2319f56b3b326c601254944e2c18ac8321",
+          "archiveSha256": "4106482e1f7cb05e6e462576710efb2319f56b3b326c601254944e2c18ac8321",
+          "equal": true
+        }
+      },
+      "targetArchiveChecksums": {
+        "algorithm": "sha256",
+        "observation": "published-table-only-no-target-archives-downloaded",
+        "values": {
+          "chromedriver-v43.7.9-darwin-arm64.zip": "c05c641d1b675a5790d258ba01fbc29f80701955bba7c0f5e076c242c646ea22",
+          "chromedriver-v43.7.9-darwin-x64.zip": "4a9de725c5cce1f59d14ac5b62921e27dd5e7d3ce153bffb73007d146a240632",
+          "chromedriver-v43.7.9-linux-arm64.zip": "5c9de46e88fb6e25751771d26575b47ed98ca2abca93f5a17ee49a58de45bb63",
+          "chromedriver-v43.7.9-linux-armv7l.zip": "f2629a03f06df09a0aa95721ad6565c3ed511df620e7ea9ac35419410785f776",
+          "chromedriver-v43.7.9-linux-x64.zip": "d8fec0883c0f66fd105326788411becc63cc3fd10311c0041ebe8e963e0a3e66",
+          "chromedriver-v43.7.9-mas-arm64.zip": "84ae1acef8ef4ef1076d24ad784ea78ad1eea20828efeae53bc3ceda2c10209a",
+          "chromedriver-v43.7.9-mas-x64.zip": "9eba301c3516082407517d36af84bc875734c479fa32020acb09eabf81736789",
+          "chromedriver-v43.7.9-win32-arm64.zip": "8176adeefb6005fcbcfeb9277ab1abd7501917cf298b6ecf22a2cf21bdffe62d",
+          "chromedriver-v43.7.9-win32-ia32.zip": "d71f28e30d8234036f845284286cedd19c2e98563c5a42f4f3638b3468db332f",
+          "chromedriver-v43.7.9-win32-x64.zip": "acb2c45885f90c983751956cb3590d3d332425937f4dce7c24a505b0d2cdd211",
+          "electron-api.json": "69f89ea4683dcbf96311ae72d04a8bf0e22bae0ec9e899648e4b3a2991f70657",
+          "electron-v43.7.9-darwin-arm64-dsym-snapshot.zip": "3dc4313292f579ef5bc1c69bb974a46f7c2f78c0a94f5abea907e43f53ab3042",
+          "electron-v43.7.9-darwin-arm64-dsym.tar.xz": "8e349a50d60a4283b94775131a001b77544bd5a039452502f2959611aafe4991",
+          "electron-v43.7.9-darwin-arm64-symbols.zip": "2a277303c708b16b34e7c397f0fe95a48647e66e7773879733a6a635c65ab677",
+          "electron-v43.7.9-darwin-arm64.zip": "dcf13726bbf45646c968bb67f48d24ecfb941af1b3c01217f84edaf50fee632a",
+          "electron-v43.7.9-darwin-x64-dsym-snapshot.zip": "3dc4313292f579ef5bc1c69bb974a46f7c2f78c0a94f5abea907e43f53ab3042",
+          "electron-v43.7.9-darwin-x64-dsym.tar.xz": "9b2061de99f2da8342d2790719df95fa99314315307c86edbf28cc173e3c5b94",
+          "electron-v43.7.9-darwin-x64-symbols.zip": "e8411f0533cf1150afeb81a3ea9eec9329f6e81e53997875554178712b8d1bf6",
+          "electron-v43.7.9-darwin-x64.zip": "261abbcc153fad2e31af2c05d72860e9e40b95f5c32cb5c7a082b0a2b770bbb5",
+          "electron-v43.7.9-linux-arm64-debug.zip": "743c19693782047f9ea9395ebf00da3b3ee0cd9b06d43e9966fe62f250f012d5",
+          "electron-v43.7.9-linux-arm64-symbols.zip": "6c392c9d85d5d7e27fa2ec0242e94f60c38ea2a98f3fd8f437ef1656528159cf",
+          "electron-v43.7.9-linux-arm64.zip": "824b2a6a45a2ce4552b178f9489328d7492273a19a1ddd82fc426ce4fe0a7f34",
+          "electron-v43.7.9-linux-armv7l-debug.zip": "167f9525fb647959bd437518a30e11af305e1f049c18dbb02ce51a0e6b02a379",
+          "electron-v43.7.9-linux-armv7l-symbols.zip": "421d19a54745ed5236a179521b3b85017a71db53e0f1cfe6fafa45b3269ec0b2",
+          "electron-v43.7.9-linux-armv7l.zip": "3084b49222d93a0e287e61a0a8f7f4e2a59fbba5e73cf971101d88ba06d1b3ae",
+          "electron-v43.7.9-linux-x64-debug.zip": "e439e4f3c0571c5a63c9d15785cfa27fa6ff892203cf1c8e1d8b546b4cd777ef",
+          "electron-v43.7.9-linux-x64-symbols.zip": "f3629953998ba113c5820a56a0b54b2599caca79cf783c9d848de3b52a7a2f37",
+          "electron-v43.7.9-linux-x64.zip": "684c0beebab080d079c9ae26ba1f2e7af97c95e27772e8ded45ff02f25db17ec",
+          "electron-v43.7.9-mas-arm64-dsym-snapshot.zip": "3dc4313292f579ef5bc1c69bb974a46f7c2f78c0a94f5abea907e43f53ab3042",
+          "electron-v43.7.9-mas-arm64-dsym.tar.xz": "71fc0a34fa8f75ced7e733a003439f16ed64746d86e0159cf7ebb72b2b427291",
+          "electron-v43.7.9-mas-arm64-symbols.zip": "013f7b9185c5ea2ce10c338da942e32e7dd8387154bed0c142369126064b6791",
+          "electron-v43.7.9-mas-arm64.zip": "c7a70a4110b87c36cc2266b08c5b40e67a6020e2c9c90d3a07357b8e9de34eb2",
+          "electron-v43.7.9-mas-x64-dsym-snapshot.zip": "3dc4313292f579ef5bc1c69bb974a46f7c2f78c0a94f5abea907e43f53ab3042",
+          "electron-v43.7.9-mas-x64-dsym.tar.xz": "58ac53d058171a8118cb8aed69017eba1c7c35b0097d68a1f3fe8a7c68a8171e",
+          "electron-v43.7.9-mas-x64-symbols.zip": "2423849afeb8fc1e8d10212e642c3da92885d61614e8e78d120adb9b21ba0b54",
+          "electron-v43.7.9-mas-x64.zip": "b19fe6ef02683fcdaae25ac196c125cc5758d8db535550c11810eb1a0345d836",
+          "electron-v43.7.9-win32-arm64-pdb.zip": "849452af7bb4fedd8af388983a82c4fdd29289a71f59fd6ba92f4413cbd19e08",
+          "electron-v43.7.9-win32-arm64-symbols.zip": "685a3e1518c583ef3edc81a49aa7f1bc352e741422a66429d5d4c8af294bd2f6",
+          "electron-v43.7.9-win32-arm64-toolchain-profile.zip": "90386280bc7e4ac5d451e43e26a7c76ed1c8bcdc0206ec50762c7e4f09c59c28",
+          "electron-v43.7.9-win32-arm64.zip": "ecf3d7f58abcffcf9038c1c8ed9fbf04cf4ba06f37faae6cadd3650b2b418ab3",
+          "electron-v43.7.9-win32-ia32-pdb.zip": "76c9522cbc6b548e491031806fc43c1a24c2fb87291c888544a7afdcca24a2c6",
+          "electron-v43.7.9-win32-ia32-symbols.zip": "bde919b0a3e4ebcf8fb09bd51ad0b1aba4d00fa858bad5d2384b9589ee2c7b82",
+          "electron-v43.7.9-win32-ia32-toolchain-profile.zip": "90386280bc7e4ac5d451e43e26a7c76ed1c8bcdc0206ec50762c7e4f09c59c28",
+          "electron-v43.7.9-win32-ia32.zip": "af5344a4eed7ae0039e05b3b949d201d9ecccf4c51ee1c14978e32fd5b61f0f6",
+          "electron-v43.7.9-win32-x64-pdb.zip": "c70a39871527b1a5eb6b2077d76960f16e585a084b1cdd3390a0ae4ac1fa0150",
+          "electron-v43.7.9-win32-x64-symbols.zip": "f7f8a35809e1c53d36d4234678d80b8e07a36f76f974160231dc8ff4122c0fe0",
+          "electron-v43.7.9-win32-x64-toolchain-profile.zip": "90386280bc7e4ac5d451e43e26a7c76ed1c8bcdc0206ec50762c7e4f09c59c28",
+          "electron-v43.7.9-win32-x64.zip": "92171b4a51c8547e48c8cfeca63c655841994031aabf79db80658319d95fafe5",
+          "electron.d.ts": "c7bdf13be50d486eba4d1511e127f12ad09a49bcf3173c60e930b82921cdbc9a",
+          "ffmpeg-v43.7.9-darwin-arm64.zip": "007ecc614b3792ea76f11fbcd688eb79490c790ebf01648199658796e432ab04",
+          "ffmpeg-v43.7.9-darwin-x64.zip": "4385071d853119b41fae5fa9d5dab2da7e9f009656c8a7b298e521f067a61b9d",
+          "ffmpeg-v43.7.9-linux-arm64.zip": "96e5d1cd1d130811b698fb9174b671a77d186eff7a31abc81d76817d9bbe504b",
+          "ffmpeg-v43.7.9-linux-armv7l.zip": "001847bd19549781850fd6f69941a54f92356ed26bca02892e9642637215668d",
+          "ffmpeg-v43.7.9-linux-x64.zip": "728dd6d5786cb797e04e0b767f3549f4d42218b64e3ded55f8956dd586ca9ac2",
+          "ffmpeg-v43.7.9-mas-arm64.zip": "6202521bee5fdf079a78a824177e0c2601007b12717fe722fdf337b7317a5605",
+          "ffmpeg-v43.7.9-mas-x64.zip": "3d664d3e9e7d801828cbd0f3d19bf4729a178b6198da0f6a82aa9b9e28f3349b",
+          "ffmpeg-v43.7.9-win32-arm64.zip": "be877a73539b06d310b25f7ec8f943abaaedf8dfe2f3f9236d06362ffc2b7704",
+          "ffmpeg-v43.7.9-win32-ia32.zip": "3a7ced2fc87bbb3d03d2ef7030a814394a5e68bf864d10170887e5fd24ea6e99",
+          "ffmpeg-v43.7.9-win32-x64.zip": "ef420b73516f65aa29f185edd8d0532a75cead487e0cbd4ca13587cd73a56026",
+          "hunspell_dictionaries.zip": "19d52f31fc0e0ca028df35c64e1fc95b93c398b28c23c3b2e9ccd1201586cc49",
+          "libcxx-objects-v43.7.9-linux-arm64.zip": "432cf60879ff1ec36ab5c2d0cc55ac65ed07aede5bcca3e8a0db90a35e6fc033",
+          "libcxx-objects-v43.7.9-linux-armv7l.zip": "53ba9273f13bba9cc25eff3ad8e0389cd1ee77f592585c92940322cde4c7c015",
+          "libcxx-objects-v43.7.9-linux-x64.zip": "2cc0ee3ccfa5a09516ce518a3b6dac6bcc3b3477b2f00e991e9a7f6bbcbb25df",
+          "libcxx_headers.zip": "86c55f376cb793efcb80ca8dd45ad0bdaa63856f5904f9c7a879fa7cbfa82e91",
+          "libcxxabi_headers.zip": "44ead66e0b119cac843fc863d990a03da030f6a59192ec6fa6b77747cb2a3ed2",
+          "mksnapshot-v43.7.9-darwin-arm64.zip": "85683a4c397d9f3e72a3ea0a7bb6772153bce969b9ed350b339cc0f57e53c258",
+          "mksnapshot-v43.7.9-darwin-x64.zip": "6483dce437e2cc3c4440f2e20fea9cd2bd5642be400650e62ea5e3fae40b0b2b",
+          "mksnapshot-v43.7.9-linux-arm64-x64.zip": "3d1b91c9867f0a7981578c2f8cec0916ff6bfc567f4fd56cb88e9c0ea27c0fe4",
+          "mksnapshot-v43.7.9-linux-armv7l-x64.zip": "3242382b6150bd77770abfed96d41025af7113ec95c8eb1435054363b310926c",
+          "mksnapshot-v43.7.9-linux-x64.zip": "4be0805ea41fcc83cc39998ac224e2d81dbd99a49391a634b29610ccf1026eb2",
+          "mksnapshot-v43.7.9-mas-arm64.zip": "cb300599e40c92968969396719881031cd038514952036dffd7ec8fcf642605b",
+          "mksnapshot-v43.7.9-mas-x64.zip": "b87221b4ab7ac6ca713a3e37c8fd950e39d683269e9c0e8fb9d99165e2c552ec",
+          "mksnapshot-v43.7.9-win32-arm64-x64.zip": "8239044776fc1dd162b3bae3e6c68ecf18541b4cd5c9dbd346b9ea7e3ea3bffe",
+          "mksnapshot-v43.7.9-win32-ia32.zip": "69c04d6a890731ba2369b03d256f9180934bf20c455fafa958166589ef038db8",
+          "mksnapshot-v43.7.9-win32-x64.zip": "d284b4ee92dbeddfd51596a8b1eb8c5a501a42b68916f701a067c205bce20be7"
+        }
+      }
+    },
+    {
+      "name": "esbuild",
+      "version": "0.28.1",
+      "status": "unapproved-read-only-evidence",
+      "metadataURL": "https://registry.npmjs.org/esbuild/0.28.1",
+      "archiveURL": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.1.tgz",
+      "lockSRI": "sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==",
+      "metadataSRI": "sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==",
+      "actualSRI": "sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==",
+      "archiveSha256": "eb8ef756f8299d16d5c8b35678606d715ba29923f500db7b37c181310eed40a5",
+      "archiveBytes": 34131,
+      "archiveValidation": "regular-paths-only",
+      "hooksExecuted": false,
+      "versionObservedInArchive": true,
+      "licenseDeclared": "MIT",
+      "scripts": {
+        "postinstall": "node install.js"
+      },
+      "bin": {
+        "esbuild": "bin/esbuild"
+      },
+      "engines": {
+        "node": ">=18"
+      },
+      "sourceBinding": "root-lock-SRI",
+      "members": {
+        "package/bin/esbuild": {
+          "sha256": "fe9a7b65a540d8df1a0f59941d52e7c1260c36fed9a2af3dd966f15381b6eb76",
+          "bytes": 9350,
+          "mode": "0o755"
+        },
+        "package/install.js": {
+          "sha256": "612294e278914443bdcf81cb17f54afec34dbdd2ebd999a6ee187912320cc315",
+          "bytes": 11773,
+          "mode": "0o644"
+        },
+        "package/lib/main.js": {
+          "sha256": "8331fe1d8b3a07381f33cc425fcfaa94776e263113653f80ec3ba433e9657e73",
+          "bytes": 97214,
+          "mode": "0o644"
+        },
+        "package/package.json": {
+          "sha256": "d55d1d19fcc5b6079e4a71dd4111340c79c682bc36835ac7058a0c364c7db58a",
+          "bytes": 3980,
+          "mode": "0o644"
+        }
+      },
+      "metadataSha256": "4a6cfffbc1389d2f77818c6e7a5a24db69a587e5ad2db8cb4f43afa0e53f53fa",
+      "http": {
+        "started": "2026-11-11T08:37:58.607717+00:00",
+        "finished": "2026-11-11T08:37:59.064054+00:00",
+        "finalURL": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.1.tgz",
+        "status": 200,
+        "redirects": []
+      },
+      "targetBinaryChecksums": {
+        "algorithm": "sha256",
+        "observation": "published-manifest-table-only-no-optional-target-archives-downloaded",
+        "values": {
+          "@esbuild/aix-ppc64/bin/esbuild": "0dd860154344f94b7a9367e64ffc2bc5b89a4313b4a399e5127cdc4ff5000303",
+          "@esbuild/android-arm64/bin/esbuild": "087671da02d323e7915fafc13567c0929192633ed544bd8adee9bc020fddf5b4",
+          "@esbuild/darwin-arm64/bin/esbuild": "e2dc9a52440a2a34f09434a2f4843cb1e30f84e40dcf238976ec61ef8cd7f36a",
+          "@esbuild/darwin-x64/bin/esbuild": "dd53ccf32f9b5b3ab30d41388ef1fc8f81c44ca57ee7a32a7364a1753308d009",
+          "@esbuild/freebsd-arm64/bin/esbuild": "5fef5a5ef24d9660d7711b756be5ddeba1fb3ca8dd62d703682ebb9fab3b68b0",
+          "@esbuild/freebsd-x64/bin/esbuild": "4427a8cbfa0661943ccfef2606a65b35f3411ac73e447e86f7732aace61e4609",
+          "@esbuild/linux-arm/bin/esbuild": "a2d93f7a8b1c9f91d47beec987888b4765c890501b6274f4bdff4061a5e0d9fd",
+          "@esbuild/linux-arm64/bin/esbuild": "51e829ba36f36be6d9aea6e329ddc4f9350302339b16aaca96a3cb97f64a8ebb",
+          "@esbuild/linux-ia32/bin/esbuild": "9cd7515a75d6f96b0aa055861cf987498315428088cd6d18de5082f904ae5794",
+          "@esbuild/linux-loong64/bin/esbuild": "73fa76af9b13f7a27fdb20673b8c2af927fe1511d14e51edeb4b7b71f7f03d0e",
+          "@esbuild/linux-mips64el/bin/esbuild": "d734787abc3c99d95242805047fe32da85a5822f04bf33d766a966bf5fd85488",
+          "@esbuild/linux-ppc64/bin/esbuild": "90709144617c2adf8f6c14937f03b114c259de0b9309666e3a9d89a1fb266d04",
+          "@esbuild/linux-riscv64/bin/esbuild": "86df35a46bedde8b756edb6565a1df7b5a832ad74dd0e179608cbf6509a2582a",
+          "@esbuild/linux-s390x/bin/esbuild": "f8cad0db35132e5ac3065c4345c36e7ffe18fdc98417a61bcf5a95a6c694e57c",
+          "@esbuild/linux-x64/bin/esbuild": "0c6588b092a2c291a72bab90659f3c9e0e25e0fe59c9ac12b4dae4d945e5548c",
+          "@esbuild/netbsd-arm64/bin/esbuild": "490cfdac2d96d5608d91cf55bdf4052bbde7013dafe87ec7adc7784778ad4d4c",
+          "@esbuild/netbsd-x64/bin/esbuild": "c61e0e4c553a4986fd0e9d63a0425e93be831ff7b13bfb8a564368fb7590f85d",
+          "@esbuild/openbsd-arm64/bin/esbuild": "f9d814698e26c09c3f90d4c103cbdf3832c9f2c841d64a93889d63d23da9b8cf",
+          "@esbuild/openbsd-x64/bin/esbuild": "2e30dce11f7236aa362c1c57212cc696f51472169aa417f30e9b641f3b7dcade",
+          "@esbuild/sunos-x64/bin/esbuild": "770e0d2bc930b1a1d19d3f43243ff8f393efddb599e7f5843160feacd253267d",
+          "@esbuild/win32-arm64/esbuild.exe": "bfb8798ab678f1ce4a723739f4a3eabab3244d7a04eeb12be2eb9f58095c13ef",
+          "@esbuild/win32-ia32/esbuild.exe": "8fa99b6e0945830fce8d7e208fdb21763aa4aea875751f4a0eec7f6e262af1dd",
+          "@esbuild/win32-x64/esbuild.exe": "ec02ee9b14ab332416fedd10614dfb80eed5304d94f67745067c011934a8c3c3"
+        }
+      },
+      "optionalTargets": {
+        "@esbuild/aix-ppc64": "0.28.1",
+        "@esbuild/android-arm": "0.28.1",
+        "@esbuild/android-arm64": "0.28.1",
+        "@esbuild/android-x64": "0.28.1",
+        "@esbuild/darwin-arm64": "0.28.1",
+        "@esbuild/darwin-x64": "0.28.1",
+        "@esbuild/freebsd-arm64": "0.28.1",
+        "@esbuild/freebsd-x64": "0.28.1",
+        "@esbuild/linux-arm": "0.28.1",
+        "@esbuild/linux-arm64": "0.28.1",
+        "@esbuild/linux-ia32": "0.28.1",
+        "@esbuild/linux-loong64": "0.28.1",
+        "@esbuild/linux-mips64el": "0.28.1",
+        "@esbuild/linux-ppc64": "0.28.1",
+        "@esbuild/linux-riscv64": "0.28.1",
+        "@esbuild/linux-s390x": "0.28.1",
+        "@esbuild/linux-x64": "0.28.1",
+        "@esbuild/netbsd-arm64": "0.28.1",
+        "@esbuild/netbsd-x64": "0.28.1",
+        "@esbuild/openbsd-arm64": "0.28.1",
+        "@esbuild/openbsd-x64": "0.28.1",
+        "@esbuild/openharmony-arm64": "0.28.1",
+        "@esbuild/sunos-x64": "0.28.1",
+        "@esbuild/win32-arm64": "0.28.1",
+        "@esbuild/win32-ia32": "0.28.1",
+        "@esbuild/win32-x64": "0.28.1"
+      }
+    },
+    {
+      "name": "esbuild",
+      "version": "0.28.2",
+      "status": "unapproved-read-only-evidence",
+      "metadataURL": "https://registry.npmjs.org/esbuild/0.28.2",
+      "archiveURL": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz",
+      "lockSRI": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
+      "metadataSRI": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
+      "actualSRI": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
+      "archiveSha256": "e045f94c235c7adc50e77ba2a579c7bec41b496b6b47c3a7845f7c1e19959a88",
+      "archiveBytes": 34207,
+      "archiveValidation": "regular-paths-only",
+      "hooksExecuted": false,
+      "versionObservedInArchive": true,
+      "licenseDeclared": "MIT",
+      "scripts": {
+        "postinstall": "node install.js"
+      },
+      "bin": {
+        "esbuild": "bin/esbuild"
+      },
+      "engines": {
+        "node": ">=18"
+      },
+      "sourceBinding": "root-lock-SRI",
+      "members": {
+        "package/bin/esbuild": {
+          "sha256": "183d6ead2dbc3af51aec767d5395f86fe54fbbc2d2aa8e54feb4e31d76a62f7e",
+          "bytes": 9350,
+          "mode": "0o755"
+        },
+        "package/install.js": {
+          "sha256": "612294e278914443bdcf81cb17f54afec34dbdd2ebd999a6ee187912320cc315",
+          "bytes": 11773,
+          "mode": "0o644"
+        },
+        "package/lib/main.js": {
+          "sha256": "61ec0ba144ff93f4bf0e96ad6fab6f430ede0aa13e27ace8063ed63ba416b3cd",
+          "bytes": 97463,
+          "mode": "0o644"
+        },
+        "package/package.json": {
+          "sha256": "9d0bc453f4e791553c4cc2298ba023b409241fd9801e494741666eb0f6051490",
+          "bytes": 3980,
+          "mode": "0o644"
+        }
+      },
+      "metadataSha256": "7a6838097b106ef5d8877fd543a1e25c46e5eb1730945fb7e57bc467c12c7c8c",
+      "http": {
+        "started": "2026-11-11T08:37:59.500926+00:00",
+        "finished": "2026-11-11T08:37:59.991851+00:00",
+        "finalURL": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz",
+        "status": 200,
+        "redirects": []
+      },
+      "targetBinaryChecksums": {
+        "algorithm": "sha256",
+        "observation": "published-manifest-table-only-no-optional-target-archives-downloaded",
+        "values": {
+          "@esbuild/aix-ppc64/bin/esbuild": "6de148b932fc5d3b28a97f9f0bc4de8e2b47db478b8ad679e0eaa6b96e00420d",
+          "@esbuild/android-arm64/bin/esbuild": "84efbbd2cbf21bbfec2aaf304bee79cb2a4a05fe2ea7b861a87f7b8f213ac27d",
+          "@esbuild/darwin-arm64/bin/esbuild": "10b6243df618d374bb2d5c9cfbe7052e1405f6aa4e53a6164f11a91b9f2e1384",
+          "@esbuild/darwin-x64/bin/esbuild": "7fe5c9c905fff0a05d92db98929434ab4d3b6dd92d7a7688922db74380c75df3",
+          "@esbuild/freebsd-arm64/bin/esbuild": "6aba108a68b93064e491bfb1ecfa28843b4d4e504dff0627f53f68f6bb015c01",
+          "@esbuild/freebsd-x64/bin/esbuild": "8a237e222bee0e50556e7b00d83ec2ff43721bf72f19811a5f0ee56f1d40177c",
+          "@esbuild/linux-arm/bin/esbuild": "d88f751b22095b2f3b42c8c2e8a3f36fabc1705438c5d6e78366b681f8b4e7a5",
+          "@esbuild/linux-arm64/bin/esbuild": "90bd269553d258e80b19e3ccab4f98f0831f87442a2f056510ce24fd1b425fc2",
+          "@esbuild/linux-ia32/bin/esbuild": "b1e2d87d79f9a2baa0d3043cdf0dc6716f9f2eea66c58f47588641fd6019f36f",
+          "@esbuild/linux-loong64/bin/esbuild": "55a66f9854d6798f36b2b5471db74f2e552481887ea14d8bda1634a512383a43",
+          "@esbuild/linux-mips64el/bin/esbuild": "6bf7921a3af4a801051e056d85c360fe24bb446f488ef3da25f0b8e5cf973db1",
+          "@esbuild/linux-ppc64/bin/esbuild": "c30df60d09bb0ba4853d7b06e244ce966890d61ce60cadd9b22335f6379c316a",
+          "@esbuild/linux-riscv64/bin/esbuild": "36bdcdc8230eef385838cdfeb0d9a1565cbe4b9ace30097a511d77e894de36a1",
+          "@esbuild/linux-s390x/bin/esbuild": "bbbc1f92a76a5ca6e2976065222e42b02797363a1f119490dda315f74047741f",
+          "@esbuild/linux-x64/bin/esbuild": "e1698a3d5c6c0798fee4fd3b5cc816651f460c63d390a7a26ea4beb0b1884100",
+          "@esbuild/netbsd-arm64/bin/esbuild": "62548519d7ae875d060aa8c94bfb8ed38ef191671a5173d9f626bdb6b7516970",
+          "@esbuild/netbsd-x64/bin/esbuild": "f9d0e59d2b404559e3a0c958164d96960ebf0e04583b878b1d64d8f1c3698fcc",
+          "@esbuild/openbsd-arm64/bin/esbuild": "e10c45a0b62456632da41df058d7626b2e7cfe710780a2dc7f9f84681753f3aa",
+          "@esbuild/openbsd-x64/bin/esbuild": "720bbe607736716f2ecd37962436c5589d801966e868a2ae4e0e7e62d1e4e887",
+          "@esbuild/sunos-x64/bin/esbuild": "01a3bd9183631ca749f34d15601ea21ba6834614184c5c859f99d54bd683203d",
+          "@esbuild/win32-arm64/esbuild.exe": "530fb3933af14eefe85dfd06502f826e6ef60fdf4e75228ea67c696db312ecb1",
+          "@esbuild/win32-ia32/esbuild.exe": "b2e62af5c17e00939583be0a0762fdc469f352869a617edc91371b00454c76f0",
+          "@esbuild/win32-x64/esbuild.exe": "c7bee37877d0aa6a046e52783fa0a2cf1a9ce5579d68bb3083bda99d4bff18ef"
+        }
+      },
+      "optionalTargets": {
+        "@esbuild/aix-ppc64": "0.28.2",
+        "@esbuild/android-arm": "0.28.2",
+        "@esbuild/android-arm64": "0.28.2",
+        "@esbuild/android-x64": "0.28.2",
+        "@esbuild/darwin-arm64": "0.28.2",
+        "@esbuild/darwin-x64": "0.28.2",
+        "@esbuild/freebsd-arm64": "0.28.2",
+        "@esbuild/freebsd-x64": "0.28.2",
+        "@esbuild/linux-arm": "0.28.2",
+        "@esbuild/linux-arm64": "0.28.2",
+        "@esbuild/linux-ia32": "0.28.2",
+        "@esbuild/linux-loong64": "0.28.2",
+        "@esbuild/linux-mips64el": "0.28.2",
+        "@esbuild/linux-ppc64": "0.28.2",
+        "@esbuild/linux-riscv64": "0.28.2",
+        "@esbuild/linux-s390x": "0.28.2",
+        "@esbuild/linux-x64": "0.28.2",
+        "@esbuild/netbsd-arm64": "0.28.2",
+        "@esbuild/netbsd-x64": "0.28.2",
+        "@esbuild/openbsd-arm64": "0.28.2",
+        "@esbuild/openbsd-x64": "0.28.2",
+        "@esbuild/openharmony-arm64": "0.28.2",
+        "@esbuild/sunos-x64": "0.28.2",
+        "@esbuild/win32-arm64": "0.28.2",
+        "@esbuild/win32-ia32": "0.28.2",
+        "@esbuild/win32-x64": "0.28.2"
+      }
+    },
+    {
+      "name": "@electron/get",
+      "version": "5.1.0",
+      "status": "unapproved-read-only-evidence",
+      "metadataURL": "https://registry.npmjs.org/@electron%2Fget/5.1.0",
+      "archiveURL": "https://registry.npmjs.org/@electron/get/-/get-5.1.0.tgz",
+      "lockSRI": "sha512-3kSBtG8ObcTVfXanm5vVJ6UnBLEVmVsRk1M+vGqCuMBV+XLCbJYuWQful+yIy0GQDsSlK0kHEriEHn7SPk4EnA==",
+      "metadataSRI": "sha512-3kSBtG8ObcTVfXanm5vVJ6UnBLEVmVsRk1M+vGqCuMBV+XLCbJYuWQful+yIy0GQDsSlK0kHEriEHn7SPk4EnA==",
+      "actualSRI": "sha512-3kSBtG8ObcTVfXanm5vVJ6UnBLEVmVsRk1M+vGqCuMBV+XLCbJYuWQful+yIy0GQDsSlK0kHEriEHn7SPk4EnA==",
+      "archiveSha256": "bdaedaeec759d5b41a20e4d3ae930a86f0406ecf07f28777d8c3c1e9c62182bf",
+      "archiveBytes": 20211,
+      "archiveValidation": "regular-paths-only",
+      "hooksExecuted": false,
+      "versionObservedInArchive": true,
+      "licenseDeclared": "MIT",
+      "scripts": {
+        "build": "tsc",
+        "build:docs": "typedoc",
+        "lint": "oxfmt --check . && oxlint",
+        "lint:fix": "oxfmt --write . && oxlint --fix",
+        "prepare": "husky",
+        "prepublishOnly": "npm run build",
+        "test": "vitest run --coverage",
+        "test:nonetwork": "npm run lint && vitest run --coverage --testPathIgnorePatterns network.spec"
+      },
+      "bin": null,
+      "engines": {
+        "node": ">=22.12.0"
+      },
+      "sourceBinding": "root-lock-SRI",
+      "members": {
+        "package/dist/artifact-utils.js": {
+          "sha256": "90c0ba570fe50779c1c9239c60d22be73438c57e3cd718aeb8eb13b43f434a22",
+          "bytes": 2344,
+          "mode": "0o644"
+        },
+        "package/dist/Cache.js": {
+          "sha256": "49dfbf8ae8a3ab565f0530605e3ed7b27ab578e5f3addfcb47ab913eedfdb2c1",
+          "bytes": 4088,
+          "mode": "0o644"
+        },
+        "package/dist/downloader-resolver.js": {
+          "sha256": "642cd7ad44b1f853d6787107ef44183d2d15634040eb8cbebe9cdaf6517796cb",
+          "bytes": 188,
+          "mode": "0o644"
+        },
+        "package/dist/Downloader.js": {
+          "sha256": "8204637411a51141ddf341b891129513c411961d6eec8bd833d5d2db7e097f48",
+          "bytes": 49,
+          "mode": "0o644"
+        },
+        "package/dist/FetchDownloader.js": {
+          "sha256": "38a0d3afe5dc45248283b0aa919c6c5ee49e658ee8cd3971747612682f87506b",
+          "bytes": 3121,
+          "mode": "0o644"
+        },
+        "package/dist/index.js": {
+          "sha256": "32ccacd5ae478d80b64d1105153c878c2295f8f975bf6cd32bc27c0e68faa1b3",
+          "bytes": 9166,
+          "mode": "0o644"
+        },
+        "package/dist/proxy.js": {
+          "sha256": "f48c756c6df7dd68671b84036d54121001bb1bbbf859dc0b8e50de2933ebda6f",
+          "bytes": 1153,
+          "mode": "0o644"
+        },
+        "package/dist/types.js": {
+          "sha256": "71502c46bcbcdae929b0a52e766477153f46a09b683c8c1888175a5dd949f54e",
+          "bytes": 1116,
+          "mode": "0o644"
+        },
+        "package/dist/utils.js": {
+          "sha256": "f0cdf8ec328898af1538862abee81d4e32104ea284c1c9b9f5e9802c426abdea",
+          "bytes": 5358,
+          "mode": "0o644"
+        },
+        "package/package.json": {
+          "sha256": "7db30e8ee1f97e3d45d6a1ebb7db7ad28fc193ba44399b94810119624f94b1a2",
+          "bytes": 2058,
+          "mode": "0o644"
+        }
+      },
+      "metadataSha256": "7db2cda1b72e4c8b95e16925b053c3b811a4688c2c32cdc33c66533ca97bf232",
+      "http": {
+        "started": "2026-11-11T08:38:00.670731+00:00",
+        "finished": "2026-11-11T08:38:01.131622+00:00",
+        "finalURL": "https://registry.npmjs.org/@electron/get/-/get-5.1.0.tgz",
+        "status": 200,
+        "redirects": []
+      }
+    },
+    {
+      "name": "@electron-internal/extract-zip",
+      "version": "1.0.5",
+      "status": "unapproved-read-only-evidence",
+      "metadataURL": "https://registry.npmjs.org/@electron-internal%2Fextract-zip/1.0.5",
+      "archiveURL": "https://registry.npmjs.org/@electron-internal/extract-zip/-/extract-zip-1.0.5.tgz",
+      "lockSRI": "sha512-+bqFCP98pLI0Tt0XQo1TmlXtwjWchISndDOxCkEcIuUgXWpBnLyRI+2DU+mesvnMMX6L1XDqYNA0lXNDHd/yiA==",
+      "metadataSRI": "sha512-+bqFCP98pLI0Tt0XQo1TmlXtwjWchISndDOxCkEcIuUgXWpBnLyRI+2DU+mesvnMMX6L1XDqYNA0lXNDHd/yiA==",
+      "actualSRI": "sha512-+bqFCP98pLI0Tt0XQo1TmlXtwjWchISndDOxCkEcIuUgXWpBnLyRI+2DU+mesvnMMX6L1XDqYNA0lXNDHd/yiA==",
+      "archiveSha256": "939b4462974f8fa1b339dd4f420c62787ddf06903cc9c61f1f0661f096f5370b",
+      "archiveBytes": 3719435,
+      "archiveValidation": "regular-paths-only",
+      "hooksExecuted": false,
+      "versionObservedInArchive": true,
+      "licenseDeclared": "BSD-2-Clause",
+      "scripts": {
+        "build": "napi build --platform --release --esm --output-dir . --js binding.js --dts binding.d.ts && node scripts/strip-binding-fallbacks.js",
+        "build:debug": "napi build --platform --esm --output-dir . --js binding.js --dts binding.d.ts && node scripts/strip-binding-fallbacks.js",
+        "universal": "napi universalize --output-dir .",
+        "test": "node --test test/*.test.js",
+        "bench": "node bench/bench.js",
+        "bench:electron": "node bench/electron.js",
+        "prepublishOnly": "node scripts/check-prebuilds.js"
+      },
+      "bin": null,
+      "engines": {
+        "node": ">=22.12.0"
+      },
+      "sourceBinding": "root-lock-SRI",
+      "members": {
+        "package/binding.js": {
+          "sha256": "22eb9b4cd7e3e7383617729a94fe5ac5ebcbd6ad3390956df34895d15fa1201e",
+          "bytes": 33902,
+          "mode": "0o644"
+        },
+        "package/index.js": {
+          "sha256": "29bfc5e60c392a2c8132f3ef7f1a98d1d0bf96e1ff41b683ebe4bdb4d0dc6991",
+          "bytes": 633,
+          "mode": "0o644"
+        },
+        "package/package.json": {
+          "sha256": "438071218e7acba31a460d5c8ebb9a7dc4a8ce5c0cb05f9c706f5b4e1323884c",
+          "bytes": 2095,
+          "mode": "0o644"
+        },
+        "package/index.darwin-universal.node": {
+          "sha256": "7944e8514331634d38bb1e88c41524deea21781f0fabcb4be1199dde5bb7e5ce",
+          "bytes": 1374112,
+          "mode": "0o644"
+        },
+        "package/index.linux-arm-gnueabihf.node": {
+          "sha256": "9c7c5a1cad5523d2c13b5ab2374a4193d6b934e6f5b549359f703e3eb30e4c09",
+          "bytes": 691300,
+          "mode": "0o644"
+        },
+        "package/index.linux-arm64-gnu.node": {
+          "sha256": "aba0b1b1209ce35ebef75d4dcfb5bf1b546be9bdb5ea420148bf222c30fcbb5d",
+          "bytes": 668408,
+          "mode": "0o644"
+        },
+        "package/index.linux-arm64-musl.node": {
+          "sha256": "32a6b674f23fc083e986af9296a2c0a2a167d038e6bed8ea396b230a122e209a",
+          "bytes": 725720,
+          "mode": "0o644"
+        },
+        "package/index.linux-ia32-gnu.node": {
+          "sha256": "5dd18bcbf67dda4f5264b72bf874df1c35960f6e666a56a6fdf7cf588a137763",
+          "bytes": 784884,
+          "mode": "0o644"
+        },
+        "package/index.linux-x64-gnu.node": {
+          "sha256": "c2137ff4b726767e33ea7a7a1d3073cd08635a6b3b4b5056fc67d528b84c83ae",
+          "bytes": 762832,
+          "mode": "0o644"
+        },
+        "package/index.linux-x64-musl.node": {
+          "sha256": "8aa7c7a4596afa294b638302a109f38089141e4cd190c739fc476e378d950543",
+          "bytes": 762656,
+          "mode": "0o644"
+        },
+        "package/index.win32-arm64-msvc.node": {
+          "sha256": "c9e82ec3cf53a6d547195b998c71cc33187b0158e813962506d16bd5227126e7",
+          "bytes": 640512,
+          "mode": "0o644"
+        },
+        "package/index.win32-x64-msvc.node": {
+          "sha256": "17746910bcd13f7f268822f6fc837706f8b5be0704bbf49570112117982e7b07",
+          "bytes": 870400,
+          "mode": "0o644"
+        }
+      },
+      "metadataSha256": "8fe6811fc810a4b65bbaaf3ab5da78cdce0ea6c82343acd2b55c9bc4f19b1f05",
+      "http": {
+        "started": "2026-11-11T08:38:01.793003+00:00",
+        "finished": "2026-11-11T08:38:02.926539+00:00",
+        "finalURL": "https://registry.npmjs.org/@electron-internal/extract-zip/-/extract-zip-1.0.5.tgz",
+        "status": 200,
+        "redirects": []
+      },
+      "bundledNativeObservation": "actual regular .node member bytes hashed; never loaded, executed or approved; platform labels from filenames only"
+    },
+    {
+      "name": "pnpm",
+      "version": "10.33.0",
+      "status": "unapproved-read-only-evidence",
+      "metadataURL": "https://registry.npmjs.org/pnpm/10.33.0",
+      "archiveURL": "https://registry.npmjs.org/pnpm/-/pnpm-10.33.0.tgz",
+      "lockSRI": null,
+      "metadataSRI": "sha512-EFaLtKavtYyes2MNqQzJUWQXq+vT+rvmc58K55VyjaFJHp21pUTHatjrdXD1xLs9bGN7LLQb/c20f6gjyGSTGQ==",
+      "actualSRI": "sha512-EFaLtKavtYyes2MNqQzJUWQXq+vT+rvmc58K55VyjaFJHp21pUTHatjrdXD1xLs9bGN7LLQb/c20f6gjyGSTGQ==",
+      "archiveSha256": "bfcc1bcbad279b13a516c446a75b3c58b6904b45d57a1951411015e50b751a80",
+      "archiveBytes": 4533784,
+      "archiveValidation": "regular-paths-only",
+      "hooksExecuted": false,
+      "versionObservedInArchive": true,
+      "licenseDeclared": "MIT",
+      "scripts": {
+        "bundle": "ts-node bundle.ts",
+        "start": "tsc --watch",
+        "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+        "pretest:e2e": "rimraf node_modules/.bin/pnpm",
+        "_test": "jest",
+        "test": "pnpm run compile && pnpm run _test",
+        "_compile": "tsc --build",
+        "compile": "tsc --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
+      },
+      "bin": {
+        "pnpm": "bin/pnpm.cjs",
+        "pnpx": "bin/pnpx.cjs"
+      },
+      "engines": {
+        "node": ">=18.12"
+      },
+      "sourceBinding": "metadata-SRI-only-not-root-lock-bound",
+      "members": {
+        "package/dist/pnpmrc": {
+          "sha256": "6985e6e532eed7e6fd69a7d560ac5a5753d74a9f9709627092d5be02afddd84e",
+          "bytes": 161,
+          "mode": "0o644"
+        },
+        "package/bin/pnpm.cjs": {
+          "sha256": "b276da51dc8ca5b0d3ee3371695b50fc8b3244b281b091c63a3f082a88dadeb9",
+          "bytes": 1102,
+          "mode": "0o755"
+        },
+        "package/dist/pnpm.cjs": {
+          "sha256": "cdd88c62c16accc702dcf6a6103b4c5ca61e1f0d3883ed24a8941423248f8dca",
+          "bytes": 7825035,
+          "mode": "0o644"
+        },
+        "package/bin/pnpx.cjs": {
+          "sha256": "907715e8c1a40838de62c59f87082036937356df91d976777be21cfad62d6029",
+          "bytes": 122,
+          "mode": "0o755"
+        },
+        "package/dist/vendor/fastlist-0.3.0-x64.exe": {
+          "sha256": "d1a71f9ac1728082c1b276392725c3e010b98714888579b99152e401abedbf11",
+          "bytes": 271872,
+          "mode": "0o644"
+        },
+        "package/dist/vendor/fastlist-0.3.0-x86.exe": {
+          "sha256": "017411f3b0b5c0402cc3b2cb87c32c6fc71abd82e5b17ea6108990096c75a65d",
+          "bytes": 215040,
+          "mode": "0o644"
+        },
+        "package/package.json": {
+          "sha256": "93c546f5767c5b13bca1a73100fdcd1a7eccd783cee3fb60f71d6c8430a246ca",
+          "bytes": 6125,
+          "mode": "0o644"
+        }
+      },
+      "metadataSha256": "193abdef84089698b15ee78ccb24cdf44a40eae0ad8cdf67a3afefad859ad84e",
+      "http": {
+        "started": "2026-11-11T08:38:03.398349+00:00",
+        "finished": "2026-11-11T08:38:04.730315+00:00",
+        "finalURL": "https://registry.npmjs.org/pnpm/-/pnpm-10.33.0.tgz",
+        "status": 200,
+        "redirects": []
+      }
+    }
+  ],
+  "node": {
+    "version": "24.22.2",
+    "platform": "darwin",
+    "arch": "arm64",
+    "status": "unapproved-read-only-evidence",
+    "archiveURL": "https://nodejs.org/dist/v24.22.2/node-v24.22.2-darwin-arm64.tar.gz",
+    "archiveSha256": "aa9549349e47dffaa42dcf95d6e06ade8c4bdafc980979883b88767670df385a",
+    "archiveBytes": 53068959,
+    "manifestURL": "https://nodejs.org/dist/v24.22.2/SHASUMS256.txt",
+    "manifestSha256": "aec92ae945293821c22aed4c37b97741688254bac353b861fc9fb25b81ce4567",
+    "signatures": {
+      "SHASUMS256.txt.sig": {
+        "sha256": "0dc0feb73ffcafe5875a7f34f3aa9a51787f68d85a1bde8a49e27257ad74ea07",
+        "bytes": 119,
+        "verification": "not-verified-no-approved-key-or-keyring-used"
+      },
+      "SHASUMS256.txt.asc": {
+        "sha256": "cbff095ae2d793bc0ffed794e7ef4a6609f7157a0fcb3b051176c09e3320e4a2",
+        "bytes": 3449,
+        "verification": "not-verified-no-approved-key-or-keyring-used"
+      }
+    },
+    "signatureTrust": "unverified; no trust keys fetched or approved; TLS/checksum agreement is not signature authentication",
+    "checksumRows": [
+      {
+        "file": "node-v24.22.2-aix-ppc64.tar.gz",
+        "sha256": "b3d0f7cc30d28e44748f84ddb24c97a8735927440faeffc96e34454914167a79",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-arm64.msi",
+        "sha256": "f08a17daf9be2671801724a9fe91b8e43d5800d610c61909b3f68fd2e983ad53",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-darwin-arm64.tar.gz",
+        "sha256": "aa9549349e47dffaa42dcf95d6e06ade8c4bdafc980979883b88767670df385a",
+        "observation": "archive-downloaded-sha256-matched"
+      },
+      {
+        "file": "node-v24.22.2-darwin-arm64.tar.xz",
+        "sha256": "1f5ac075be50bed4780ea3be19a007fda95ea4d527d28d76d0b91de47d915115",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-darwin-x64.tar.gz",
+        "sha256": "d5e336d588c45be0c37dbd52cc29895593009ca4997a77a1fd02815131ed0e52",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-darwin-x64.tar.xz",
+        "sha256": "6965578fd823e72c1b5387f5ab84cb25368f886e02eb8779e6f0fce6b91c27b7",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-headers.tar.gz",
+        "sha256": "c5cc7d27906f5b22405a24726a05b9a20c728360225aebed284836c4ae315af5",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-headers.tar.xz",
+        "sha256": "a0674722441097205363f7f4a79117e54aae164229dc2c92036123a74d26216a",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-linux-arm64.tar.gz",
+        "sha256": "95c264150aceb7f3437a29fd6984924f5f8d1511ea3cbd6c508b83f6c555dae2",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-linux-arm64.tar.xz",
+        "sha256": "eb187837a2230d4047161ac0be008584e16b46f726e9c9490ee35dc6b17d9ba8",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-linux-ppc64le.tar.gz",
+        "sha256": "f5640e1b656b67f600e38cf9c5f278eb428c9498994f5ca41d6406fba060a9f3",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-linux-ppc64le.tar.xz",
+        "sha256": "5da1205ce97f9718fea9c73cce22b4bf59d7a5d1ed701059104c75ee069ac04b",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-linux-s390x.tar.gz",
+        "sha256": "37286fcb7ef0b431b75ff9dced517fd73b2d4a0e9c460242d4c9798b8b9b4247",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-linux-s390x.tar.xz",
+        "sha256": "66e2640ca1a4ae8dbaac89b47480e7d6d5d0737960dae29eb5043277f494bd88",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-linux-x64-musl.tar.gz",
+        "sha256": "11ebd16c8d7819c0675211225505273d7aea305a8dd85a9c0aeb1fbec2343320",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-linux-x64-musl.tar.xz",
+        "sha256": "d1601d1defdbb0f02963c89bd979e858aa97f0a3d08a55a1eeb4ddd2b8fa374a",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-linux-x64.tar.gz",
+        "sha256": "361718c444e49af2ca5a110c83ba6a8901143f23ab285ebbef0341f391f482a9",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-linux-x64.tar.xz",
+        "sha256": "48cc0e21e048790e54c0cf5749c2725005313d652651c40b7a21feb9697aaf75",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2.pkg",
+        "sha256": "e975e566b13aaa6b4b10689d0fea6fd8332b43a1474b9f0c970242e0c2b99bf9",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2.tar.gz",
+        "sha256": "b2f5443a34a38d863e87c0f5f80c03630fc16917dfe16f26c1cec44c0b542959",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2.tar.xz",
+        "sha256": "8fe2ec1723bb9f8d0b683907c82708debbeda64af21cb2aa214c4241eed0a061",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-win-arm64.7z",
+        "sha256": "916c99ce9fa52385219cb5b7477bc751ca5a19c5c5944c78e218ac19dc2cee74",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-win-arm64.zip",
+        "sha256": "f47968c213105077f64c6510f007632c0ca2574802a0b5067c327c49abe1c468",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-win-x64.7z",
+        "sha256": "65bfeb55413899b678432d19f437e866a05f7756ef4c7f629ea731fa35aa52ba",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-win-x64.zip",
+        "sha256": "ca1bff5d8ead13c9f2ea404a176db46bd430704d5b5113734049fa365e7799e2",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "node-v24.22.2-x64.msi",
+        "sha256": "9231bf64d19bef391dd5ee8af65411d3799c3c44a842d2320849cc1da60b6b6d",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "win-arm64/node.exe",
+        "sha256": "e2d6e75a0bfe4c176316d7c732eb8def9d94570c759eaeab335473a015abb7ea",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "win-arm64/node.lib",
+        "sha256": "2c0c3215d59c09d7c136da4949696dae121a299e9bdfc64cd9130a58610af63d",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "win-arm64/node_pdb.7z",
+        "sha256": "fcd9a837f9fb0210f483604aeaf06199eed8308eafefeaf8b750efd862162bae",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "win-arm64/node_pdb.zip",
+        "sha256": "6207164e574f170f5282c4a9c628428818794fed58c8f073f0f9beef50d71ae5",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "win-x64/node.exe",
+        "sha256": "1c331340fa6cac5e4294725959070a143fa0507195a78ad77eed7943f719aac9",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "win-x64/node.lib",
+        "sha256": "a0a84aa03917b578d286010b7521837e9ff1136ffb2e4a406c14316c33fd06f7",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "win-x64/node_pdb.7z",
+        "sha256": "a0b4ed194f9a5390f872cb42fdf29ca085686ad25cdf26ea0829751412703269",
+        "observation": "manifest-only-not-downloaded"
+      },
+      {
+        "file": "win-x64/node_pdb.zip",
+        "sha256": "8f305bee61b83fb404c5e38748d038712f2fabbd284d797d9d9598ee0ef35154",
+        "observation": "manifest-only-not-downloaded"
+      }
+    ],
+    "selectedMembers": {
+      "node-v24.22.2-darwin-arm64/LICENSE": {
+        "sha256": "5888dbb9a1d2b18f2c3e6c5f6af1b39de658372b402a0577b002777f14c62ace",
+        "bytes": 157609,
+        "mode": "0o644"
+      },
+      "node-v24.22.2-darwin-arm64/bin/node": {
+        "sha256": "b6fb419f0f43bb2fbca273700294dd2f3b685a64b60e8417c295f47646a70e4a",
+        "bytes": 122564432,
+        "mode": "0o755"
+      }
+    },
+    "archiveValidation": "rejected-links-or-special",
+    "rejectedEntries": [
+      {
+        "path": "node-v24.22.2-darwin-arm64/bin/corepack",
+        "type": "2",
+        "linkname": "../lib/node_modules/corepack/dist/corepack.js"
+      },
+      {
+        "path": "node-v24.22.2-darwin-arm64/bin/npx",
+        "type": "2",
+        "linkname": "../lib/node_modules/npm/bin/npx-cli.js"
+      },
+      {
+        "path": "node-v24.22.2-darwin-arm64/bin/npm",
+        "type": "2",
+        "linkname": "../lib/node_modules/npm/bin/npm-cli.js"
+      }
+    ],
+    "executableExecuted": false,
+    "candidateSelection": "24.22.2 requested as current validation runtime version; no production approval or observed execution of archive bytes",
+    "releaseVersionObservation": "official URL/archive prefix only; bin/node not executed to query version",
+    "signatureMetadataUnverified": {
+      "source": "SHASUMS256.txt.sig OpenPGP packet bytes, parsed without cryptographic verification",
+      "packetTag": 2,
+      "signatureVersion": 4,
+      "signatureType": 0,
+      "publicKeyAlgorithm": 22,
+      "hashAlgorithm": 8,
+      "issuerFingerprint": "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356",
+      "creationTimeUnix": 1793212588,
+      "issuerKeyID": "20B1A390B168D356",
+      "trustKey": "none fetched/approved",
+      "verification": "NOT VERIFIED; issuer values are unauthenticated claims"
+    }
+  },
+  "limits": [
+    "npm lock SRI binds these archives, not all dependency resolution or historical installed bytes",
+    "pnpm source is metadata-bound only, no root-lock binding",
+    "Node manifest and signatures fetched from same HTTPS origin; signature not verified against trusted key",
+    "Node archive rejected by no-links policy; independent bin/node digest is read-only observation",
+    "Bundled executable hashes are identities, not independent reviewer approval, runtime behavior, source-to-binary reproducibility or safety proof",
+    "Lifecycle invocation/output, optional-package/fallback/cache/network histories and complete toolchain history unobserved",
+    "No productionInstall/readInstallation, policy, bootstrap, lifecycle status, sourceHash approval, action/workflow, release trust, reviewer keys or asset pins changed"
+  ]
+}
