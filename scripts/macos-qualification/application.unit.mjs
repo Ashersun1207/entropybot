@@ -63,7 +63,8 @@ test("real public builder selects all ten original strict adapters, shards and N
     const capability = createGateCapability(home, { ...binding, group: "main-vitest-01" });
     for (const [i, group] of APPLICATION_GROUPS.slice(0, 10).entries()) {
       const command = applicationCommands({ root, group, capability, out: home });
-      safeArgv(command.list); safeArgv(command.argv);
+      safeArgv(command.argv);
+      assert.deepEqual(command.list.slice(2, 5), ["list", "--filesOnly", "--json"]);
       assert.equal(command.argv.at(-1), `--shard=${i + 1}/10`);
       assert.equal(command.argv[command.argv.indexOf("--config") + 1], join(root, "scripts/full-gate/main-vitest.config.mjs"));
       assert.equal(command.list.includes("run"), false);

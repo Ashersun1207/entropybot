@@ -5,6 +5,7 @@
 ## macOS 应用诊断：历史 skip 分类不能当当前运行结果
 
 - 安装/工具小闭环成功不代表完整应用回归；下一步沿用同一 hosted 诊断入口与安装路径，复用严格 builder/parser/资源审计，不绕过正式 full-gate 的 dispatch、安装资格、签名审查和资源阻断。诊断逐项 A/B/C 分类与正式同 run 签名 disposition 是两套接受契约，前者不授予 F2 权限。
+- 本地首轮56项为55通过/1失败：新增builder测试误将discovery的`--filesOnly`送入safeArgv执行参数守卫，被现有`only`拒绝。实际builder从未对discovery应用该守卫；修复仅让测试分别核对discovery原argv与execution safeArgv，不改守卫/命令/过滤规则。原失败及最终冻结检查分别留存，不能将首轮其他绿项当完整交付。
 - 历史280项仅作 source-hash 绑定声明，按实际 file/fullName 匹配并保留当前 shard group；未知、新增、改名、重复、额外或分类不符的 skip 必须失败。B写明缺少资产/能力，C引用 policy.json 的精确排除；A明确 Linux/Windows 目标证据缺失，不算通过。真实 Actions 的 CI discovery 可以实跑，不能为复刻历史分类而强行跳过。
 - 原 main adapter 会写 Vite cache。诊断在依赖前快照之前仅创建缺失的 `.vite`/`.vite-temp` 到 owned scratch 的链接，并记录链接身份；原 package 字节不改，缓存内容不宣称完整性。每组独立 capability/secret quarantine/审计保留64记录上限，超限仍unknown；不要抬高上限或以PGID退出宣称completeCleanup。回归入口为 scripts/macos-qualification/application.unit.mjs，实际远端结果须由主控在新exact SHA attempt1取得。
 
