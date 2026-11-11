@@ -1,0 +1,57 @@
+name: macOS arm64 qualification (diagnostic)
+
+on:
+  push:
+    branches: [codex/macos-qualification]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-qualification-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    if: github.ref == 'refs/heads/codex/macos-qualification'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Record actual hosted architecture before dependency installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$RUNNER_TEMP/mac-qualification"
+          /usr/bin/uname -sm > "$RUNNER_TEMP/mac-qualification/host.txt"
+          printf 'ImageOS=%s\nImageVersion=%s\nrunner.arch=%s\n' "$ImageOS" "$ImageVersion" '${{ runner.arch }}' >> "$RUNNER_TEMP/mac-qualification/host.txt"
+          test "$(/usr/bin/uname -s)" = Darwin
+          test "$(/usr/bin/uname -m)" = arm64
+          test '${{ runner.arch }}' = ARM64
+          test "$GITHUB_RUN_ATTEMPT" = 1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.2'
+          architecture: arm64
+          check-latest: false
+          token: ''
+      - name: Install, provision tools and exercise isolated lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE="$(command -v node)"
+          /usr/bin/env -i PATH="$(dirname "$NODE"):/usr/bin:/bin:/usr/sbin:/sbin" HOME="$RUNNER_TEMP" \
+            "$NODE" scripts/macos-qualification/run.mjs \
+            "$RUNNER_TEMP/mac-qualification" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+      - name: Retain diagnostic reports even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: macos-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/mac-qualification/
+          if-no-files-found: error
+          retention-days: 7
+          include-hidden-files: false
