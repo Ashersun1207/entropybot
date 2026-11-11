@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "activation": "blocked",
+  "registry": "https://registry.npmjs.org/",
+  "origins": ["https://registry.npmjs.org", "https://nodejs.org", "https://github.com/electron/electron/releases/download/"],
+  "pnpmVersion": "10.33.0",
+  "targets": [],
+  "sourceHashes": {},
+  "lifecycle": [
+    {"package": "electron", "versions": ["43.7.9"], "invocation": null, "outputHashes": null, "status": "pristine-package-hook-unknown"},
+    {"package": "esbuild", "versions": ["0.28.1", "0.28.2"], "invocation": ["node", "install.js"], "outputHashes": null, "status": "native-fetch-history-unqualified"}
+  ],
+  "bootstrap": null,
+  "limits": ["No approved pre-JavaScript bootstrap or absolute Node distribution/executable identity", "No approved pnpm entry/archive/digest", "No qualified lifecycle invocation/output and native network history", "Expected origins describe policy only; no download or redirect observation", "Windows containment unavailable" ]
+}

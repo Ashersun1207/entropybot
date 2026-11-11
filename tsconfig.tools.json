@@ -2,6 +2,8 @@
   "extends": "./tsconfig.server.json",
   "files": [
     "scripts/patch-gate-process.ts",
+    "scripts/full-gate/install-policy.ts",
+    "scripts/full-gate/install-observation.ts",
     "scripts/verification-receipt/bridge.ts",
     "scripts/testing/verification-lifecycle.ts",
     "scripts/testing/verification-external-stop.ts",

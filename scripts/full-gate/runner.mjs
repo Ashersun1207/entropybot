@@ -8,6 +8,7 @@ import { proposedDispositions } from "./dispositions.mjs";
 import { preflight } from "./preflight.mjs";
 import { beginResourceAudit } from "./resource-audit.mjs";
 import { vitestCommand } from "./vitest-command.mjs";
+import { readInstallation } from "./install-policy.ts";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ASSETS = "/opt/entropybot-full-gate";
@@ -27,14 +28,21 @@ export function environment(home, path) {
     OMB_CLINE_NATIVE_PATH: `${ASSETS}/bin/cline`, OMB_OPENCODE_E2E_CLI: `${ASSETS}/bin/opencode1`, OMB_OPENCODE2_E2E_CLI: `${ASSETS}/bin/opencode2`,
   };
 }
-export function provenance(env) {
+function provenanceIdentity(env) {
   insist(env.GITHUB_REPOSITORY === "Ashersun1207/entropybot", "foreign repository");
   insist(env.GITHUB_EVENT_NAME === "workflow_dispatch" && env.GITHUB_RUN_ATTEMPT === "1", "event or attempt mismatch");
   insist(Number(process.versions.node.split(".")[0]) >= 24, "Node 24 required");
+  insist(/^[a-f0-9]{40}$/.test(env.GITHUB_SHA) && execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8", timeout: 15000 }).trim() === env.GITHUB_SHA, "wrong SHA");
+}
+export function provenance(env) {
+  provenanceIdentity(env);
   return source(ROOT, env.GITHUB_SHA);
 }
 export async function lane(group, env = process.env) {
   insist([...GROUPS, "static-checks"].includes(group), "unknown lane");
+  provenanceIdentity(env);
+  insist(env.GITHUB_JOB === group, "producer job/lane mismatch");
+  readInstallation(ROOT, env);
   const before = provenance(env);
   if (env.FULL_GATE_PLATFORM) {
     const { platformLane } = await import("./platform.mjs");

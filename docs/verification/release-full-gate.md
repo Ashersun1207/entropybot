@@ -1,6 +1,10 @@
 # Release full regression gate
 
 Status: **blocked / incomplete integration**, not a successful full regression.
+Installation is additionally blocked before the former Corepack install: see
+[installation prerequisite](full-gate-installation.md). Historical frozen-install
+claims below describe the older structural receipt, which no longer qualifies
+any production lane.
 The active macOS release workflow now requires `full-gate` before the job that
 installs build dependencies, builds packages, uploads artifacts, creates tags or
 creates a draft. Both checkouts explicitly select `github.sha`. The gate uses only

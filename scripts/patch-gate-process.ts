@@ -3,7 +3,7 @@ import { performance } from "node:perf_hooks";
 
 type FailureKind = "exit" | "timeout" | "cancelled" | "start" | "cleanup" | "unsupported";
 type Stop = { kind: "timeout" | "cancelled"; detail: string };
-type Evidence = { pid: number | undefined; exitAt: number | undefined; closeAt: number | undefined; groupGoneAt: number | undefined; termAttemptAt: number | undefined; killAttemptAt: number | undefined };
+type Evidence = { pid: number | undefined; exitCode: number | null; signal: NodeJS.Signals | null; exitAt: number | undefined; closeAt: number | undefined; groupGoneAt: number | undefined; termAttemptAt: number | undefined; killAttemptAt: number | undefined };
 type Result = { stdout: string; stderr: string; outputTruncated: boolean; evidence: Evidence };
 type CommandOptions = { cwd: string; env: NodeJS.ProcessEnv; timeoutMs?: number; forwardOutput?: boolean; onStdout?: (chunk: string) => void };
 type RunnerOptions = { commandTimeoutMs?: number; overallTimeoutMs?: number; graceMs?: number; killWaitMs?: number; signal?: AbortSignal; handleSignals?: boolean };
@@ -13,6 +13,7 @@ export class GateCommandError extends Error {
   kind: FailureKind;
   ownedGroupStopped: boolean;
   evidence: Evidence | undefined;
+  output: { stdout: string; stderr: string; outputTruncated: boolean } | undefined;
 
   constructor(kind: FailureKind, label: string, detail: string, ownedGroupStopped = true, evidence?: Evidence) {
     super(`[${kind}] ${label}: ${detail}${ownedGroupStopped ? "" : "; owned group stop uncertain"}`);
@@ -45,6 +46,8 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
     }
     let spawned = false;
     let exited = false;
+    let exitCode: number | null = null;
+    let exitSignal: NodeJS.Signals | null = null;
     let closed = false;
     let groupGone = false;
     let exitAt = 0;
@@ -117,9 +120,12 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
         child.stderr?.destroy();
         child.unref();
       }
-      const evidence = { pid: child.pid, exitAt: exited ? exitAt : undefined, closeAt, groupGoneAt, termAttemptAt, killAttemptAt };
-      if (failure) reject(new GateCommandError(failure.kind, label, `${failure.detail}${signalError ? `; ${signalError}` : ""}`, confirmed, evidence));
-      else resolve({ stdout, stderr, outputTruncated, evidence });
+      const evidence = { pid: child.pid, exitCode, signal: exitSignal, exitAt: exited ? exitAt : undefined, closeAt, groupGoneAt, termAttemptAt, killAttemptAt };
+      if (failure) {
+        const error = new GateCommandError(failure.kind, label, `${failure.detail}${signalError ? `; ${signalError}` : ""}`, confirmed, evidence);
+        error.output = { stdout, stderr, outputTruncated };
+        reject(error);
+      } else resolve({ stdout, stderr, outputTruncated, evidence });
     };
     const check = () => {
       const running = alive();
@@ -135,10 +141,12 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
       if (signal.aborted) abort();
       else if (failure) stop(failure.kind, failure.detail);
     };
-    const onExit = (code: number | null, exitSignal: NodeJS.Signals | null) => {
+    const onExit = (code: number | null, observedSignal: NodeJS.Signals | null) => {
       exited = true;
+      exitCode = code;
+      exitSignal = observedSignal;
       exitAt = performance.now();
-      if (code !== 0) stop("exit", `exit code ${code}, signal ${exitSignal ?? "none"}`);
+      if (code !== 0) stop("exit", `exit code ${code}, signal ${observedSignal ?? "none"}`);
     };
     const onClose = () => { closed = true; closeAt = performance.now(); };
     const onError = (error: Error) => { stop("start", error.message); };

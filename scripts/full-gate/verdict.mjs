@@ -8,12 +8,18 @@ import { regularBytes } from "./artifact-input.mjs";
 import { loadSameRun } from "./same-run.mjs";
 import { ROOT, provenance } from "./runner.mjs";
 import { validateResourceAudit } from "./resource-audit.mjs";
+import { requireInstallation } from "./install-policy.ts";
 
 export function verdict(check, directory, env = process.env) {
   insist(STEPS.includes(check), "unknown verdict invariant");
   const before = provenance(env);
   const entries = readdirSync(directory).sort();
   insist(JSON.stringify(entries) === JSON.stringify([...GROUPS, "static-checks", "collection.json"].sort()), "missing/extra artifact directories");
+  const installPolicy = JSON.parse(readFileSync(new URL("./install-policy.json", import.meta.url), "utf8"));
+  for (const job of [...GROUPS, "static-checks"]) {
+    const observation = JSON.parse(regularBytes(join(directory, job, "install-observation.json")));
+    requireInstallation(observation, { sourceSha: env.GITHUB_SHA, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, job, platform: job === "broker-vitest" ? "linux" : job === "control-plane-vitest" ? "win32" : "darwin", arch: observation.binding?.arch }, installPolicy);
+  }
   const records = GROUPS.map(group => {
     const record = JSON.parse(regularBytes(join(directory, group, "receipt.json")));
     insist(record.group === group && record.sha === env.GITHUB_SHA && record.attempt === "1", "receipt identity mismatch");

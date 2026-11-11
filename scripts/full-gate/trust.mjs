@@ -5,7 +5,7 @@ import { sourcePath, localPath, configDependencies, discoveredInputs } from "./c
 
 export const TRUST_ENTRIES = [
   ".github/workflows/entropybot-full-gate.yml", "scripts/full-gate/core.mjs", "scripts/full-gate/runner.mjs", "scripts/full-gate/verdict.mjs", "scripts/full-gate/trust.mjs", "scripts/full-gate/strict-runner.ts",
-  "scripts/full-gate/action-sources.json", "scripts/full-gate/policy.json", "scripts/full-gate/platform-declarations.json", "scripts/full-gate/disposition-trust.json",
+  "scripts/full-gate/action-sources.json", "scripts/full-gate/policy.json", "scripts/full-gate/install-policy.json", "scripts/full-gate/platform-declarations.json", "scripts/full-gate/disposition-trust.json",
   "vite.config.ts", "cloudflare/composio-broker/vitest.config.ts", "cloudflare/control-plane/vitest.config.ts",
   "server/testing/setup.ts", "src/testing/all-locales.ts", "cloudflare/control-plane/test/setup.ts",
   "scripts/install-git-hooks.mjs", "scripts/testing/verification-server-preload.ts", "server/message-search.worker.ts",

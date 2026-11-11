@@ -13,7 +13,7 @@ import { regularBytes } from "./full-gate/artifact-input.mjs";
 import { ROOT } from "./full-gate/runner.mjs";
 import { bootstrap } from "./full-gate/bootstrap.mjs";
 import { GROUPS, reportFile } from "./full-gate/core.mjs";
-import { sameRunEvidence, loadSameRun, PLATFORM_JOBS, WORKFLOW_PATH } from "./full-gate/same-run.mjs";
+import { inspectSameRunEvidence, sameRunEvidence, loadSameRun, PLATFORM_JOBS, WORKFLOW_PATH } from "./full-gate/same-run.mjs";
 import { captureExecutionPaths, validateExecutionPaths } from "./full-gate/execution-paths.mjs";
 
 const sha = "a".repeat(40);
@@ -78,9 +78,13 @@ function fixture(kind = "executed-in-this-run") {
     bundle.controllerReview.signature = sign(null, Buffer.from(canonical(unsigned)), keys.privateKey).toString("base64");
   };
   seal();
-  return { tests: [{ ...identity, status: "skipped" }], bundle, binding, execution, install, collection, options: { publicKeys: { fixture: keys.publicKey }, get sameRun() { return kind === "policy-prohibited" ? undefined : sameRunEvidence(collection, binding, lockHash); } }, seal };
+  return { tests: [{ ...identity, status: "skipped" }], bundle, binding, execution, install, collection, options: { publicKeys: { fixture: keys.publicKey }, get sameRun() { return kind === "policy-prohibited" ? undefined : inspectSameRunEvidence(collection, binding, lockHash); } }, seal };
 }
-for (const kind of CLASSES) test(`source-bound reviewed ${kind} skip remains a skip`, () => {
+test("production same-run collector rejects structurally valid but unqualified installations", () => {
+  const f = fixture();
+  assert.throws(() => sameRunEvidence(f.collection, binding, lockHash), /installation/);
+});
+for (const kind of CLASSES) test(`structural inspection: source-bound reviewed ${kind} skip remains a skip`, () => {
   const f = fixture(kind);
   assert.deepEqual(reconcile(f.tests, f.bundle, f.binding, f.options), { total: 1, passed: 0, skipped: 1, strictGreen: false, status: "accepted with dispositions" });
 });
@@ -303,7 +307,7 @@ test("external receipt callbacks cannot substitute for the collected workflow ar
   f.options.loadEvidence = () => assert.fail("external report path must not be used");
   assert.throws(() => reconcile(f.tests, f.bundle, f.binding, f.options), /same-workflow/);
 });
-for (const stale of [false, true]) test(`collected same-run artifact loader ${stale ? "rejects a stale index" : "accepts a source-bound matrix receipt"}`, () => {
+for (const stale of [false, true]) test(`collected same-run artifact loader ${stale ? "rejects a stale index" : "rejects source-bound matrix without installation qualification"}`, () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "fg-collected-")));
   const f = fixture();
   try {
@@ -321,8 +325,8 @@ for (const stale of [false, true]) test(`collected same-run artifact loader ${st
     }
     Object.defineProperty(f.options, "sameRun", { get: () => loadSameRun(root, binding, lockHash) });
     f.options.loadEvidence = () => assert.fail("external bytes must not replace matrix artifacts");
-    if (stale) assert.throws(() => reconcile(f.tests, f.bundle, f.binding, f.options));
-    else assert.equal(reconcile(f.tests, f.bundle, f.binding, f.options).status, "accepted with dispositions");
+    if (stale) assert.throws(() => reconcile(f.tests, f.bundle, f.binding, f.options), /identity mismatch/);
+    else assert.throws(() => reconcile(f.tests, f.bundle, f.binding, f.options), /installation/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 test("CA environment is allowed only with an explicit source-approved mail fixture identity", () => {
@@ -330,7 +334,7 @@ test("CA environment is allowed only with an explicit source-approved mail fixtu
   const mailFixture = { path: "/private/tmp/fixture-ca.pem", sha256: "a".repeat(64) };
   f.execution.command.env.NODE_EXTRA_CA_CERTS = mailFixture.path;
   f.execution.mailCAHash = mailFixture.sha256;
-  Object.defineProperty(f.options, "sameRun", { get: () => sameRunEvidence(f.collection, binding, lockHash, { mailFixture }) });
+  Object.defineProperty(f.options, "sameRun", { get: () => inspectSameRunEvidence(f.collection, binding, lockHash, { mailFixture }) });
   assert.equal(reconcile(f.tests, f.bundle, f.binding, f.options).strictGreen, false);
   f.execution.mailCAHash = "b".repeat(64);
   assert.throws(() => reconcile(f.tests, f.bundle, f.binding, f.options));

@@ -122,8 +122,10 @@ function contract(workflow, catalog = actionCatalog) {
       assert.ok(step.if === undefined || step.if === "always()");
     }
     if (name !== "full-gate-verdict") {
-      assert.ok(job.steps.some(s => s.run?.includes("corepack pnpm install --frozen-lockfile")));
-      assert.ok(job.steps.some(s => s.run?.includes("platform.mjs record-install")));
+      const installs = job.steps.filter(s => s.name === "Install locked dependencies in synthetic home");
+      assert.equal(installs.length, 1);
+      assert.equal(installs[0].shell, "bash");
+      assert.equal(installs[0].run, "# No approved absolute Node/pnpm bootstrap exists. Do not start Node with inherited loader settings.\nbuiltin printf '%s\\n' 'Full gate installation blocked: pre-JavaScript bootstrap, toolchain approvals and lifecycle history unqualified.' >&2\nexit 1\n");
       assert.ok(job.steps.some(s => s.run === 'node scripts/full-gate/runner.mjs "$LANE"' && s.env.FULL_GATE_PLATFORM === "${{ matrix.platform }}"));
     } else for (const step of STEPS.slice(1)) assert.equal(job.steps.filter(s => s.name === step && s.run?.includes("scripts/full-gate/verdict.mjs")).length, 1);
   }
@@ -171,6 +173,9 @@ for (const [name, mutate] of Object.entries({
   extraMatrixInstance: w => { w.jobs["broker-vitest"].strategy.matrix.include.push({ os: "macos-15", platform: "darwin" }); },
   wrongMatrixPlatform: w => { w.jobs["broker-vitest"].strategy.matrix.include[0].platform = "darwin"; },
   missingNumericJobBinding: w => { w.jobs["broker-vitest"].steps.splice(3, 1); },
+  unsafeInstall: w => { w.jobs[GROUPS[0]].steps.find(s => s.name === "Install locked dependencies in synthetic home").run = "corepack pnpm install --frozen-lockfile"; },
+  installGreen: w => { w.jobs[GROUPS[0]].steps.find(s => s.name === "Install locked dependencies in synthetic home").run = "exit 0"; },
+  installNodeBeforeGuard: w => { w.jobs[GROUPS[0]].steps.find(s => s.name === "Install locked dependencies in synthetic home").run = "node scripts/full-gate/platform.mjs record-install\nexit 1"; },
 })) test(`workflow rejects ${name} mutation`, () => { const w = parse(workflowText); mutate(w); assert.throws(() => contract(w)); });
 test("source rejects wrong SHA and dirty source in disposable repository", () => {
   const root = mkdtempSync(join(tmpdir(), "fg-source-"));

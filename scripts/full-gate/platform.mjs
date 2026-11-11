@@ -7,6 +7,7 @@ import { PLATFORM_JOBS, executionEnvironment } from "./same-run.mjs";
 import { captureExecutionPaths } from "./execution-paths.mjs";
 import { beginResourceAudit } from "./resource-audit.mjs";
 import { vitestCommand } from "./vitest-command.mjs";
+import { readInstallation } from "./install-policy.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 function fileIdentity(path) {
@@ -14,13 +15,14 @@ function fileIdentity(path) {
   const resolvedPath = realpathSync.native(absolute);
   return { path: absolute, resolvedPath, target: resolvedPath === absolute ? null : resolvedPath, sha256: digest(readFileSync(absolute)) };
 }
-export function recordInstall(env = process.env) {
-  const before = source(ROOT, env.GITHUB_SHA);
-  writeFileSync(join(env.RUNNER_TEMP, "full-gate-install.json"), JSON.stringify({ sourceSha: before.sha, frozen: true, lockHash: digest(readFileSync(join(ROOT, "pnpm-lock.yaml"))) }));
+export function recordInstall() {
+  insist(false, "post-hoc record-install cannot establish dependency installation; bootstrap and lifecycle qualification incomplete");
 }
 export async function platformLane(jobName, env = process.env) {
   const target = PLATFORM_JOBS.find(t => t.name === jobName);
   insist(target && target.platform === env.FULL_GATE_PLATFORM, "unmapped platform job");
+  insist(env.GITHUB_JOB === jobName, "producer job/lane mismatch");
+  const installed = readInstallation(ROOT, env);
   const jobId = Number(env.FULL_GATE_JOB_ID);
   insist(Number.isSafeInteger(jobId) && jobId > 0, "numeric API producer job identity missing");
   const out = join(env.RUNNER_TEMP, "full-gate", jobName);
@@ -37,8 +39,6 @@ export async function platformLane(jobName, env = process.env) {
   }
   save();
   insist(lane.issues.length === 0, lane.issues.join("; "));
-  const installed = JSON.parse(readFileSync(join(env.RUNNER_TEMP, "full-gate-install.json"), "utf8"));
-  insist(installed.sourceSha === before.sha && installed.frozen === true && installed.lockHash === digest(readFileSync(join(ROOT, "pnpm-lock.yaml"))), "frozen source installation receipt missing or stale");
   const declarations = JSON.parse(readFileSync(join(ROOT, "scripts/full-gate/platform-declarations.json"), "utf8")).entries.filter(r => r.class === "executed-in-this-run" && r.targetPlatform === target.platform);
   const nodeFiles = [...new Set(declarations.filter(r => r.file.endsWith(".node-test.mjs")).map(r => r.file))].sort();
   const installation = { ...installed, root: realpathSync(ROOT), tempRoot: realpathSync(env.RUNNER_TEMP), entry: fileIdentity(join(ROOT, "node_modules/vitest/vitest.mjs")), node: fileIdentity(process.execPath), nodeTests: Object.fromEntries(nodeFiles.map(file => [file, fileIdentity(join(ROOT, file))])) };

@@ -1,4 +1,6 @@
 import { posix, win32 } from "node:path";
+import { readFileSync } from "node:fs";
+import { requireInstallation } from "./install-policy.ts";
 import { GROUPS, insist, digest } from "./core.mjs";
 import { regularBytes } from "./artifact-input.mjs";
 
@@ -63,7 +65,8 @@ export function executionEnvironment(receipt, installation, mailFixture) {
   insist(env.GIT_CONFIG_NOSYSTEM === "1" && env.GIT_CONFIG_GLOBAL === (receipt.platform === "win32" ? "NUL" : "/dev/null"), "execution Git config is not isolated");
   if (env.NODE_EXTRA_CA_CERTS !== undefined) insist(mailFixture && env.NODE_EXTRA_CA_CERTS === mailFixture.path && receipt.mailCAHash === mailFixture.sha256 && /^[a-f0-9]{64}$/.test(mailFixture.sha256), "unapproved mail fixture CA environment");
 }
-export function sameRunEvidence(input, binding, lockHash, { mailFixture } = {}) {
+// Structural inspection preserves receipt-parser regression coverage; it does not qualify an installation.
+export function inspectSameRunEvidence(input, binding, lockHash, { mailFixture } = {}) {
   insist(input?.sourceSha === binding.sourceSha && input.runId === binding.runId && input.attempt === "1" && input.workflow === WORKFLOW_PATH, "same-run collection identity mismatch");
   workflowJobs(input.jobs, binding);
   artifactJobs(input.jobs, input.artifacts, binding, true);
@@ -110,6 +113,12 @@ export function sameRunEvidence(input, binding, lockHash, { mailFixture } = {}) 
       return value;
     },
   };
+}
+export function sameRunEvidence(input, binding, lockHash, approvals = {}) {
+  const inspected = inspectSameRunEvidence(input, binding, lockHash, approvals);
+  const policy = JSON.parse(readFileSync(new URL("./install-policy.json", import.meta.url), "utf8"));
+  for (const lane of input.matrix) requireInstallation(lane.installation?.observation, { ...binding, attempt: "1", job: lane.jobName, platform: lane.platform, arch: lane.installation?.arch }, policy);
+  return inspected;
 }
 export function loadSameRun(directory, binding, lockHash, approvals = {}) {
   const collection = JSON.parse(regularBytes(`${directory}/collection.json`));

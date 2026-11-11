@@ -8,6 +8,13 @@
 - `scripts/full-gate/action-sources.json` 保存 exact-commit action manifest 原始字节、runtime/main/post、相关源码/package/lock/dist/许可证元数据的 URL 与 SHA-256；经 public closure 纳入314个 review-only pins。测试实际解析四份 manifest，并检查 bundle 身份和重新计算 manifest hash 后的 lifecycle 替换。最初 catalog 生成器用 text read 归一化了 CRLF，正例 hash 检查失败；改为 bytes decode 保留原字节，保留失败回执，不将当次负例绿追认为有效证明。
 - 有效 GitHub commit 签名只表明来源元数据。固定 action SHA 不冻结 hosted image、Node24范围、Corepack/pnpm、依赖 lifecycle 或 Electron/其他下载资产，也不证明巨大bundle的所有依赖安全。checkout删除/临时credential、setup下载、upload symlink和独立runtime token、github-script任意Node能力分别记录；本轮不执行下载代码、不安装、不激活信任根。独立审查、安装回执任务与主控串行组合验证仍分别需要。
 
+## F2：安装收据不能由事后来源标签推定
+
+- 独立来源审查发现 synthetic HOME exports 后 Corepack 仍继承整个 job 环境，record-install 未观测安装就写 sourceSha/frozen/lockHash，main/static 又不消费。旧字段不证明实际命令、工具来源、生命周期或安装成功；post-hoc hash 不能追认审批。修复身份以本条提交为准，详情见[安装资格边界](../verification/full-gate-installation.md)。
+- 所有生产 lane 入口及 artifact/same-run 消费端加安装资格屏障，旧 writer 拒绝；locked-install 在启动 Node/installer 前退出。精确工具链、pre-JavaScript bootstrap 和 native lifecycle/network history 未批准，生产执行能力刻意不实现；不把调用者的 complete/frozen 字段变成证据，不填假审批或从 host bytes 批准。原结构解析合同单独检查，避免早期安装拒绝使历史负例失去覆盖。
+- 新 TypeScript 合成记录器复用 supervisor，保留 actual exit/signal/close 和失败输出；始终 synthetic、frozen null、complete false。真实子进程验证 canary 环境、零/非零/timeout/spawnfail/exit-before-close；全部 main/static/platform 公开入口拒绝旧收据。初轮8通过/1失败是夹具误要求受控 npm registry 不存在；保留日志后改为父 canary 不得出现、固定 public registry 必须出现。Windows 仅合成路径/环境合同，不作真实平台证明。最终六套原 Node＋新 suite、guards/types/lint/pins 证据保存在外层 f2-install-receipt；真实安装、下载、Electron hook、用户工具链字节、模型/数据、Actions、发布均未验。新候选仍须独立审查与主控串行整合。
+- 扩展组合首跑417通过/4失败：新增exact-env断言发现Darwin runtime注入__CF_USER_TEXT_ENCODING；三项旧CLI provenance拒绝被更早的job检查遮住。保留实际子进程完整输出和构造env，夹具仅允许该平台额外字段、不追认为审批；main入口先检查repo/event/attempt与HEAD身份，再拒绝安装，原错误断言保留。guards首跑7通过/1失败是新文档未进verification README，补索引、不放松守卫。后续冻结重跑结果见交接。
+
 ## F2：字面 import 闭包漏掉进程入口与配置派生输入
 
 - 独立供应链审查退回 `96817e8bd`：公开 producerClosure/verifyPins 在262 pins下接受 verification preload、message-search worker、Wrangler配置、migration和docs workspace manifest的实际篡改/删除，也接受额外生成worker。红例与前后SHA/tree/hash保存在外层私有 `engineering-foundation-evidence/f2-producer-closure/`；不追认旧绿例覆盖这些入口。

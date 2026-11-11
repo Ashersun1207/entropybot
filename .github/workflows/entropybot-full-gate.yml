@@ -33,14 +33,9 @@ jobs:
         name: Install locked dependencies in synthetic home
         shell: bash
         run: |
-          export HOME="$RUNNER_TEMP/install-home"
-          export USERPROFILE="$HOME"
-          export XDG_CONFIG_HOME="$HOME/config"
-          export XDG_CACHE_HOME="$HOME/cache"
-          mkdir -p "$HOME"
-          corepack enable
-          corepack pnpm install --frozen-lockfile
-          node scripts/full-gate/platform.mjs record-install
+          # No approved absolute Node/pnpm bootstrap exists. Do not start Node with inherited loader settings.
+          builtin printf '%s\n' 'Full gate installation blocked: pre-JavaScript bootstrap, toolchain approvals and lifecycle history unqualified.' >&2
+          exit 1
         env:
           OMB_EVAL_LIVE: '0'
       - &run-lane
