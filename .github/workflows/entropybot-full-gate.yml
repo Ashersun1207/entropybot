@@ -18,12 +18,12 @@ jobs:
     timeout-minutes: 35
     steps: &lane-steps
       - &source-checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
       - &node-setup
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24'
       - &provenance-check
@@ -53,7 +53,7 @@ jobs:
       - &retain-lane
         name: Retain original reports logs and receipts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: full-gate-${{ github.job }}
           path: ${{ runner.temp }}/full-gate/${{ github.job }}/
@@ -122,7 +122,7 @@ jobs:
       - *node-setup
       - *provenance-check
       - name: Bind numeric producer job identity
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -165,7 +165,7 @@ jobs:
       actions: read
     steps:
       - name: Exact final-source file coverage
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         env:
           DISPOSITION_ARTIFACT_ID: ${{ inputs.disposition-artifact-id }}
         with:

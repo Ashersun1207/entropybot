@@ -657,3 +657,100 @@ maintenance/security review found only owned synthetic report retention and
 relative config values, with no new network, credential or installation path.
 The same CLI-subset limits apply; independent review and controller serial
 integration remain required.
+
+## Immutable action source candidate (2026-11-11)
+
+This bounded candidate changes only the action identities in the existing full-gate
+workflow. It remains dispatch-only with 15 jobs/instances and the same five verdict
+steps, scripts, permissions and anchors. Installation policy and observed installation
+receipts belong to a separate owner; this change does not qualify that boundary.
+Release trust, reviewer keys, asset approval and the 77 unresolved declarations remain
+unchanged. The earlier workflow-registration patch is stale after these byte changes;
+the controller must regenerate it after independent approval and serial integration.
+
+`scripts/full-gate/action-sources.json` is explicit candidate audit data, rooted in
+`scripts/full-gate/trust.mjs`. The public closure now produces 314 candidate pins.
+The catalog does not authorize a release or let environment variables select an action.
+It records exact owner/repository/40-character commit, source URLs, raw action manifest,
+Node runtime and main/post lifecycle, fetched source/package/lock/license metadata and
+executable bundle SHA-256. All four are JavaScript actions with no composite transitive
+uses or pre entry. Checkout has a post entry at the same bundle; setup-node has a
+separate success-only cache-save post entry. The manifest runtime is Node20 for the
+three v4 candidates and Node24 for github-script; installed Node24 is a separate input.
+
+| Repository | Reviewed commit | Runtime | Executable paths |
+|---|---|---|---|
+| actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | node20 | dist/index.js (main/post) |
+| actions/setup-node | 49933ea5288caeca8642d1e84afbd3f7d6820020 | node20 | dist/setup/index.js; dist/cache-save/index.js (post) |
+| actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | node20 | dist/upload/index.js |
+| actions/github-script | ed597411d8f924073f98dfc5c65a23a2325f34cd | node24 | dist/index.js |
+
+Read-only requests used official GitHub repositories at these exact commits. The
+external evidence directory `private/engineering-foundation-evidence/f2-actions-immutable/`
+retains fetched bytes, HTTP status/URL/commit/size/SHA-256 records, exact-commit Git tree
+metadata, Git blob identity comparisons, dependency/install-script inventory and selected
+bundle boundary excerpts. Missing speculative license/bundle metadata paths returned
+404 and remain recorded; successful fetched files match their exact-commit Git tree
+blobs. No downloaded action code or native executable was run, built or installed.
+Previously reported valid API signatures provide provenance metadata, not safety approval.
+
+The review covered relevant first-party entry, input, authentication, Git/cleanup,
+download/distribution, upload/search and dynamic-script paths, plus package/lock and
+selected corresponding bundle code. Root action licenses are MIT; fetched upstream
+Actions-library license metadata is retained, including upload's http-client record
+whose classifier says `other` while its embedded text says MIT. This does not establish
+all transitive licensing or the shipped Windows 7zr executable's licensing/safety.
+Package/lock install scripts are inventory, not executed behavior: Actions runs checked-in
+bundles directly. github-script's package version still says 7.0.1 despite the reviewed
+v8 ref and Node24 manifest; commit/manifest/bundle identity governs this candidate.
+No reproducible source-to-bundle rebuild or exhaustive dependency safety proof is claimed.
+
+The relevant capabilities and residual limits are:
+
+- Checkout uses the job token temporarily for Git/REST, removes auth with the existing
+  `persist-credentials: false`, and has post cleanup. Its normal clean/reset/recreate
+  path deletes workspace contents. Its additional v6-credential cleanup uses a string
+  RUNNER_TEMP prefix check, without canonical containment proof; adversarial existing
+  Git configuration and compromised runner state remain outside this bounded review.
+- Setup-node can use hosted cache or download through the mutable actions/node-versions
+  main manifest/release assets, with nodejs.org fallback; it extracts binaries, writes
+  tool cache and changes PATH. Mirror/auth/cache inputs exist upstream but are not set
+  here. The shipped Windows extractor is hashed only. The existing Node version `24`,
+  hosted OS image, Git, shell, action runtime supplied by the runner, Corepack/pnpm,
+  package lifecycle hooks, downloaded Electron and other assets are not frozen or
+  qualified by immutable action references. The separate installation task owns its
+  policy, environment and observed receipt repair.
+- Upload uses a separate Actions runtime token and results/blob service, even with
+  read-only repository-token permissions. It follows symlinks in the selected evidence
+  directory and excludes hidden files by default. Optional same-name artifact deletion
+  requires overwrite, which remains false. Artifact completeness and symlink-based
+  boundary escape need separate qualification; this pin does not provide a filesystem
+  sandbox or prove the entire artifact/Azure bundle safe.
+- GitHub-script constructs an AsyncFunction and exposes require/exec/io and authenticated
+  Octokit. It can execute workflow scripts with full Node capabilities. Existing matrix
+  job lookup and verdict Git/bootstrap/artifact operations remain as before. No sandbox,
+  platform execution or complete authenticated-network behavior is established locally.
+
+No confirmed unexpected dangerous behavior was found in the bounded paths reviewed.
+These capabilities and unproved boundaries must remain visible during independent review.
+
+Before the patch, eight focused workflow rejection cases all failed against the actual
+old contract with missing expected exceptions. The fixed contract reads the active YAML
+and catalog, requires the reviewed exact repository/commit in each action position, and
+checks every expanded `uses`. Nine catalog substitutions cover runtime, main/post/pre,
+bundle, source URL, commit, composite uses and changed manifest lifecycle even after its
+hash is recomputed. Existing workflow negative checks are preserved. The first focused
+run failed its positive manifest-byte check because the catalog generator normalized
+CRLF; the corrected generator preserves original bytes. That failed run is retained and
+its negative-case passes are not used as proof. The corrected positive and negative
+contract passes.
+
+Frozen verification comprises all six combined Node suites (416 tests, including the
+original 17 real Vitest CLI invocations and 13 retained original reports), eight original
+config guards, scoped deny-warning lint, tools and strict-runner TypeScript, public pin
+verification and diff checking. Pre/post source SHA/tree/status and hashes, dependency
+identities, argv, sanitized environment, UTC times, exits and logs live in the external
+evidence directory above. This is local synthetic validation on the bounded candidate;
+it is not Actions execution, full regression, installation qualification or release
+approval. Independent review and controller regeneration/combination checks remain
+required before integration.

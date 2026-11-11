@@ -1,5 +1,5 @@
 {
-  ".github/workflows/entropybot-full-gate.yml": "b6004fa816b2cca3457410e986a1b4c0199e0448342d7308c287180eccdcc31f",
+  ".github/workflows/entropybot-full-gate.yml": "2b15cec7cf92a38569750a81e4a068344405bf563801328d6c6b3cb09d97ea5f",
   ".oxlintrc.json": "255075e52f4c3bb6761d447cd0f25e9be5df8f8f4aa4a786a13c0c390b95b139",
   "apps/docs/next.config.mjs": "86ab8a58ffa347d40b42acc70fe78bfa297b7ea70d18e84cf1fd1fb236795d55",
   "apps/docs/package.json": "d7114db5a19b3707abdb548b735418bb411ac3e8969eabe202da818706f6376e",
@@ -57,6 +57,7 @@
   "pnpm-workspace.yaml": "a5ab08fa2faac4886f2d008cf2d4966cdf2a72c42c6f7e236a0024876580c7a7",
   "scripts/check-patches.mjs": "10cbfbbdfff58a974ccb0abaee8f20b3bf12c4c4484573e0970a88c8055004a2",
   "scripts/entropybot-release.mjs": "7079ccc2b215de4816bdb4483f80388a766d021175a44d7b4cd8ca8d33e45bf9",
+  "scripts/full-gate/action-sources.json": "ac6944bd0d2b8f246ad10ad2cdfe5be7c5d6d378b02e8da26fb3e4346e985120",
   "scripts/full-gate/artifact-input.mjs": "94ea29f194324b6596bc518c75cfb6fb05c285b66010f08107cbc137ff51a5dc",
   "scripts/full-gate/bootstrap.mjs": "5cf2dfb5741dfb0354743f4c72e9742440290c9bd5dc38706d1ffd8f79a0d0a6",
   "scripts/full-gate/broker-vitest.config.mjs": "ac6b2fab6b1a7fd99e79612243e696ac83aaff3d32a7e1ab1f3d81e153dc7635",
@@ -81,7 +82,7 @@
   "scripts/full-gate/source-policy.mjs": "1394457cc974bccda7bc7433c7a1cbcd4da8f129200cb72e963907eb0e2b4df6",
   "scripts/full-gate/strict-config.mjs": "d0e8b9bbf311df9145632ba7239d2dbeeb61001353d93be53e2c651499a84a00",
   "scripts/full-gate/strict-runner.ts": "68bf5686c3ee068ad29099ef3047a5441669bcee9836b2159609275b64e749a2",
-  "scripts/full-gate/trust.mjs": "5d29e854114b256204edefb00396144f5bcacfffdcda1558c82785aa9a6daba5",
+  "scripts/full-gate/trust.mjs": "5e8d5e0be01f4ead9bacb4ef61a479fc36e10c36b631781b9c13bc2d4f4753fc",
   "scripts/full-gate/verdict.mjs": "bc73cb5a725fde188b3d1c3da3a50bb47c9c9df11139508c7650cc4d29ffcd0f",
   "scripts/full-gate/vitest-command.mjs": "1b8a58eddbd6a07ca7db2f3c0a172b6ed5b2d451cdd90cdf25f9c1f2c988e1d6",
   "scripts/install-git-hooks.mjs": "21ba504c16785e942e7d34c6c3ef9eb4b9b3bfebec47f4064f3c414a8b43ea8b",

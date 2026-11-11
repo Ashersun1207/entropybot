@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## F2：Actions 身份必须绑定完整提交和实际 lifecycle
+
+- `scripts/full-gate.node-test.mjs` 的旧 active-workflow 合同明确接受 github-script 的 mutable tag，且不检查 checkout/setup/upload 的 action 身份。修改前八个真实 workflow 负例均因 missing expected exception 失败：四个 mutable refs、short SHA、未审仓库/提交与 lifecycle action 替换。固定40位 SHA 后，合同同时检查固定仓库/提交、步骤位置和源目录，不能仅把旧 tag 断言换成任意新字符串。
+- `scripts/full-gate/action-sources.json` 保存 exact-commit action manifest 原始字节、runtime/main/post、相关源码/package/lock/dist/许可证元数据的 URL 与 SHA-256；经 public closure 纳入314个 review-only pins。测试实际解析四份 manifest，并检查 bundle 身份和重新计算 manifest hash 后的 lifecycle 替换。最初 catalog 生成器用 text read 归一化了 CRLF，正例 hash 检查失败；改为 bytes decode 保留原字节，保留失败回执，不将当次负例绿追认为有效证明。
+- 有效 GitHub commit 签名只表明来源元数据。固定 action SHA 不冻结 hosted image、Node24范围、Corepack/pnpm、依赖 lifecycle 或 Electron/其他下载资产，也不证明巨大bundle的所有依赖安全。checkout删除/临时credential、setup下载、upload symlink和独立runtime token、github-script任意Node能力分别记录；本轮不执行下载代码、不安装、不激活信任根。独立审查、安装回执任务与主控串行组合验证仍分别需要。
+
 ## F2：字面 import 闭包漏掉进程入口与配置派生输入
 
 - 独立供应链审查退回 `96817e8bd`：公开 producerClosure/verifyPins 在262 pins下接受 verification preload、message-search worker、Wrangler配置、migration和docs workspace manifest的实际篡改/删除，也接受额外生成worker。红例与前后SHA/tree/hash保存在外层私有 `engineering-foundation-evidence/f2-producer-closure/`；不追认旧绿例覆盖这些入口。
