@@ -68,9 +68,13 @@ is outside the application repository and is not executed by this consumer.
   missing, extra, duplicated and unmapped files. Discover Node entries from the
   final tree, including the new `scripts/entropybot-release-gate.node-test.mjs`;
   the historical electron-plus-signing argv is no longer sufficient.
-- Execute all thirteen bounded regression groups without filters, automatic
-  retries or pass-with-no-tests. Require positive complete totals, passed equal
-  total, zero failed/pending/skipped/todo, and exact Node argv plus full TAP totals.
+- Execute all thirteen bounded regression groups without filters, retries or
+  `passWithNoTests`. Require positive complete totals, zero failed and zero todo,
+  and exact Node argv plus full TAP totals. Every discovered test must have a
+  terminal result: passed or explicitly dispositioned skipped. Pending/incomplete,
+  cancelled, unknown or unaccounted results block. Reconcile total = passed +
+  skipped; skips never count as passes. Exact file and test coverage remains
+  required, including skipped tests; dispositions cannot hide omitted execution.
 - Execute the separate static/patch checks: diff check, deny-warning lint, both
   application typechecks, release identity and patch verify. Preserve their own
   exit/timeout evidence; static success cannot fill missing test coverage.
@@ -78,21 +82,42 @@ is outside the application repository and is not executed by this consumer.
   real model calls, no host-only filter, bounded process supervision, lifecycle
   stop receipts and pre/post process evidence. Unknown resources keep evidence
   and directories. A job deadline or vanished outer process group is insufficient.
-- Check the same clean source before/between/after groups. Produce explicit
-  platform dispositions with target-platform evidence. Missing platforms or
-  unresolved skip/todo remain non-green; there is no blanket allowlist.
+- Check the same clean source before/between/after groups. Skipped tests are
+  allowed only through an explicit platform-disposition artifact bound to that
+  final source and run. The producer must enumerate every skipped test by exact
+  group, file and full test identity, with exactly one class (`platform-specific`,
+  `environment-gated-but-executed-elsewhere` or `policy-prohibited`), a concrete
+  reason and a target-platform evidence reference. The producer must reconcile
+  artifact entries one-to-one with original per-test reports: undeclared skips,
+  duplicate or extra entries, mismatched identities/counts/classes/reasons/evidence,
+  missing references and unresolved evidence block. A blanket allowlist or a
+  capability/env gate alone is insufficient. Environment-gated tests require
+  actual execution evidence elsewhere on the same final source; policy-prohibited
+  entries must reference the applicable prohibition and its target-platform
+  acceptance disposition, without implying that prohibited execution occurred.
+  The controller must review the artifact and cited evidence before accepting
+  any run with skips as **accepted with dispositions**. A run whose only remaining
+  exception is skipped tests is not **strict green**; an all-skipped run also
+  cannot be strict green and is eligible only for that reviewed disposition
+  status if every other requirement is met. Dispositions never convert skips
+  into passes. Zero failed/todo, exact coverage, no retries/filters/`passWithNoTests`
+  and clean unchanged source remain mandatory.
 
 The trusted `full-gate-verdict` job must validate original reports and receipts,
-retain them as evidence, and expose these exact successful step names only after
-checking the corresponding invariant:
+retain them as evidence, and expose exactly these five successful step names,
+each exactly once and with no extra verdict steps, only after checking the
+corresponding invariant:
 
 1. `Exact final-source file coverage`
-2. `Strict totals: no skip pending todo or retries`
+2. `Strict totals: no failures or todos`
 3. `Fixture isolation and resource receipts`
 4. `Platform dispositions complete`
 5. `Clean unchanged source`
 
-The consumer checks Actions provenance and verdict steps; it does **not** parse
+The producer, not this consumer, enforces skip enumeration, exact report/artifact
+reconciliation and controller-reviewed disposition acceptance before emitting
+`Platform dispositions complete`. The consumer still only checks Actions
+provenance and verdict steps; it does **not** parse the disposition artifact,
 Vitest/TAP reports or prove resource cleanup itself. Those semantics must be
 implemented and independently reviewed in the pinned producer before activation.
 An authenticated green step name by itself is not evidence of those semantics.

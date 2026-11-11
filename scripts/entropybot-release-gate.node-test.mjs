@@ -59,10 +59,41 @@ for (const [name, mutate] of Object.entries(recordMutations)) {
     assert.throws(() => validateRecord(record), /Release full gate blocked/);
   });
 }
+test("verdict contract requires exactly the five declared step names", () => {
+  assert.deepEqual(VERDICT_STEPS, [
+    "Exact final-source file coverage", "Strict totals: no failures or todos",
+    "Fixture isolation and resource receipts", "Platform dispositions complete", "Clean unchanged source",
+  ]);
+  assert.deepEqual(validateRecord(fixture()), { sourceSha: sha, runId: 123, runAttempt: 1 });
+});
 for (const name of VERDICT_STEPS) {
+  test(`reject duplicate verdict: ${name}`, () => {
+    const record = fixture();
+    record.jobs.at(-1).steps.push(structuredClone(record.jobs.at(-1).steps.find(step => step.name === name)));
+    assert.throws(() => validateRecord(record), /strict verdict/);
+  });
+  test(`reject duplicate verdict replacing another step: ${name}`, () => {
+    const record = fixture();
+    const steps = record.jobs.at(-1).steps;
+    steps.find(step => step.name !== name).name = name;
+    assert.throws(() => validateRecord(record), /strict verdict/);
+  });
   test(`reject missing verdict: ${name}`, () => {
     const record = fixture();
     record.jobs.at(-1).steps = record.jobs.at(-1).steps.filter(step => step.name !== name);
+    assert.throws(() => validateRecord(record), /strict verdict/);
+  });
+}
+
+test("reject obsolete strict totals step name", () => {
+  const record = fixture();
+  record.jobs.at(-1).steps.find(step => step.name === "Strict totals: no failures or todos").name = "Strict totals: no skip pending todo or retries";
+  assert.throws(() => validateRecord(record), /strict verdict/);
+});
+for (const name of ["Unexpected green verdict", "Strict totals: no skip pending todo or retries"]) {
+  test(`reject extra verdict: ${name}`, () => {
+    const record = fixture();
+    record.jobs.at(-1).steps.push({ name, status: "completed", conclusion: "success" });
     assert.throws(() => validateRecord(record), /strict verdict/);
   });
 }

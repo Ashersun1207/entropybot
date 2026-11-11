@@ -9,7 +9,7 @@ export const REQUIRED_JOBS = Object.freeze([
   "broker-vitest", "control-plane-vitest", "electron-node", "static-checks", "full-gate-verdict",
 ]);
 export const VERDICT_STEPS = Object.freeze([
-  "Exact final-source file coverage", "Strict totals: no skip pending todo or retries",
+  "Exact final-source file coverage", "Strict totals: no failures or todos",
   "Fixture isolation and resource receipts", "Platform dispositions complete", "Clean unchanged source",
 ]);
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -44,6 +44,7 @@ export function validateRecord({ run, jobs, sha, now = Date.now() }) {
     requireThat(Array.isArray(job.steps) && job.steps.length > 0 && job.steps.every(step => step.status === "completed" && step.conclusion === "success"), `incomplete, skipped or failed steps: ${name}`);
   }
   const verdict = jobs.find(job => job.name === "full-gate-verdict");
+  requireThat(verdict.steps.length === VERDICT_STEPS.length, "partial or extra strict verdict steps");
   for (const name of VERDICT_STEPS) {
     requireThat(verdict.steps.filter(step => step.name === name).length === 1, `missing strict verdict: ${name}`);
   }

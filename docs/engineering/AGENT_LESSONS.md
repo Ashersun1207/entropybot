@@ -274,6 +274,11 @@
 - 隐藏渲染的首轮截图只有背景和关闭按钮，PNG非空与DOM文案正确仍不能证明实际文字已绘制。原回执和图保留在 hidden-attempt1；夹具补字体/图片就绪及有界文本区域像素检查，原4场景重测后人工确认中文图。等待和像素检查只修自有夹具，不修改产品。
 - 回归与限制：外层 private/delivery-gap-check-20261111/ 中保留来源审计、4 种语言隐藏 Electron 渲染、132 项聊天/迟到回执检查及安装复制 ENOSPC/EACCES 子例。隐藏渲染只加载打包模块，不等于完整主程序启动；安装器首轮 4 子例因自有 phase 预期错误失败，修正后同 4 子例通过，原日志保留。真实安装、Keychain、TCC、完整窗口交接和发布未验，不据此关闭这些边界。
 
+## F2：verdict 名称与精确集合是消费端协议
+
+- 平台处置契约要求零 failed/todo，skip 逐条显式处置且永不计通过；producer 负责原报告与 artifact 一对一对账及主控审阅，consumer 只验证可信来源与 verdict steps。第二步固定为 `Strict totals: no failures or todos`，不能继续接受旧的零 skip 名称或据改名宣称 producer 已实现。
+- 本次聚焦负例发现仅逐项 `count === 1` 会接受额外绿色 verdict；补精确长度约束，保留五项各一次检查。回归入口 `scripts/entropybot-release-gate.node-test.mjs` 固定五个名字，覆盖每项 missing/duplicate/同长度替换、旧名替换及 extra。原 consumer 的新增测试为77通过/3失败，其中旧名替换用例因尚无新名而在夹具修改处 TypeError，不能把该项算实际拒绝漏洞；两项 extra 实际缺少预期拒绝。证据在外层 private/engineering-foundation-evidence/f2-gate-disposition-contract/。信任映射保持空，未实现 producer 或变更 workflow；最终仍需独立审查后主控串行集成。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
