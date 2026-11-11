@@ -1,6 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import candidateProducerFiles from "./full-gate/candidate-pins.json" with { type: "json" };
+
+export const CANDIDATE_PRODUCER_FILES = Object.freeze(candidateProducerFiles);
 
 export const REPOSITORY = "Ashersun1207/entropybot";
 export const WORKFLOW = ".github/workflows/entropybot-full-gate.yml";

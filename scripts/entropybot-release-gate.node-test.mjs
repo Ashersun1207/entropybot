@@ -7,7 +7,18 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { parse } from "yaml";
-import { REPOSITORY, WORKFLOW, REQUIRED_JOBS, VERDICT_STEPS, validateRecord, verifyRemoteGate } from "./entropybot-release-gate.mjs";
+import { CANDIDATE_PRODUCER_FILES, REPOSITORY, WORKFLOW, REQUIRED_JOBS, VERDICT_STEPS, validateRecord, verifyRemoteGate } from "./entropybot-release-gate.mjs";
+
+import { verifyPins } from "./full-gate/trust.mjs";
+
+test("candidate trust pins cover the local producer without enabling production", () => {
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  assert.ok(verifyPins(root, CANDIDATE_PRODUCER_FILES) > 2);
+  const missing = { ...CANDIDATE_PRODUCER_FILES }; delete missing[WORKFLOW];
+  assert.throws(() => verifyPins(root, missing), /missing or extra/);
+  assert.throws(() => verifyPins(root, { ...CANDIDATE_PRODUCER_FILES, "scripts/full-gate/unpinned.mjs": "a".repeat(64) }), /missing or extra/);
+  assert.throws(() => verifyPins(root, { ...CANDIDATE_PRODUCER_FILES, [WORKFLOW]: "a".repeat(64) }), /altered/);
+});
 
 const sha = "a".repeat(40);
 const now = Date.parse("2026-11-08T01:00:00Z");

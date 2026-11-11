@@ -23,6 +23,7 @@ trust overrides, or a manually asserted successful report.
 There is currently **no approved, tracked full-regression Actions producer**.
 `APPROVED_PRODUCER_FILES` in the consumer is deliberately empty. Production exits
 nonzero before making any HTTP request. No placeholder green workflow was added.
+The candidate producer below remains unapproved and cannot complete successfully.
 This intentionally freezes the release workflow; merge only with that behavior
 understood. This is a reviewable consumer and release dependency, not completed F2.
 
@@ -85,16 +86,17 @@ is outside the application repository and is not executed by this consumer.
 - Check the same clean source before/between/after groups. Skipped tests are
   allowed only through an explicit platform-disposition artifact bound to that
   final source and run. The producer must enumerate every skipped test by exact
-  group, file and full test identity, with exactly one class (`platform-specific`,
-  `environment-gated-but-executed-elsewhere` or `policy-prohibited`), a concrete
-  reason and a target-platform evidence reference. The producer must reconcile
+  group, file and full test identity, with exactly one class
+  (`executed-in-this-run` or `policy-prohibited`), a concrete reason and a
+  target-platform evidence reference. The producer must reconcile
   artifact entries one-to-one with original per-test reports: undeclared skips,
   duplicate or extra entries, mismatched identities/counts/classes/reasons/evidence,
   missing references and unresolved evidence block. A blanket allowlist or a
-  capability/env gate alone is insufficient. Environment-gated tests require
-  actual execution evidence elsewhere on the same final source; policy-prohibited
-  entries must reference the applicable prohibition and its target-platform
-  acceptance disposition, without implying that prohibited execution occurred.
+  capability/env gate alone is insufficient. Execution exceptions require actual
+  matrix execution in this same workflow run, attempt and final source. No
+  externally supplied execution receipt, even controller-signed, is accepted.
+  Policy-prohibited entries must reference the applicable prohibition and its
+  target-platform acceptance disposition without claiming prohibited execution.
   The controller must review the artifact and cited evidence before accepting
   any run with skips as **accepted with dispositions**. A run whose only remaining
   exception is skipped tests is not **strict green**; an all-skipped run also
@@ -186,3 +188,256 @@ and successful runs, plus final-list attempt/status/conclusion changes, all reje
 Scoped deny-warning oxlint and `git diff --check` passed. All API evidence remains
 synthetic; this does not validate real Actions or guarantee against changes after
 the final API read. No producer, trust pins, dependencies or workflows changed.
+
+## Unapproved producer candidate (2026-11-11)
+
+The `.github/workflows/entropybot-full-gate.yml` remains a **partial,
+fail-closed implementation**, not activation-ready. The branch merged engineering
+`a08fc3727`; the controller's subsequent same-run architecture decision
+supersedes its externally supplied execution-receipt model. The trigger remains
+`workflow_dispatch` only: pushing this branch cannot start it. It retains exactly
+15 jobs. The verdict job has exactly the five named steps, including
+`Strict totals: no failures or todos`, with no separate checkout, setup, download
+or upload steps. Its first step uses the Node 24 GitHub script action to fetch
+the exact SHA without persisted credentials, check provenance, download original
+lane artifacts and run coverage validation. Each remaining step invokes its own
+validator. The verdict and two matrix jobs add `actions: read` to
+`contents: read`; the matrix jobs use it only to bind their numeric API job ID.
+Real Actions syntax, generated service steps and API step-list compatibility still
+need qualification before activation. Main lanes remain serial macOS shards.
+The existing `broker-vitest` slot is a one-entry Linux matrix on ubuntu-24.04;
+`control-plane-vitest` is a one-entry Windows matrix on windows-2025. Explicit
+job names preserve exactly 15 IDs and 15 run instances. These two jobs run
+independently and must supply their platform supplement plus normal group.
+A missing or failed platform job blocks rather than authorizing an exclusion.
+
+`scripts/full-gate/runner.mjs` uses the existing bounded POSIX supervisor and
+HMAC-authenticated fixture/file leases. It discovers files through the actual
+Vitest configuration and discovers all tracked Node test entries, including
+scripts added after the historical plan. It stores command/source/report
+receipts outside the checkout and retains temporary homes. Its constructed
+child environment drops caller credentials, CI retries and host/subset filters,
+sets the class-B browser/UI/CLI/mail paths explicitly and sets live eval to 0.
+Setting opt-ins does not prove asset presence or fixture readiness.
+
+`scripts/full-gate/core.mjs` and `scripts/full-gate/verdict.mjs` reconcile
+`total = passed + skipped`, require positive totals, and reject failures, todos,
+incomplete/pending results, retries and source drift. Vitest JSON per-test
+identities and Node structured events enumerate skips by group/file/full name.
+Node TAP totals are independently compared with structured-event totals. Original
+report hashes and exact file coverage remain mandatory. Node event parsing is
+covered by an actual disposable nested-suite fixture, with one passed and one
+skipped assertion; it is not a full regression run.
+
+`scripts/full-gate/dispositions.mjs` enforces one-to-one skip reconciliation.
+Every skip needs exactly one valid class, concrete reason, target platform and
+resolved evidence reference. Duplicate/extra/missing/mismatched entries or
+references block. Execution dispositions resolve only to the platform artifacts
+collected from this same workflow run. `scripts/full-gate/bootstrap.mjs` checks
+the authoritative run detail, attempt-1 job set, matrix runner labels and
+artifact run/SHA metadata before generating its own collection index. Each
+artifact name must be exactly `full-gate-<job-name>`, map one-to-one to a distinct
+API job, and have created_at within that job's started_at/completed_at window.
+Duplicate IDs/names, missing artifacts, copied job mappings and out-of-window
+creation reject. The collection persists that authoritative artifact/job map.
+Matrix producers resolve their own numeric job ID with the attempt-1 API before
+installation; every execution receipt must carry that exact ID, source/run and
+attempt. Receipt start/finish must fall inside the cited API job window.
+Times are compared as floored UTC epoch seconds because Actions timestamps may
+have second precision. No extra clock-skew allowance is added; the next second
+outside a job window rejects. Receipt internal ordering and controller-review
+chronology are also retained at millisecond precision. The
+controller bundle cannot supply that index or an execution receipt.
+`scripts/full-gate/same-run.mjs` validates job/run/attempt/source/platform,
+source-root cwd, dependency installation, sanitized environment and report bytes
+before the existing command/receipt parser confirms the exact passed assertion.
+Policy dispositions still resolve prohibition and controller acceptance records
+without an execution claim. A valid signature authenticates review scope; it
+cannot turn an external receipt into same-run evidence.
+Any skip also requires an Ed25519 controller signature over the source/run-bound
+bundle and review metadata. Only the controller may sign the decision
+`accepted with dispositions`; skipped tests remain skipped and `strictGreen`
+is false. With no skips, an empty exact artifact may qualify as strict green only
+when every other invariant passes.
+
+`scripts/full-gate/platform-declarations.json` contains 73 class-A and 4 class-C
+historical classifications with exact test identities and source hashes. These
+are unresolved declarations, not evidence or permission to accept a skip.
+The 73 class-A cases and single CI-discovery case now require
+`executed-in-this-run` matrix evidence; only the three live-account/model cases
+remain `policy-prohibited`. New/unmatched skips get explicit unresolved
+entries. The producer emits each lane's `platform-dispositions.json` inside its
+retained artifact, before checking fixture leases. Historical classifications
+never supply target execution or controller approval.
+
+An optional manual input `disposition-artifact-id` downloads a controller-signed
+review/policy bundle from this repository. It contains platform-dispositions.json
+with sourceSha, runId, attempt, entries, evidence, records and controllerReview.
+The signature covers canonical sorted-key JSON excluding only the signature.
+The bundle's records may contain only policy-prohibition, policy-acceptance and
+controller-review records (schemaVersion 1); execution-receipt records reject.
+Execution evidence references must instead name `this-run:<job>:<receipt>` in
+the separately collected matrix artifacts. Original reports remain beside their
+producer's platform.json, named by SHA-256 plus .json or .jsonl. External report
+callbacks and report files in the policy bundle cannot replace those bytes.
+
+`scripts/full-gate/evidence-records.mjs` keeps command validation and the three
+policy/review record validators. Execution receipts use schemaVersion 2 and are
+accepted only through the same-run collector:
+
+- `execution-receipt`: sourceSha and platform must match the final source and
+  requested target. Its report contains sha256, format and root matching the
+  cited original bytes, and assertion contains the exact group/file/fullName
+  with status passed. Both source snapshots require that SHA, the same valid
+  tree hash and clean true. Command records require explicit argv/cwd, a direct
+  Node Vitest-run or Node-test command, exitCode 0, signal null, timedOut false
+  and retries 0. Command validation parses the effective mode and entry position;
+  finding a test filename or `run` anywhere in argv is insufficient. The first
+  script must resolve to `node_modules/vitest/vitest.mjs` under the command cwd,
+  immediately followed by `run`, or Node's effective mode must be `--test` with
+  explicit literal `.node-test.mjs` entries including the cited assertion file.
+  Only an optional import of the pinned verification lifecycle bootstrap may
+  precede the entry/mode. Other pre-entry flags reject, including version/help,
+  eval/print, syntax-check and test-only modes; unknown flags fail closed.
+  Vitest accepts only the producer's config/runner/worker/JSON-output/shard and
+  worker-bootstrap options, never positional filters. Node test options are
+  limited to bounded concurrency and the known reporters/destinations, before
+  all test entries. Flags after Node test files, arbitrary imports/reporters,
+  duplicate entries and unsupported options reject. These intentionally narrow
+  forms must be reviewed before supporting additional valid CLI variations.
+  Valid startedAt/finishedAt timestamps must precede the controller review.
+  The receipt must additionally identify a successful job in this run/attempt,
+  and cwd/report root must equal that job's captured checkout root. The frozen
+  installation receipt binds the final lock hash, Node identity and resolved
+  Vitest entry hash. `scripts/full-gate/execution-paths.mjs` uses native realpath
+  in the producing lane on cwd, report root, the installation entry, effective
+  argv entries and every path component, before and after execution. Captures
+  must agree and entry bytes must match the approved installation. Symlinked
+  dependencies require the recorded approved target under this checkout's
+  node_modules; escaping components reject. Node test entries instead bind
+  their checked-out source file identity. The verdict validates the same-run
+  captured identities rather than attempting to open another machine's paths.
+  It also rejects dot/dot-dot, duplicate separators and other noncanonical argv
+  aliases outright: lexical `resolve` must not collapse `escape/../...` into an
+  apparently approved entry. Missing, mismatched or escaping realpath captures
+  reject independently of an unchanged receipt.entry field. The execution environment is an
+  explicit allowlist with an owned synthetic home: NODE_OPTIONS and unknown
+  variables reject, as do Node override flags embedded in values. A CA override
+  requires the source-approved mail fixture path and digest; none is approved.
+- `policy-prohibition`: scope binds the exact test identity, final source and
+  target platform; status is prohibited, prohibition text and matching reason
+  are required, and date must be valid and not in the future.
+- `policy-acceptance`: scope additionally binds this run; policyRef must resolve
+  to the prohibition above. The controller id and keyId must match the bundle
+  reviewer, with a dated accepted-with-dispositions decision after prohibition
+  and no later than review. A nonempty string alone cannot stand in for either
+  policy record. The evidence row's reference must name this acceptance record.
+- `controller-review`: controllerReview.reference resolves this dated record,
+  whose source/run, authenticated controller identity, acceptance decision and
+  exact assertion/class/target scope must match the bundle. It authenticates
+  the review scope without manufacturing execution provenance.
+
+Independent review of `48899bec9` found that checking nonempty reference strings
+and a report hash did not establish receipt provenance or resolve policy
+prohibitions/acceptances. A valid synthetic signature could authenticate that
+incomplete bundle. Before the fix, 175 existing focused tests passed while 33
+new provenance rejection cases failed with missing expected rejection. The
+record schema and resolver close those observed semantic gaps; release approval,
+reviewer keys and resource acceptance remained blocked throughout. The new
+receipt checks and real receipt-production boundary still need independent
+re-review before activation.
+
+The second review of `22bdb1058` found that the command check searched anywhere
+in argv for a Vitest entry and `run` (or `--test`), accepting correctly signed
+receipts for `node --version vitest.mjs run` and other commands that never ran
+that test entry. Before the positional parser fix, the 256-test focused command
+had 233 passes and 23 missing expected rejections; all original 221 tests still
+passed. Re-signed cases now cover early-exit modes, misplaced entries/subcommands,
+lookalike paths, help/version after `run`, Node file membership and selection
+flags, plus legitimate Vitest and Node forms with approved bootstrap options.
+That revision had 258 review-only pins and did not activate any approval root.
+The subsequent review of `d9d128dc2` found NODE_OPTIONS and foreign-cwd/dependency
+claims could still be accepted from signed external execution receipts. The
+controller replaced that trust model: this candidate now rejects all execution
+records in controller bundles and uses only same-run matrix artifacts. It has
+261 candidate pins after adding the collector, platform runner and platform
+config. The subsequent lane-boundary fix adds native filesystem capture and
+brings the current candidate map to 262 pins. Reviewer keys, asset digests and
+production release trust remain empty.
+
+Review of `fd2b760aa` found that source/run labels alone did not bind a receipt
+to a numeric API job/window, and lexical path resolution accepted symlink/dot-dot
+aliases. Before the fix, 299 existing tests passed while 11 new rejection cases
+failed; one added future-time case was already rejected (311 total). The new
+numeric/time/artifact mapping and native-capture checks address those observed
+gaps. Real symlink fixtures exercise direct and approved pnpm entries, foreign
+cwd/report roots and absolute/relative symlink escapes. These remain local
+synthetic checks, not actual platform-job evidence or independent approval.
+
+`scripts/full-gate/platform.mjs` defines the in-workflow supplement: whole
+platform files come from the source-hashed declarations via
+`scripts/full-gate/platform-vitest.config.mjs`, with no test-name filters or
+retries, plus the declared Node files and exact per-assertion receipts. It records
+its frozen installation and sanitized child environment before execution. Linux
+currently fails closed on missing capabilities or unqualified owned DISPLAY/Xvfb
+and browser assets; Windows fails closed before test launch because containment
+is unavailable. Even a behavioral pass remains blocked by the independent
+resource-audit gap. The platform status stays blocked and no successful receipt
+collection can be accepted until those qualifications are implemented/reviewed.
+
+All local verification uses synthetic API/job/artifact records and fixtures;
+no actual originating Actions runner or target OS was exercised in this task.
+Real Linux/Windows executions must now occur in this same workflow/run/attempt;
+external runs cannot fill that requirement. Independent review of the collector,
+receipt production, dependency identities and controller review coordination
+remains required. Missing input combines lane proposals and remains unresolved when
+skips exist. No reviewer public keys are
+provisioned in `scripts/full-gate/disposition-trust.json`; all skipped-run
+acceptance therefore remains blocked. The production release trust map is a
+separate empty approval root. Archive extraction rejects duplicate/traversal
+paths, symlinks, special files and oversized content; artifact reads require
+bounded regular files without following final-component symlinks.
+
+The candidate deliberately also fails for unapproved/missing class-B assets,
+unimplemented mail/CA qualification, or missing independent detached-resource
+audit. `scripts/full-gate/preflight.mjs` now checks required asset presence and
+source-approved SHA-256 digests (directory digests include their sorted trees),
+rejects symlinks, probes isolated Python/Pillow and temporary-filesystem case
+sensitivity/path length, and names unavailable Windows containment. No asset
+hashes are provisioned. The mail fixture/CA qualification remains an explicit
+named blocker even if a CA file exists. Browser paths point only to pre-provisioned
+assets under `/opt/entropybot-full-gate`; no download fallback is invoked by the
+producer. The mail requirements are loopback-only disposable Postfix/Dovecot,
+synthetic accounts, ports 11993/11143/11465/11587 and an explicit fixture CA.
+No mail fixture is started by this candidate. Pillow and short case-sensitive
+storage remain required capabilities. Production cannot become green merely
+by placing files at those paths.
+
+`CANDIDATE_PRODUCER_FILES` exposes review-only SHA-256 pins from
+`scripts/full-gate/candidate-pins.json`. `APPROVED_PRODUCER_FILES` stays empty;
+the consumer still rejects before HTTP. `scripts/full-gate/trust.mjs` walks
+literal local import dependencies from explicit producer/config/static roots,
+includes setup, lockfile, policy and weighting inputs, and rejects new unpinned
+runner modules. This is a conservative literal-import closure, not a proof of
+arbitrary computed imports, package lifecycle hooks or all test dependencies.
+The final SHA and lockfile remain essential. Independently audit those dynamic
+execution paths and expand the trust roots before any activation. The manifest
+is metadata, not executable code, and does not hash itself.
+
+Before activation: supply reviewed asset digests and compatible assets, finish
+loopback mail/CA qualification and detached-resource auditing, obtain real
+Linux/Windows executions inside this workflow and controller-reviewed
+final-source/run dispositions, qualify full original-report parsing, implement
+Windows containment, and qualify Linux owned DISPLAY/Xvfb and browser assets. Review transitive pins, test actual Actions
+syntax/runner behavior, then obtain a real attempt-1 run at the controller's
+final integrated SHA. Only a separate reviewed consumer source change may
+provision production approval. Signing/notarization/release authorization remain
+separate. This implementation does not claim F2 or release green.
+
+Focused local validation uses Node 24, synthetic records and disposable Git
+repositories only. Scoped TypeScript checks compile the custom TypeScript
+runner only; they do not establish strict type checking of the MJS producer or
+receipt validators. Those modules have behavioral tests and scoped lint.
+Exact counts, failures, commands, pre/post hashes and logs are retained outside
+the checkout in
+`private/engineering-foundation-evidence/f2-full-gate-producer/`.

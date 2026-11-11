@@ -1,0 +1,201 @@
+name: Entropybot full regression (unapproved producer)
+on:
+  workflow_dispatch:
+    inputs:
+      disposition-artifact-id:
+        description: Controller-signed disposition bundle artifact ID (unresolved skips block)
+        required: false
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: full-gate-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  main-vitest-01:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: &lane-steps
+      - &source-checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - &node-setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - &provenance-check
+        name: Refuse provenance mismatch
+        run: node --input-type=module -e 'import {provenance} from "./scripts/full-gate/runner.mjs"; provenance(process.env)'
+      - &locked-install
+        name: Install locked dependencies in synthetic home
+        shell: bash
+        run: |
+          export HOME="$RUNNER_TEMP/install-home"
+          export USERPROFILE="$HOME"
+          export XDG_CONFIG_HOME="$HOME/config"
+          export XDG_CACHE_HOME="$HOME/cache"
+          mkdir -p "$HOME"
+          corepack enable
+          corepack pnpm install --frozen-lockfile
+          node scripts/full-gate/platform.mjs record-install
+        env:
+          OMB_EVAL_LIVE: '0'
+      - &run-lane
+        name: Run bounded authoritative lane
+        run: node scripts/full-gate/runner.mjs "$LANE"
+        env:
+          LANE: ${{ github.job }}
+          FULL_GATE_PLATFORM: ${{ matrix.platform }}
+          OMB_EVAL_LIVE: '0'
+      - &retain-lane
+        name: Retain original reports logs and receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-gate-${{ github.job }}
+          path: ${{ runner.temp }}/full-gate/${{ github.job }}/
+          if-no-files-found: error
+          retention-days: 14
+  main-vitest-02:
+    needs: main-vitest-01
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: *lane-steps
+  main-vitest-03:
+    needs: main-vitest-02
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: *lane-steps
+  main-vitest-04:
+    needs: main-vitest-03
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: *lane-steps
+  main-vitest-05:
+    needs: main-vitest-04
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: *lane-steps
+  main-vitest-06:
+    needs: main-vitest-05
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: *lane-steps
+  main-vitest-07:
+    needs: main-vitest-06
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: *lane-steps
+  main-vitest-08:
+    needs: main-vitest-07
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: *lane-steps
+  main-vitest-09:
+    needs: main-vitest-08
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: *lane-steps
+  main-vitest-10:
+    needs: main-vitest-09
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: *lane-steps
+  broker-vitest:
+    permissions:
+      contents: read
+      actions: read
+    name: broker-vitest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps: &matrix-steps
+      - *source-checkout
+      - *node-setup
+      - *provenance-check
+      - name: Bind numeric producer job identity
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, { owner, repo, run_id: context.runId, attempt_number: 1, per_page: 100 });
+            const own = jobs.filter(job => job.name === process.env.GITHUB_JOB);
+            if (own.length !== 1 || own[0].head_sha !== context.sha || own[0].run_attempt !== 1 || own[0].run_id !== context.runId || !Number.isSafeInteger(own[0].id)) throw new Error('producer job identity unavailable');
+            core.exportVariable('FULL_GATE_JOB_ID', String(own[0].id));
+      - *locked-install
+      - *run-lane
+      - *retain-lane
+  control-plane-vitest:
+    permissions:
+      contents: read
+      actions: read
+    name: control-plane-vitest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: win32
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps: *matrix-steps
+  electron-node:
+    needs: main-vitest-10
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps: *lane-steps
+  static-checks:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps: *lane-steps
+  full-gate-verdict:
+    needs: [main-vitest-01, main-vitest-02, main-vitest-03, main-vitest-04, main-vitest-05, main-vitest-06, main-vitest-07, main-vitest-08, main-vitest-09, main-vitest-10, broker-vitest, control-plane-vitest, electron-node, static-checks]
+    runs-on: macos-15
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Exact final-source file coverage
+        uses: actions/github-script@v8
+        env:
+          DISPOSITION_ARTIFACT_ID: ${{ inputs.disposition-artifact-id }}
+        with:
+          script: |
+            const { execFileSync } = require('node:child_process');
+            const { mkdirSync, appendFileSync } = require('node:fs');
+            const { pathToFileURL } = require('node:url');
+            const { join } = require('node:path');
+            if (process.env.GITHUB_REPOSITORY !== 'Ashersun1207/entropybot' || process.env.GITHUB_RUN_ATTEMPT !== '1' || context.eventName !== 'workflow_dispatch' || !/^[a-f0-9]{40}$/.test(context.sha)) throw new Error('bootstrap provenance mismatch');
+            const home = join(process.env.RUNNER_TEMP, 'full-gate-bootstrap-home');
+            mkdirSync(home);
+            const env = { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0' };
+            const git = args => execFileSync('git', args, { env, encoding: 'utf8', timeout: 60000 }).trim();
+            git(['init', '--quiet']);
+            git(['-c', 'credential.helper=', 'fetch', '--depth=1', 'https://github.com/Ashersun1207/entropybot.git', context.sha]);
+            git(['checkout', '--detach', 'FETCH_HEAD']);
+            if (git(['rev-parse', 'HEAD']) !== context.sha) throw new Error('wrong checkout SHA');
+            const { provenance } = await import(pathToFileURL(join(process.cwd(), 'scripts/full-gate/runner.mjs')).href);
+            provenance(process.env);
+            const { bootstrap } = await import(pathToFileURL(join(process.cwd(), 'scripts/full-gate/bootstrap.mjs')).href);
+            const directory = await bootstrap({ github, context, reviewArtifactId: process.env.DISPOSITION_ARTIFACT_ID });
+            const { verdict } = await import(pathToFileURL(join(process.cwd(), 'scripts/full-gate/verdict.mjs')).href);
+            verdict('Exact final-source file coverage', directory);
+            appendFileSync(process.env.GITHUB_ENV, `FG_NODE=${process.execPath}\n`);
+      - name: 'Strict totals: no failures or todos'
+        run: |
+          "$FG_NODE" scripts/full-gate/verdict.mjs 'Strict totals: no failures or todos' "$RUNNER_TEMP/full-gate"
+      - name: Fixture isolation and resource receipts
+        run: '"$FG_NODE" scripts/full-gate/verdict.mjs ''Fixture isolation and resource receipts'' "$RUNNER_TEMP/full-gate"'
+      - name: Platform dispositions complete
+        run: '"$FG_NODE" scripts/full-gate/verdict.mjs ''Platform dispositions complete'' "$RUNNER_TEMP/full-gate"'
+      - name: Clean unchanged source
+        run: '"$FG_NODE" scripts/full-gate/verdict.mjs ''Clean unchanged source'' "$RUNNER_TEMP/full-gate"'

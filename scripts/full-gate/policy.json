@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "activation": "disabled",
+  "platformEvidence": {
+    "linux": {
+      "status": "declared-unresolved-target-evidence",
+      "required": ["46 Vitest assertions and 6 Node assertions from the controller disposition at the final SHA", "working unprivileged bubblewrap and socat", "/proc namespace, boot and process identity", "/usr/bin/flock", "DISPLAY or xvfb and existing Electron", "raw per-assertion reports and lifecycle receipts"]
+    },
+    "win32": {
+      "status": "declared-unresolved-target-evidence-and-containment",
+      "required": ["18 Vitest assertions and 3 Node assertions from the controller disposition at the final SHA", "actual cmd.exe process, named-pipe and cancellation behavior", "Windows process containment replacement for the POSIX supervisor", "raw per-assertion reports and lifecycle receipts"]
+    }
+  },
+  "policyExclusions": [
+    {"file": "server/drivers/muse-code.live.test.ts", "flag": "OMB_LIVE_MUSE", "reason": "Restores account HOME and spends signed-in live account usage; forbidden by current task"},
+    {"file": "server/decider/room-routing.eval.test.ts", "flags": ["OMB_JEV_LIVE_EVAL", "OMB_OPENROUTER_LIVE_EVAL"], "reason": "Two live paid provider evaluations; real models and keys forbidden"},
+    {"file": "server/browser/egress/hostile-pages.e2e.test.ts", "flag": "CI", "reason": "Local CI-discovery exclusion; needs actual non-Windows Actions discovery evidence, never a local spoof"}
+  ],
+  "exclusionsCountAsPassed": false,
+  "mailFixture": {
+    "status": "unimplemented-fail-closed",
+    "interface": "loopback only",
+    "ports": [11993, 11143, 11465, 11587],
+    "tlsNames": ["mail.omb-test.example", "localhost"],
+    "mailboxes": ["tester", "empty", "copy", "e2e"],
+    "domain": "omb-test.example",
+    "ca": "/opt/entropybot-full-gate/mail/ca.pem",
+    "requirements": ["dedicated disposable Postfix/Dovecot fixture", "synthetic source-fixture password", "validate loopback bindings and CA before execution", "no download or install fallback"]
+  },
+  "otherBlockers": ["approved asset digests and compatible dist", "Pillow under python3 -I", "short case-sensitive temporary storage", "independent detached-resource audit", "same-source target-platform reports and signed controller disposition acceptance; skips remain skips"]
+}

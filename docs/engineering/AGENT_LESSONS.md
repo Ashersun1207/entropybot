@@ -172,6 +172,19 @@
 - 产品文案提交修改共享 `place.local` / `rail.thisComputer` 后，原生菜单与切换器的旧英文、葡语测试 pin 也须核对；本次按既有目录采用 Your computer / Seu computador，保留角色、排序、无 Forget 和回调断言。入口为 `electron/menu.test.mjs`、`electron/environments.node-test.mjs`、`electron/native-text.node-test.mjs`。
 - locale import-graph 守卫新增指出 `server/routine-manual-request.e2e.test.ts` 的传递目录依赖，以及 `scripts/entropybot-ci-workflow.test.ts` 中 workflow 命令的保守文本命中。两者加入 `scripts/ci-scope.mjs` 的 locale 子集；不增加豁免或放宽图守卫。后者自身不解析翻译，额外运行短契约测试以保留守卫的保守边界。第一轮图守卫转绿但精确子集清单断言未同步（343 通过/1 失败）；第二轮同步清单测试，不改原图断言。此修复仅为前置回归，不能据此声称完整 F2 回归或发布通过；集成前仍须独立审查。
 
+## F2 disposition 合同：skip 身份和执行证据不能互相代替
+
+- `a08fc3727` 的新 consumer 合同要求 verdict 恰好五步，第二步为 `Strict totals: no failures or todos`。测试 skip 只有逐条 group/file/fullName 对账、唯一 class、具体原因、同源 target 证据及 controller 审阅后才可 accepted with dispositions；skip 不变为 pass。普通 pending、todo、重复/额外/缺失声明、错源/错run和未解决证据仍阻断。旧零 skip 保护是历史合同，不覆盖新决定。
+- Node 24 实际 structured events 先发送没有 entryFile 的外层 file enqueue，再发送带 entryFile 的 worker enqueue；两者可共用 testId=1。嵌套全名解析须用 entryFile 命名空间，不能把外层 wrapper 当重复 assertion 或凭 TAP 汇总猜文件。首次 171 项中 1 项失败来自 macOS 临时根 `/var` 与实际 `/private/var` 别名；规范 fixture 根后第二次 176 项中 1 项指出 wrapper 身份重用。保留两轮失败和独立原始 event probe，不降低重复断言检查。回归入口 `scripts/full-gate-dispositions.node-test.mjs` 包含真实有界 Node 合成文件、signed/unsigned disposition 及 archive 负例。
+- 资产存在、配置开关和历史分类均不是 target 执行证明。producer 保留 73 条 class-A 加 4 条 class-C 历史未解决声明，未配置 controller 公钥或资产 hashes；邮件夹具/CA、独立 detached 资源审计和 Windows containment 仍明确阻断，不因新 skip 合同自动关闭。验证边界与格式见 [发布门说明](../verification/release-full-gate.md)。
+
+## F2 producer 候选：格式检查与阻断必须分别验收
+
+- 新 producer 的首次合成检查 111 项中 9 失败：TAP exclusion 正则把 `# todo 0` 汇总误判为 TODO 指令；workflow 的 run scalar 含冒号却未使用 block，导致 YAML 无法解析并连带 8 个契约测试失败。修复分别限定 TAP directive 所在结果行、采用 YAML block scalar；原日志保留，不能把解析失败当作负例合同成功。
+- 读取已装 Vitest 4.1 的实际格式确认 `list --filesOnly --json` 返回 `{file}` 对象、JSON reporter 不提供 `numRuntimeErrorTestSuites`；producer 不得拿自造字符串列表或不存在字段建立“实际格式已验”的结论。新增 argv 检查只检查选项，避免把合法 `ci-retry-*.node-test.mjs` 文件名当 retry flag。
+- Vitest 4.1 的 runtime deprecation 提示不能替代实际类型出口核对：将 runner class 从 `vitest/runners` 改由 `vitest` 导入后，scoped tsc 实际报 TS2689 等 6 项错误（根出口是 interface）；恢复可编译的 runtime class 入口并保留类型失败回执，不以 skipLibCheck 或删除 override 绕过。
+- 候选 producer 保留空 production trust map；平台、独立资源审计、邮件/资产预检未实现时明确拒绝。源码合同通过不等于完整 producer 可用；启用前仍须独立审查、补齐执行边界及最终 SHA 的真实 Actions attempt-1。回归入口 `scripts/full-gate.node-test.mjs`、`scripts/entropybot-release-gate.node-test.mjs`，边界见 [发布门说明](../verification/release-full-gate.md)。
+
 ## A1：手动运行在 reload 后恢复
 
 - 触发：confirmed setItem 成功而紧随的 getItem 抛错。旧 provider 的 uncertain map 保留原 key，但 reload/更换 provider 丢失该 map；原有同 provider 重试通过并不能证明 reload 安全。基线 `a92388449` 的新增红例实际发出两个不同 key，真实 Chrome 夹具在故障、原服务器同 dataDir 重启及 Page.reload 后缺少 Retry。修复身份见本条所属提交：新 owner 对任何既有 marker 先以原 key/context 对账，confirmed phase 不单独授权旋转或驱逐；本 owner 的成功回执有界保存，显式 Retry 即使在同 provider 重开详情后也强制复用原操作，提前替换仍须原确认。回归入口 `src/state/routine-run-intent.test.ts`、`src/state/routine-run-intent.integration.test.ts`、`scripts/testing/routine-run-reload-ui.e2e.test.ts`；含实际 browser reload、同目录 server restart、真实合成认证 context 变更前置拒绝、unmount 后迟到响应和替换身份 fence、32 条容量保留/可确认驱逐。边界：reload 后即使先前成功也保守要求再对账；32 条未对账会阻止新 routine；无多 tab 仲裁、真实账号/模型/Keychain 或安装包验收。证据与测试入口见 [验证说明](../verification/routine-run-reload-recovery.md)。
