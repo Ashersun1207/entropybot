@@ -15,6 +15,12 @@
 - 新 TypeScript 合成记录器复用 supervisor，保留 actual exit/signal/close 和失败输出；始终 synthetic、frozen null、complete false。真实子进程验证 canary 环境、零/非零/timeout/spawnfail/exit-before-close；全部 main/static/platform 公开入口拒绝旧收据。初轮8通过/1失败是夹具误要求受控 npm registry 不存在；保留日志后改为父 canary 不得出现、固定 public registry 必须出现。Windows 仅合成路径/环境合同，不作真实平台证明。最终六套原 Node＋新 suite、guards/types/lint/pins 证据保存在外层 f2-install-receipt；真实安装、下载、Electron hook、用户工具链字节、模型/数据、Actions、发布均未验。新候选仍须独立审查与主控串行整合。
 - 扩展组合首跑417通过/4失败：新增exact-env断言发现Darwin runtime注入__CF_USER_TEXT_ENCODING；三项旧CLI provenance拒绝被更早的job检查遮住。保留实际子进程完整输出和构造env，夹具仅允许该平台额外字段、不追认为审批；main入口先检查repo/event/attempt与HEAD身份，再拒绝安装，原错误断言保留。guards首跑7通过/1失败是新文档未进verification README，补索引、不放松守卫。后续冻结重跑结果见交接。
 
+## F2 安装收据 R1：regular-file 校验必须覆盖 open 本身
+
+- 独立审查 `ses_e3673e8a2ffeAF5rRYa61Ik79B` 对 `4a5577d79f029ae8cd00fae4c39fe5e62ed0b3e9` 返回 NEEDS-CHANGES/P2：consumer 用 O_RDONLY|O_NOFOLLOW 打开后才 fstat，owned FIFO 没有 writer 时阻塞在 open，大小上限和 fstat 都到不了。此前 V1 本地验证回执条目已经记录同类问题，现有 artifact loader 也使用 O_NONBLOCK；本轮自写 typed reader 时未复用这一完整不变量，原421绿例只检查字段与普通输入，漏了公开consumer的无writer FIFO。
+- 修改产品前，公开 readInstallation 子进程在有效binding/canonical owned temp上打印 before-read 后实际挂住；外部2秒watchdog报告ETIMEDOUT、SIGKILL并确认reaped，五个symlink/目录/regular/oversized/empty控制按原逻辑拒绝。红例源码、输入/argv/env/time/outcome及最终冻结证据保存在外层 f2-install-receipt/review-r1，不把此前missing-module证明当本次实际hang证据。
+- 修复身份以本条提交为准：保留原typed reader/大小/descriptor校验，加O_NONBLOCK并显式拒绝缺少nonblocking/no-follow能力的平台，不改通用artifact loader。回归 `scripts/full-gate-install.node-test.mjs` 的六个真实公开consumer子进程要求before-read、实际domain rejection或symlink ELOOP、截止前正常退出和reaped；watchdog在被测进程之外，startup failure不能冒充拒绝，未确认退出则保留fixture。Windows仍未资格化；nonblocking open不能保证远程/故障文件系统的任意内核I/O有墙钟硬截止。原bootstrap/lifecycle/安装和全部F2阻断不变，须独立复审。
+
 ## F2：字面 import 闭包漏掉进程入口与配置派生输入
 
 - 独立供应链审查退回 `96817e8bd`：公开 producerClosure/verifyPins 在262 pins下接受 verification preload、message-search worker、Wrangler配置、migration和docs workspace manifest的实际篡改/删除，也接受额外生成worker。红例与前后SHA/tree/hash保存在外层私有 `engineering-foundation-evidence/f2-producer-closure/`；不追认旧绿例覆盖这些入口。

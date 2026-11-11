@@ -74,6 +74,20 @@ remain unqualified. Windows environment tests use lexical synthetic paths,
 fixed OS values, semicolon PATH, NUL and case-insensitive duplicate rejection.
 They do not establish actual Windows containment or installation.
 
+Independent review R1 found the receipt reader could block during O_RDONLY open
+of a FIFO before descriptor validation. The reader now requires nonblocking and
+no-follow support, opens with both flags, then checks the descriptor as before.
+The real public-consumer regression uses a no-writer FIFO and an external
+2-second watchdog. Before the fix it reached before-read and hung until killed
+and reaped; after the fix it must emit a domain rejection and exit promptly with
+the child reaped. Symlink, directory, regular legacy JSON, oversized and empty
+controls remain. A startup failure cannot satisfy the before-read marker or
+rejection checks. These real file probes are qualified only on the exercised
+POSIX host; Windows stays blocked, and missing open capabilities fail closed.
+This does not promise a wall-clock deadline for arbitrary kernel or remote
+filesystem stalls. R1 evidence is retained under the existing evidence directory's
+review-r1 subdirectory. Independent re-review is required.
+
 Regression entry: `scripts/full-gate-install.node-test.mjs`. It uses actual
 recorder children for zero/nonzero/timeout/spawn failure and exit before stdio
 close, parent environment canaries, owned-root rejection, policy negatives,

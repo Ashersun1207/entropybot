@@ -70,7 +70,7 @@
   "scripts/full-gate/execution-paths.mjs": "f9d8f558986a66328069c8866af8b215a4d2bd0e1eb9f27dab3844ac6ada7762",
   "scripts/full-gate/install-observation.ts": "ac1eedea7bca0e9e86693151c63bd6bb1b08126805ac5cdb91f0855b986de71a",
   "scripts/full-gate/install-policy.json": "8f81c5c6f821c89c499575a9bda0f18b9a3ed1c0f255245b3b24412382ccc23c",
-  "scripts/full-gate/install-policy.ts": "1d7467b83026ac910f26bb5d207a4d5075229ed7cd4d5190a1c0699db3dc0a8c",
+  "scripts/full-gate/install-policy.ts": "6dc09ebfa97681cbcccde94cbe13a910f8a07dc3d5f4c874133e95ebfec14638",
   "scripts/full-gate/main-vitest.config.mjs": "31171cf6f2f86bd458f827454b138c4122e029df045760f4dbc00d7817ab5f24",
   "scripts/full-gate/node-reporter.mjs": "a05dc7bc70095afab1392e715b3da17e65829f69f0be6dfe73f8e4e0bd5888ea",
   "scripts/full-gate/node-results.mjs": "e7ee1061ab228cf298b434e8771422d368aca58d0051dac03cbfcf1c3d41d6ef",

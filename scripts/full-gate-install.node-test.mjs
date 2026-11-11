@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync, mkdtempSync, realpathSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { readFileSync, mkdtempSync, realpathSync, mkdirSync, writeFileSync, rmSync, existsSync, symlinkSync, constants } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { installEnvironment, validateInstallPolicy, requireInstallation, productionInstall } from "./full-gate/install-policy.ts";
 import { recordSyntheticCommand } from "./full-gate/install-observation.ts";
 import { lane, ROOT } from "./full-gate/runner.mjs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { platformLane, recordInstall } from "./full-gate/platform.mjs";
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 const policy = JSON.parse(readFileSync(new URL("./full-gate/install-policy.json", import.meta.url)));
@@ -25,6 +25,50 @@ function fixture() {
   writeFileSync(entry, 'console.log(JSON.stringify({env:process.env,argv:process.argv,cwd:process.cwd()})); if(process.argv[2]==="fail") process.exitCode=7; if(process.argv[2]==="timeout") setInterval(()=>{},1000);');
   return { root, source, entry, cleanup() { rmSync(root, { recursive: true, force: true }); } };
 }
+for (const kind of ["fifo", "symlink", "directory", "regular", "oversized", "empty"]) test(`public installation consumer promptly rejects ${kind} and its child is reaped`, () => {
+  const f = fixture();
+  let cleanupAllowed = true;
+  try {
+    const path = join(f.root, "full-gate-install.json");
+    const supported = process.platform !== "win32" && Number.isInteger(constants.O_NONBLOCK) && constants.O_NONBLOCK !== 0;
+    if (supported && kind === "fifo") execFileSync("/usr/bin/mkfifo", [path], { timeout: 2000 });
+    else if (kind === "directory") mkdirSync(path);
+    else if (kind === "symlink") symlinkSync(join(f.source, "package.json"), path);
+    else writeFileSync(path, kind === "oversized" ? Buffer.alloc(1_048_577, 32) : kind === "empty" ? "" : "{}");
+    const reader = join(f.source, "receipt-reader.mjs");
+    const moduleUrl = new URL("./full-gate/install-policy.ts", import.meta.url).href;
+    const env = installEnvironment({ home: f.root, platform: "darwin", path: ["/usr/bin", "/bin"] });
+    const consumerEnv = { GITHUB_SHA: binding.sourceSha, GITHUB_RUN_ID: binding.runId, GITHUB_RUN_ATTEMPT: binding.attempt, GITHUB_JOB: binding.job, RUNNER_TEMP: f.root };
+    writeFileSync(reader, `import { writeSync } from "node:fs";\nimport { readInstallation } from ${JSON.stringify(moduleUrl)};\nwriteSync(1, "before-read\\n");\ntry { readInstallation(${JSON.stringify(f.source)}, ${JSON.stringify(consumerEnv)}); writeSync(1, "unexpected-acceptance\\n"); process.exitCode = 42; }\ncatch (error) { writeSync(1, JSON.stringify({event:"rejected", message:error.message, code:error.code ?? null}) + "\\n"); }\n`);
+    const startedAt = new Date().toISOString();
+    const started = performance.now();
+    cleanupAllowed = false;
+    const result = spawnSync(process.execPath, [reader], { cwd: f.source, env, encoding: "utf8", timeout: 2000, killSignal: "SIGKILL" });
+    const durationMs = performance.now() - started;
+    let reaped = false;
+    if (result.pid > 1) {
+      try { process.kill(result.pid, 0); } catch (error) { if (error.code === "ESRCH") reaped = true; else throw error; }
+    }
+    cleanupAllowed = result.pid <= 1 || reaped;
+    if (process.env.FULL_GATE_INSTALL_EVIDENCE) {
+      const directory = join(process.env.FULL_GATE_INSTALL_EVIDENCE, "consumers");
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(join(directory, `${kind}.json`), JSON.stringify({ kind, supported, argv: [process.execPath, reader], cwd: f.source, env, consumerEnv, startedAt, finishedAt: new Date().toISOString(), durationMs, watchdogMs: 2000, pid: result.pid, status: result.status, signal: result.signal, error: result.error ? { code: result.error.code, message: result.error.message } : null, stdout: result.stdout, stderr: result.stderr, reaped }, null, 2), { flag: "wx" });
+    }
+    assert.equal(typeof result.stdout, "string", `watchdog child failed to start: ${result.error?.message}`);
+    assert.ok(result.stdout.startsWith("before-read\n"), `consumer did not reach readInstallation: ${result.stderr}`);
+    assert.ok(reaped, "watchdog child was not reaped");
+    assert.equal(result.error, undefined, `external watchdog fired after before-read: ${result.error?.code}`);
+    assert.equal(result.signal, null);
+    assert.equal(result.status, 0);
+    assert.ok(durationMs < 2000, "consumer did not reject before external deadline");
+    const rejection = JSON.parse(result.stdout.split("\n")[1]);
+    assert.equal(rejection.event, "rejected");
+    if (!supported) assert.match(rejection.message, /Full gate installation blocked:.*(?:Windows|nonblocking)/);
+    else if (kind === "symlink") assert.equal(rejection.code, "ELOOP");
+    else assert.match(rejection.message, /Full gate installation blocked: (?:nonregular, empty or oversized|legacy or missing) installation observation/);
+  } finally { if (cleanupAllowed) f.cleanup(); }
+});
 test("unapproved production policy blocks before spawning or creating install roots", async () => {
   const f = fixture();
   try {

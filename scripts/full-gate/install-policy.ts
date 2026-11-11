@@ -83,7 +83,8 @@ export function requireInstallation(value: unknown, binding: InstallBinding, pol
   throw new Error("Full gate installation blocked: no qualified installation producer");
 }
 function observationBytes(path: string): Buffer {
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  requireValue(Number.isInteger(constants.O_NONBLOCK) && constants.O_NONBLOCK !== 0 && Number.isInteger(constants.O_NOFOLLOW) && constants.O_NOFOLLOW !== 0, "nonblocking regular-file receipt opening unavailable");
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const sizeLimit = 1_048_576;
     const stat = fstatSync(fd);
