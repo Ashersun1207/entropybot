@@ -1,12 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { performance } from "node:perf_hooks";
+import { startGroupHistory, type GroupCapability, type GroupHistory } from "../server/verification-group-history.ts";
 
 type FailureKind = "exit" | "timeout" | "cancelled" | "start" | "cleanup" | "unsupported";
 type Stop = { kind: "timeout" | "cancelled"; detail: string };
 type Evidence = { pid: number | undefined; exitCode: number | null; signal: NodeJS.Signals | null; exitAt: number | undefined; closeAt: number | undefined; groupGoneAt: number | undefined; termAttemptAt: number | undefined; killAttemptAt: number | undefined };
 type Result = { stdout: string; stderr: string; outputTruncated: boolean; evidence: Evidence };
 type CommandOptions = { cwd: string; env: NodeJS.ProcessEnv; timeoutMs?: number; forwardOutput?: boolean; onStdout?: (chunk: string) => void };
-type RunnerOptions = { commandTimeoutMs?: number; overallTimeoutMs?: number; graceMs?: number; killWaitMs?: number; signal?: AbortSignal; handleSignals?: boolean };
+type RunnerOptions = { processCapability?: GroupCapability; commandTimeoutMs?: number; overallTimeoutMs?: number; graceMs?: number; killWaitMs?: number; signal?: AbortSignal; handleSignals?: boolean };
 const CAPTURE_CHARS = 4_194_304;
 
 export class GateCommandError extends Error {
@@ -30,7 +31,7 @@ function duration(value: number): number {
 }
 
 function ownedCommand(executable: string, args: readonly string[], options: CommandOptions, label: string,
-  signal: AbortSignal, timeoutMs: number, graceMs: number, killWaitMs: number): Promise<Result> {
+  signal: AbortSignal, timeoutMs: number, graceMs: number, killWaitMs: number, processCapability?: GroupCapability): Promise<Result> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
       const reason = signal.reason as Stop;
@@ -44,6 +45,7 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
       reject(new GateCommandError("start", label, String(error)));
       return;
     }
+    let history: GroupHistory | undefined;
     let spawned = false;
     let exited = false;
     let exitCode: number | null = null;
@@ -102,7 +104,7 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
       const reason = signal.reason as Stop;
       stop(reason.kind, reason.detail);
     };
-    const finish = (confirmed: boolean) => {
+    const finish = async (confirmed: boolean) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -120,6 +122,8 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
         child.stderr?.destroy();
         child.unref();
       }
+      try { await history?.finish(confirmed); }
+      catch (error) { failure ??= { kind: "cleanup", detail: `process history persistence failed: ${String(error)}` }; }
       const evidence = { pid: child.pid, exitCode, signal: exitSignal, exitAt: exited ? exitAt : undefined, closeAt, groupGoneAt, termAttemptAt, killAttemptAt };
       if (failure) {
         const error = new GateCommandError(failure.kind, label, `${failure.detail}${signalError ? `; ${signalError}` : ""}`, confirmed, evidence);
@@ -138,6 +142,10 @@ function ownedCommand(executable: string, args: readonly string[], options: Comm
     };
     const onSpawn = () => {
       spawned = true;
+      try {
+        history = startGroupHistory(child, processCapability, "gate-command-runner");
+        void history.ready.catch(error => stop("cleanup", `process history capture failed: ${String(error)}`));
+      } catch (error) { stop("cleanup", `process history creation failed: ${String(error)}`); }
       if (signal.aborted) abort();
       else if (failure) stop(failure.kind, failure.detail);
     };
@@ -194,6 +202,7 @@ export class GateCommandRunner {
   private active: Promise<Result> | undefined;
   private failure: unknown;
   private closed = false;
+  private processCapability?: GroupCapability;
   private commandTimeoutMs: number;
   private graceMs: number;
   private killWaitMs: number;
@@ -202,6 +211,7 @@ export class GateCommandRunner {
   private removers: Array<() => void> = [];
 
   constructor(options: RunnerOptions = {}) {
+    this.processCapability = options.processCapability;
     if (!["darwin", "linux", "freebsd", "openbsd", "netbsd"].includes(process.platform)) {
       throw new GateCommandError("unsupported", "patch gate", `owned process-group containment unavailable on ${process.platform}; no command started`);
     }
@@ -249,7 +259,7 @@ export class GateCommandRunner {
       await new Promise<void>(resolve => setImmediate(resolve));
       this.assertActive();
       const timeoutMs = Math.min(requestedTimeoutMs, Math.max(1, Math.ceil(this.deadline - performance.now())));
-      return ownedCommand(executable, args, options, label, this.controller.signal, timeoutMs, this.graceMs, this.killWaitMs);
+      return ownedCommand(executable, args, options, label, this.controller.signal, timeoutMs, this.graceMs, this.killWaitMs, this.processCapability);
     })();
     try {
       return await this.active;

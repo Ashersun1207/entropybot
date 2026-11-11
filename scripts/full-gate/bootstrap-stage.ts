@@ -63,7 +63,7 @@ export async function stageReviewedBootstrap(options: BootstrapOptions) {
   insist(target.node.executable === join(root, "node/bin/node") && target.pnpm.executable === target.node.executable && target.pnpm.executableSha256 === target.node.executableSha256 && target.pnpm.entry === join(root, "pnpm/bin/pnpm.cjs"), "reviewed tool paths mismatch");
   for (const [path, hash] of Object.entries(expected)) insist(files[path] === hash, "policy/inventory mismatch");
   insist(files["source/entry.mjs"], "missing source entry identity");
-  for (const [path, url] of [["source/bootstrap-stage.ts", import.meta.url], ["source/install-policy.ts", new URL("./install-policy.ts", import.meta.url)], ["source/patch-gate-process.ts", new URL("../patch-gate-process.ts", import.meta.url)]] as const) {
+  for (const [path, url] of [["source/bootstrap-stage.ts", import.meta.url], ["source/install-policy.ts", new URL("./install-policy.ts", import.meta.url)], ["source/patch-gate-process.ts", new URL("../patch-gate-process.ts", import.meta.url)], ["source/verification-group-history.ts", new URL("../../server/verification-group-history.ts", import.meta.url)], ["source/chrome-processes.ts", new URL("../../server/browser/chrome/processes.ts", import.meta.url)]] as const) {
     const sourcePath = typeof url === "string" ? new URL(url) : url;
     insist(files[path] === installDigest(bytes(fileURLToPath(sourcePath))), "source closure identity mismatch");
   }

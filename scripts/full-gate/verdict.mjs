@@ -57,7 +57,7 @@ export function verdict(check, directory, env = process.env) {
       validateReceipt(record, env.GITHUB_SHA);
       for (const phase of ["before", "after"]) insist(regularBytes(join(directory, record.group, `processes-${phase}.log`)).length > 0, "missing process evidence");
     }
-    insist(false, "detached-resource audit not implemented; receipt assertions alone are insufficient");
+    insist(false, "independent detached-resource confirmation domain incomplete; bounded audit does not establish full cleanup");
   } else if (check === STEPS[3]) {
     const reviewDirectory = join(directory, "../full-gate-dispositions");
     const bundle = JSON.parse(regularBytes(join(reviewDirectory, "platform-dispositions.json")));

@@ -1,5 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import { performance } from "node:perf_hooks";
+import { startGroupHistory, type GroupCapability, type GroupHistory } from "./verification-group-history.ts";
 
 export type VerificationIdentity = { version: 1; gateNonce: string; fixtureNonce: string; serverNonce: string; generation: number; dataDir: string };
 export type VerificationReceipt = { type: "verification:stopped"; identity: VerificationIdentity; serverPid: number; status: "stopped" | "unknown"; registered: number; confirmed: number; reason?: string };
@@ -27,8 +28,11 @@ export class VerificationProcessScope {
   private shutdownPromise: Promise<void> | undefined;
   readonly identity: VerificationIdentity;
   private transport: VerificationTransport;
+  private processCapability?: GroupCapability;
 
-  constructor(identity: VerificationIdentity, transport: VerificationTransport) {
+  constructor(identity: VerificationIdentity, transport: VerificationTransport, processCapability?: GroupCapability) {
+    if (processCapability && processCapability.gateNonce !== identity.gateNonce) throw new Error("Process history gate mismatch");
+    this.processCapability = processCapability;
     if (!validVerificationIdentity(identity)) throw new Error("Invalid verification scope identity");
     this.identity = Object.freeze({ ...identity });
     this.transport = transport;
@@ -57,10 +61,20 @@ export class VerificationProcessScope {
       if (child.pid) this.failure ||= "registered CLI reported a process error";
       else void this.confirm(child, 0);
     };
-    this.records.set(child, { stop, close, error });
+    let history: GroupHistory | undefined;
+    const durableStop = async (graceMs: number) => {
+      try {
+        const stopped = await stop(graceMs);
+        await history?.finish(stopped);
+        return stopped;
+      } catch (error) { await history?.finish(false); throw error; }
+    };
+    this.records.set(child, { stop: durableStop, close, error });
     this.registered++;
     child.once("close", close);
     child.once("error", error);
+    if (child.pid) history = startGroupHistory(child, this.processCapability, `verification-scope:${this.identity.serverNonce}`);
+    if (history) void history.ready.catch(() => { this.failure ||= "CLI process history capture failed"; });
   }
 
   private confirm(child: ChildProcess, graceMs: number): Promise<boolean> {
@@ -147,9 +161,9 @@ export class VerificationProcessScope {
 
 let scope: VerificationProcessScope | undefined;
 
-export function installVerificationProcessScope(identity: VerificationIdentity, transport: VerificationTransport) {
+export function installVerificationProcessScope(identity: VerificationIdentity, transport: VerificationTransport, processCapability?: GroupCapability) {
   if (scope) throw new Error("Verification scope already installed");
-  scope = new VerificationProcessScope(identity, transport);
+  scope = new VerificationProcessScope(identity, transport, processCapability);
   return scope;
 }
 

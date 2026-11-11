@@ -28,6 +28,8 @@ function fixture() {
   for (const file of ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"]) put(`source/${file}`, `synthetic ${file}\n`);
   for (const file of ["bootstrap-stage.ts", "install-policy.ts"]) copyFileSync(new URL(`./full-gate/${file}`, import.meta.url), join(root, "source", file));
   copyFileSync(new URL("./patch-gate-process.ts", import.meta.url), join(root, "source/patch-gate-process.ts"));
+  copyFileSync(new URL("../server/verification-group-history.ts", import.meta.url), join(root, "source/verification-group-history.ts"));
+  copyFileSync(new URL("../server/browser/chrome/processes.ts", import.meta.url), join(root, "source/chrome-processes.ts"));
   const launcher = join(root, "verified-bootstrap-darwin.sh");
   copyFileSync(new URL("./full-gate/verified-bootstrap-darwin.sh", import.meta.url), launcher);
   const node = { version: "24.22.2", executable: join(root, "node/bin/node"), executableSha256: hash(readFileSync(join(root, "node/bin/node"))), archiveUrl: "https://nodejs.org/owned-fixture", archiveSha256: hash(readFileSync(join(root, "archives/node.fixture"))) };
@@ -86,7 +88,7 @@ test("reviewed owned stand-ins launch only after native verification; typed post
     assert.throws(() => validateInstallPolicy(f.review.policy, binding), /not implemented/);
   } finally { f.cleanup(); }
 });
-for (const file of ["archives/node.fixture", "node/bin/node", "archives/pnpm.fixture", "pnpm/bin/pnpm.cjs", "node/lib/runtime.fixture", "pnpm/lib/module.fixture", "source/entry.mjs", "source/bootstrap-stage.ts", "source/install-policy.ts", "source/package.json", "source/pnpm-lock.yaml", "source/policy.json"]) test(`tampered ${file} rejects before owned execution`, () => {
+for (const file of ["archives/node.fixture", "node/bin/node", "archives/pnpm.fixture", "pnpm/bin/pnpm.cjs", "node/lib/runtime.fixture", "pnpm/lib/module.fixture", "source/entry.mjs", "source/bootstrap-stage.ts", "source/install-policy.ts", "source/verification-group-history.ts", "source/chrome-processes.ts", "source/package.json", "source/pnpm-lock.yaml", "source/policy.json"]) test(`tampered ${file} rejects before owned execution`, () => {
   const f = fixture();
   try { writeFileSync(join(f.root, file), "tampered\n"); assert.notEqual(shell(f).status, 0); assert.equal(existsSync(join(f.root, "marker")), false); } finally { f.cleanup(); }
 });

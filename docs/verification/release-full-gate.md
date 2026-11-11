@@ -534,11 +534,10 @@ checks also retain the main audit through `finally`. Windows remains explicitly
 unsupported before command launch. These paths do not read arbitrary fixture
 homes or search the user's directories for registries.
 
-**The full resource blocker remains unconditional.** Current runner calls declare
-no registry files: ordinary internal CLI groups are only present in the existing
-in-process verification scope, whose live inventory exposes group PIDs without a
-durable start-identity history. Fixture lease success does not provide that
-missing independent history. An owned-home profile observation is useful for
+**The full resource blocker remains unconditional.** The bounded durable-history
+increment below adds declared records for capability-bound command runner and
+verification-scope groups. Fixture lease success and that partial history do not
+establish complete independent confirmation of every normal detached resource. An owned-home profile observation is useful for
 normal marked resources and real detached synthetic processes, but cannot prove
 all normal internal detached fixture resources have exited. It also cannot prove
 absence of arbitrary malicious detached processes, unregistered/unmarked helpers,
@@ -758,3 +757,81 @@ evidence directory above. This is local synthetic validation on the bounded cand
 it is not Actions execution, full regression, installation qualification or release
 approval. Independent review and controller regeneration/combination checks remain
 required before integration.
+
+## Durable internal POSIX group history prerequisite (2026-11-11)
+
+The main and applicable POSIX platform producers now create a capability with an
+explicit source SHA/run/attempt/lane binding. `server/verification-group-history.ts`
+records each capability-bound `GateCommandRunner` command group and each CLI group
+registered by `VerificationProcessScope`, including real `spawnCli` calls inside
+`VerificationLifecycle` servers. The creator passes the capability over the existing
+INIT IPC channel; inner CLI/MCP children retain the existing clean bootstrap boundary.
+Unbound capabilities preserve their prior behavior and do not claim this coverage.
+
+Each record has an explicit `verification-process-group` kind, leader PID/PGID,
+POSIX start identity from the existing Chrome process observer, creator PID/start
+identity, launchedAt, gateNonce, source/run binding, creator label and lifecycle
+status. A pending record is written as soon as the PID is available, before the
+asynchronous start-identity observation. Failure to observe that identity stays
+unknown. Records use the existing capability secret for HMAC-SHA256 and atomic
+replacement of owner-only files in the canonical owned home's sibling
+`verification-processes/` directory (0700). Nothing is added inside
+`verification-leases/`; `assertGateLeases` is unchanged and still rejects extra
+entries. Unknown is terminal; stopped cannot reopen pending and can degrade to
+unknown. Stopped requires an actual process-list observation with no leader and
+an ESRCH group-presence probe. Records are retained, never removed as cleanup.
+
+`readGroupHistory` returns declared paths and authenticated parsed identities.
+The audit reads declared files at both observations and discovers new files from
+that owned directory, retaining the union so a previously observed deletion stays
+unknown. The existing 64-file audit bound is retained; overflow fails unknown.
+The additional registry kind requires a valid start identity, integer PID/PGID,
+ISO launch time and an owned-home path. Original Chrome registry rows and their
+profile selection retain their previous semantics. Group presence uses only
+signal 0, never a terminating signal. A live leader or group is residual even if
+an authenticated record falsely claims stopped; stale/reused identities and
+unknown/malformed/tampered/missing history remain unknown. The widened artifact
+domain explicitly names authenticated internal group history, includes group
+observations and gateNonce, and keeps `completeCleanup: false`.
+
+This is partial widening with all three unconditional resource blockers retained.
+The verdict's former "audit not implemented" text now names the incomplete domain.
+Unscoped `spawnCli` calls, other direct spawners, escaped/unregistered descendants,
+server generations themselves (not detached CLI groups), OS-hidden resources,
+same-UID record deletion/re-signing and observations between snapshots remain
+unconfirmed. A short-lived leader may disappear before its start identity is
+sampled and remain unknown. Two POSIX observations and signal-0 group checks do
+not prove arbitrary tree containment, prevent same-second start-time collisions,
+provide an OS sandbox or bound blocking kernel I/O. Windows and the existing
+Linux platform qualifications remain blocked. Independent review must assess
+coverage before any broader confirmation claim or blocker removal.
+
+Regression entry: `scripts/full-gate-group-history.node-test.mjs`, with real owned
+synthetic POSIX groups through the public history/audit, command runner and lifecycle
+APIs. It covers a creator-surviving detached leader, stale identity against a live
+PID, clean exit, forged/tampered MACs, terminal unknown, record deletion, false
+stopped claims for both a live leader and an orphaned same-group descendant, strict
+lease-directory rejection and unrelated surviving controls. Only fixture teardown
+signals its own children after identity/argument guards. Existing gate/lifecycle/
+scope suites remain required. Bootstrap staging now binds the supervisor's two
+additional transitive sources; two manifest-tamper cases preserve that boundary.
+The producer closure gains exactly one file and has 320 review-only pins.
+
+Frozen verification runs on the clean committed candidate: all eight existing F2
+Node suites plus the new suite (493 assertions), eight size/docs guards, the
+existing 55 gate/lifecycle/scope assertions, scoped deny-warning lint, tools and
+strict-runner TypeScript, public pin verification and diff checking. Exact outcomes,
+argv/environment, pre/post SHA/tree/status, source and selected dependency hashes,
+UTC times, logs, 17 CLI command records/13 original reports and install/bootstrap
+fixtures are retained under the outer private evidence directory
+`private/engineering-foundation-evidence/f2-durable-group-identity/`. The handoff
+records actual final results; this document declares scope, not release approval.
+The initial baseline had no durable group-history API; no historical performance
+or vulnerability measurement is inferred. The controller owns the existing
+quality ledger and independent review/serial integration.
+
+Maintenance/security review is limited to the additive registry, IPC capability
+transport, two spawn hooks, audit and staging source bindings. No dependencies,
+lockfiles, workflow, trust/asset/reviewer approvals, network, installs, builds,
+user data or terminating-signal algorithm change. Existing installed dependencies
+are symlinked; no installation is attempted.

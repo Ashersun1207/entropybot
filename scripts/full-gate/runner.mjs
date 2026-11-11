@@ -6,6 +6,7 @@ import { GROUPS, insist, exact, source, unchanged, safeArgv, vitestResults, stri
 import { nodeResults } from "./node-results.mjs";
 import { proposedDispositions } from "./dispositions.mjs";
 import { preflight } from "./preflight.mjs";
+import { readGroupHistory } from "../../server/verification-group-history.ts";
 import { beginResourceAudit } from "./resource-audit.mjs";
 import { vitestCommand } from "./vitest-command.mjs";
 import { readInstallation } from "./install-policy.ts";
@@ -54,7 +55,8 @@ export async function lane(group, env = process.env) {
   const childEnv = environment(home, `${ASSETS}/bin:${dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`);
   const { GateCommandRunner } = await import("../patch-gate-process.ts");
   const { createGateCapability, gateBootstrapArgs, assertGateLeases } = await import("../testing/verification-lifecycle.ts");
-  const capability = createGateCapability(home);
+  const binding = { sourceSha: before.sha, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, group };
+  const capability = createGateCapability(home, binding);
   let serial = 0;
   const run = async (argv, cwd = ROOT, timeoutMs = 1500000) => {
     unchanged(before, source(ROOT, env.GITHUB_SHA));
@@ -76,8 +78,8 @@ export async function lane(group, env = process.env) {
   };
   const snapshots = phase => writeFileSync(join(out, `processes-${phase}.log`), execFileSync("ps", ["-axo", "pid,ppid,pgid,etime,command"], { encoding: "utf8", timeout: 10000 }));
   const auditPath = join(out, "resource-audit.json");
-  const audit = await beginResourceAudit({ root: ROOT, home, binding: { sourceSha: before.sha, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, group }, output: auditPath });
-  const runner = new GateCommandRunner({ commandTimeoutMs: 1500000, overallTimeoutMs: group === "static-checks" ? 5000000 : 1650000 });
+  const audit = await beginResourceAudit({ root: ROOT, home, binding, registryFiles: readGroupHistory(capability).files, processCapability: capability, output: auditPath });
+  const runner = new GateCommandRunner({ processCapability: capability, commandTimeoutMs: 1500000, overallTimeoutMs: group === "static-checks" ? 5000000 : 1650000 });
   try {
     snapshots("before");
     if (group.startsWith("main-vitest-")) {

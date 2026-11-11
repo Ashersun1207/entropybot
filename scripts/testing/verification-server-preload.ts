@@ -1,4 +1,5 @@
 import { realpathSync } from "node:fs";
+import type { GroupCapability } from "../../server/verification-group-history.ts";
 import { installVerificationProcessScope, validVerificationIdentity } from "../../server/verification-process-scope.ts";
 
 if (!process.send || !process.connected) throw new Error("Verification preload requires its creator's IPC channel");
@@ -8,7 +9,7 @@ await new Promise<void>((resolve, reject) => {
   const cleanup = () => { clearTimeout(timer); process.removeListener("message", init); process.removeListener("disconnect", disconnect); };
   const timer = setTimeout(() => { cleanup(); reject(new Error("Verification INIT deadline exceeded")); }, 3_000);
   const init = (message: unknown) => {
-    const frame = message as { type?: string; identity?: unknown };
+    const frame = message as { type?: string; identity?: unknown; processCapability?: GroupCapability };
     if (frame?.type !== "verification:init") return;
     try {
       if (!validVerificationIdentity(frame.identity) || frame.identity.dataDir !== realpathSync(process.env.OMB_DATA_DIR ?? "")
@@ -20,7 +21,7 @@ await new Promise<void>((resolve, reject) => {
           if (!process.send || !process.connected) { clearTimeout(deadline); done(false); return; }
           process.send(value, error => { clearTimeout(deadline); done(!error); });
         } catch { clearTimeout(deadline); done(false); }
-      }));
+      }), frame.processCapability);
       process.on("message", (request: unknown) => {
         if ((request as { type?: string })?.type !== "verification:external-stop") return;
         process.send!({ type: "verification:inventory", identity, serverPid: process.pid, ...scope.externalStopInventory() });

@@ -5,6 +5,7 @@ import { insist, source, unchanged, digest, vitestResults, strictTap } from "./c
 import { nodeResults } from "./node-results.mjs";
 import { PLATFORM_JOBS, executionEnvironment } from "./same-run.mjs";
 import { captureExecutionPaths } from "./execution-paths.mjs";
+import { readGroupHistory } from "../../server/verification-group-history.ts";
 import { beginResourceAudit } from "./resource-audit.mjs";
 import { vitestCommand } from "./vitest-command.mjs";
 import { readInstallation } from "./install-policy.ts";
@@ -47,13 +48,14 @@ export async function platformLane(jobName, env = process.env) {
   const childEnv = { PATH: `${dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, "config"), XDG_CACHE_HOME: join(home, "cache"), OMB_EVAL_LIVE: "0", OMB_VITEST_WORKERS: "1", CI: "true", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", FULL_GATE_TARGET_PLATFORM: target.platform };
   const { GateCommandRunner } = await import("../patch-gate-process.ts");
   const { createGateCapability, gateBootstrapArgs, assertGateLeases } = await import("../testing/verification-lifecycle.ts");
-  const capability = createGateCapability(home);
+  const binding = { sourceSha: before.sha, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, group: jobName };
+  const capability = createGateCapability(home, binding);
   const commands = [
     { format: "vitest", argv: vitestCommand({ root: ROOT, cwd: ROOT, group: jobName, capability, out, platform: true }).argv },
     ...(nodeFiles.length ? [{ format: "node-events", argv: [process.execPath, ...gateBootstrapArgs(capability), "--test", "--test-concurrency=1", "--test-reporter=tap", `--test-reporter-destination=${join(out, "platform.tap")}`, `--test-reporter=${join(ROOT, "scripts/full-gate/node-reporter.mjs")}`, `--test-reporter-destination=${join(out, "platform-events.jsonl")}`, ...nodeFiles] }] : []),
   ];
-  const audit = await beginResourceAudit({ root: ROOT, home, binding: { sourceSha: before.sha, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, group: jobName }, output: join(out, "platform-resource-audit.json") });
-  const runner = new GateCommandRunner({ commandTimeoutMs: 900000, overallTimeoutMs: 1650000 });
+  const audit = await beginResourceAudit({ root: ROOT, home, binding, registryFiles: readGroupHistory(capability).files, processCapability: capability, output: join(out, "platform-resource-audit.json") });
+  const runner = new GateCommandRunner({ processCapability: capability, commandTimeoutMs: 900000, overallTimeoutMs: 1650000 });
   try {
     for (const command of commands) {
       unchanged(before, source(ROOT, before.sha));

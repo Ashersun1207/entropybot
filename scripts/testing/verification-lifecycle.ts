@@ -7,9 +7,10 @@ import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { sameVerificationIdentity, validVerificationIdentity, type VerificationIdentity, type VerificationReceipt } from "../../server/verification-process-scope.ts";
 import { captureVerificationGroups, signalVerificationGroups, verificationGroupsGone } from "./verification-external-stop.ts";
+import { groupHistoryDirectory, type GroupBinding } from "../../server/verification-group-history.ts";
 
 const CAP_SLOT = Symbol.for("entropybot.verification.gate.bootstrap.v1");
-export type GateCapability = { version: 1; directory: string; gateNonce: string; secret: string };
+export type GateCapability = { version: 1; directory: string; gateNonce: string; secret: string; processBinding?: GroupBinding };
 type Bootstrap = { capability: GateCapability; fileNonce?: string };
 type LeasePayload = { gateNonce: string; kind: "fixture" | "file"; identity: VerificationIdentity | { file: string; fileNonce: string }; owner?: string; status: "pending" | "stopped" | "unknown"; reason?: string };
 type Lease = { update: (status: LeasePayload["status"], reason?: string) => void };
@@ -48,10 +49,11 @@ if (new URL(import.meta.url).searchParams.has("gate") && !toolManager) {
   }
 }
 
-export function createGateCapability(home: string): GateCapability {
+export function createGateCapability(home: string, processBinding?: GroupBinding): GateCapability {
   const directory = join(realpathSync(home), "verification-leases");
   mkdirSync(directory, { mode: 0o700 });
-  const capability: GateCapability = { version: 1, directory, gateNonce: randomUUID(), secret: randomBytes(32).toString("hex") };
+  const capability: GateCapability = { version: 1, directory, gateNonce: randomUUID(), secret: randomBytes(32).toString("hex"), ...(processBinding ? { processBinding } : {}) };
+  if (processBinding) groupHistoryDirectory(capability);
   writeFileSync(join(realpathSync(home), "verification-bootstrap.json"), JSON.stringify(capability), { flag: "wx", mode: 0o600 });
   return capability;
 }
@@ -217,7 +219,7 @@ export class VerificationLifecycle {
           if (initSent || settled && !state.ready) return;
           if (envelope.serverPid !== child.pid) { finish(new Error("Verification bootstrap process mismatch")); return; }
           initSent = true;
-          try { child.send({ type: "verification:init", identity }, error => { if (error) finish(error); }); }
+          try { child.send({ type: "verification:init", identity, processCapability: this.capability ?? undefined }, error => { if (error) finish(error); }); }
           catch (error) { finish(error as Error); }
           return;
         }

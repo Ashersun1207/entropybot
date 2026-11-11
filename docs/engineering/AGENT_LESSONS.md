@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## F2：durable group history 必须与 lease 目录分离
+
+- `assertGateLeases` 对 capability.directory 每个条目要求 UUID.json 和有效 MAC；新 process history 必须放 canonical owned home 的 sibling `verification-processes/`（0700），不能在 leases 内加目录或放宽断言。`readGroupHistory` 返回认证记录与显式文件路径；audit 两次发现并保留路径 union，不能用最终空目录掩盖已观察的删除。
+- 覆盖 capability-bound GateCommandRunner detached groups 与 VerificationProcessScope 内实际 spawnCli groups；通过原 INIT IPC 传 capability，不给 inner CLI/MCP 注入 bootstrap。pending 先于异步 startTime 采样持久化；短命leader无法观察则unknown。stopped须实际leader消失和group ESRCH，unknown终态；retained stopped记录若仍有leader或同group孤儿，独立audit必须residual，不能信状态字段。
+- 回归 `scripts/full-gate-group-history.node-test.mjs` 使用owned真实POSIX进程，含creator先退出、stale身份、clean exit、MAC伪造/篡改、unknown终态、删除、假stopped、unrelated control与严格lease条目。现有gate/lifecycle/scope suites保留；bootstrap manifest补绑定新增transitive source并加tamper负例。Chrome注册语义不改；64-file bound、same-UID、escaped descendants、unscoped spawners与start-time resolution限制明确，三处无条件blocker保留。详情见[资源验证范围](../verification/release-full-gate.md)。初轮相关Node492通过、guards/lifecycle63通过；最终clean committed验证与独立审查分别记录在外层f2-durable-group-identity证据中，质量ledger仍由主控维护。
+
 ## F2：官方密钥发布与指纹匹配不等于签名验证
 
 - 官方 nodejs/node 与 nodejs/release-keys 的固定提交先公布完整 fingerprint，再取后者 exact-commit armored blob；原始 README/key 字节、Git blob 和 RFC4880 primary packet fingerprint 一致，只建立候选 trust input。issuer key ID 不授权 key，GitHub verification 字段只是服务元数据；expiry/revocation/subkey binding/时间未验，不把 SHA-1 身份计算称密码学签名成功。见[发布密钥证据](../verification/node-release-signature.md)。
