@@ -120,3 +120,85 @@ bounded execution and artifact handling. Public pnpm/Electron packages retain
 their original licenses. No dependency, lock, production approval, application
 code or ordinary CI workflow changes. Local validation and hosted execution must
 be reported separately in the controller's source-bound handoff.
+
+## Application-suite candidate (2026-11-12)
+
+The controller reports attempt-1 hosted run `43041542924` successful on baseline
+`4ac9a0c0f31c069e14fabc03a7d2b4de51a73ef7`: frozen installation, pristine Electron
+provision/start, real fake-engine HTTP operation, 55 lifecycle assertions and a
+clear observed resource domain. That run qualifies the bounded install/tool path;
+it supplies no full application-suite result.
+
+This candidate extends the existing qualification branch workflow rather than
+registering another workflow or adapting full-gate provenance. After independent
+review the controller must push a NEW exact reviewed SHA to
+`codex/macos-qualification` and collect its attempt-1 original artifact. No CI is
+launched by author validation. The single serial job now has a 360-minute bound;
+GitHub cancellation can still leave incomplete reports, which never qualify.
+The formal full-gate dispatch workflow, trust/policy/reviewer/assets and main are
+unchanged. Diagnostic dispositions are deliberately a separate contract from
+formal signed same-run disposition acceptance.
+
+After the same frozen install and explicit pristine Electron path, the entry runs
+all ten main shards through the unchanged main adapter and public Vitest command
+builder. It retains the original sequencer, discovery, includes, setup, strict
+runner, two workers and shard values 1/10 through 10/10. It sets no subset, name,
+retry, host-only or passWithNoTests flag. The union of shard report files must
+exactly equal discovery without duplicate files. It runs every tracked
+`.node-test.mjs` entry via the existing Node structured reporter and independently
+checks TAP totals, event identities and exact file coverage. Seven static commands
+remain the full-gate commands: diff checking, deny-warning oxlint, tools TypeScript,
+TypeScript build mode (noEmit application configuration), server TypeScript,
+release identity check, and the original patch verification CLI. No Vite app build,
+packaging, signing or local application installation is added. Broker and
+control-plane suites on Linux/Windows remain deferred and outside this diagnostic.
+
+Each application group gets an owned short synthetic HOME and its own capability,
+original command argv/environment/UTC/exit/stdio reports and unchanged-source
+checks. Reports are copied as original bytes into prefixed flat names; original
+reports are retained even when the command fails. Each capability secret is scanned
+by the existing quarantine, in addition to the outer capability scan. Independent
+phases continue after failures; failed/missing groups block exact coverage. The
+existing resource producer and validator run per group in finally, bind the group,
+source and run, and keep completeCleanup false. The 64-record audit bound remains:
+a larger group, short-lived unidentified process or unconfirmed lease can cause
+unknown and block the diagnostic. No complete resource containment is claimed.
+
+Before dependency snapshots, fresh node_modules cache links for `.vite` and
+`.vite-temp` point to explicitly retained owned scratch directories. This lets
+unchanged production configs write mutable Vite output outside executable package
+bytes. Link identities are included in the original dependency inventory; cache
+contents are declared mutable outputs, not dependency-integrity evidence. Existing
+paths reject rather than being overwritten. No package source is patched. Tests
+that actually mutate other installed bytes still fail the dependency comparison.
+
+The source-bound historical declaration catalog has 280 entries: 73 platform,
+203 environment and four policy declarations. File hashes match this candidate's
+sources; actual reports determine which entries are used, with current group
+identities (shard allocation can change). This is neither an expected skip count
+nor evidence those assertions ran. Each actual skip needs exactly one matching
+file/fullName declaration, unchanged file hash, group and reason. Missing, extra,
+duplicate, changed or misclassified skips block. A new skip must receive reviewed
+source analysis before another exact-SHA attempt, never an automatic catch-all.
+
+Platform dispositions name Linux/Windows and explicitly say target execution
+evidence is not supplied. Environment dispositions name missing full Chrome,
+agent-browser, compatible UI dist, playwright-core, qualified mail/CA, external
+synthetic-provider CLI, isolated Pillow or case-sensitive temporary storage.
+They are not policy prohibitions. Policy dispositions cite the exact existing
+policy.json exclusion, with matching file and prohibition reason; live Muse and
+paid routing flags/keys stay absent. CI is real on the hosted run, so CI discovery
+may execute and must pass; it is never locally spoofed or automatically skipped.
+All classes retain skipped status. Successful diagnostic reconciliation requires
+positive total = passed + skipped, failed=todo=retries=0, but never supplies
+formal disposition acceptance or completeQualification. The 280 historical
+classifications require re-verification against actual hosted output.
+
+Author regression entry: the two macOS `.unit.mjs` suites, existing real Vitest
+CLI fixture, POSIX resource/source-binding tests and bounded archive preparer
+suite. Use the already installed same-lock dependencies and existing Node only;
+never invoke the hosted entry locally. Local evidence lives outside checkout in
+the controller-designated macos-full-suite evidence directory. Independent review
+and new hosted execution remain prerequisites; no real application-suite counts
+are inferred from these synthetic checks.
+

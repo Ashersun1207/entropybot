@@ -7,6 +7,8 @@ import { source, unchanged } from "../full-gate/core.mjs";
 import { beginResourceAudit } from "../full-gate/resource-audit.mjs";
 import { createGateCapability, gateBootstrapArgs, gateVitestWorkerArg, assertGateLeases } from "../testing/verification-lifecycle.ts";
 import { actualHost, environment, identity, inventory, writeReport, requireValue, recordCommand, downloadPnpm, checkSuiteReport, SUITES, ELECTRON_SHA, sealReports } from "./contract.mjs";
+import { applicationSuites, provisionDiagnosticCache } from "./application.mjs";
+import { workflowContract } from "./workflow-contract.mjs";
 
 const [reportArgument, sha, runId, attempt] = process.argv.slice(2);
 const root = resolve(import.meta.dirname, "../..");
@@ -76,6 +78,10 @@ try {
       unchanged(before, source(root, sha));
     });
     if (installed) {
+      await phase("workflow-contract", async () => {
+        const { parse } = createRequire(import.meta.url)("yaml");
+        workflowContract(parse(readFileSync(join(root, ".github/workflows/entropybot-macos-qualification.yml"), "utf8")));
+      });
       await phase("electron-provision-and-start", async () => {
         const electron = realpathSync(join(root, "node_modules/electron"));
         const requireElectron = createRequire(join(electron, "install.js"));
@@ -123,6 +129,7 @@ try {
         writeReport(reports, "electron-after.json", { archives, executableBefore, executableAfter, version: result.stdout.trim(), vendorCodesign: "not-checked", desktopReadiness: "official Electron --version only; application window readiness unqualified" });
       });
       await phase("dependency-snapshot-before-tests", async () => {
+        writeReport(reports, "mutable-cache-links.json", provisionDiagnosticCache(root, home));
         dependencyBefore = inventory(join(root, "node_modules"));
         writeReport(reports, "dependencies-before.json", dependencyBefore);
       });
@@ -137,6 +144,7 @@ try {
         await run("lifecycle-suites", process.execPath, [...gateBootstrapArgs(capability), "node_modules/vitest/vitest.mjs", "run", ...SUITES, "--config", config, "--configLoader", "native", gateVitestWorkerArg(capability), "--reporter=json", "--outputFile=" + join(reports, "lifecycle-results.json")], 300000);
         checkSuiteReport(JSON.parse(readFileSync(join(reports, "lifecycle-results.json"), "utf8")));
       });
+      await applicationSuites({ root, reports, binding: { sourceSha: sha, runId, attempt }, before, phase });
       await phase("leases-dependencies-source", async () => {
         writeReport(reports, "leases.json", { verified: assertGateLeases(capability), completeCleanup: false });
         const after = inventory(join(root, "node_modules"));
@@ -165,6 +173,7 @@ try {
   summary.finishedAt = new Date().toISOString();
   summary.status = summary.phases.some(record => record.status !== "diagnostic-pass") ? "diagnostic-fail" : "diagnostic-pass";
   summary.completeQualification = false;
+  summary.completeCleanup = false;
   summary.scratchHome = home;
   writeReport(reports, "summary.json", summary);
   process.exitCode = summary.status === "diagnostic-pass" ? 0 : 1;

@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## macOS 应用诊断：历史 skip 分类不能当当前运行结果
+
+- 安装/工具小闭环成功不代表完整应用回归；下一步沿用同一 hosted 诊断入口与安装路径，复用严格 builder/parser/资源审计，不绕过正式 full-gate 的 dispatch、安装资格、签名审查和资源阻断。诊断逐项 A/B/C 分类与正式同 run 签名 disposition 是两套接受契约，前者不授予 F2 权限。
+- 历史280项仅作 source-hash 绑定声明，按实际 file/fullName 匹配并保留当前 shard group；未知、新增、改名、重复、额外或分类不符的 skip 必须失败。B写明缺少资产/能力，C引用 policy.json 的精确排除；A明确 Linux/Windows 目标证据缺失，不算通过。真实 Actions 的 CI discovery 可以实跑，不能为复刻历史分类而强行跳过。
+- 原 main adapter 会写 Vite cache。诊断在依赖前快照之前仅创建缺失的 `.vite`/`.vite-temp` 到 owned scratch 的链接，并记录链接身份；原 package 字节不改，缓存内容不宣称完整性。每组独立 capability/secret quarantine/审计保留64记录上限，超限仍unknown；不要抬高上限或以PGID退出宣称completeCleanup。回归入口为 scripts/macos-qualification/application.unit.mjs，实际远端结果须由主控在新exact SHA attempt1取得。
+
 ## F2 普通 CI：真实 patch CLI 夹具必须覆盖新增传递依赖
 
 - `1df9deeb8` 的隔离 Node 24.22.2 原始 `scripts/testing/patch-gate-cli.test.mjs` 实跑为8通过/13失败；首因是复制到临时 root 的 `verification-process-scope.ts` 找不到 `server/verification-group-history.ts`，真实 CLI 也无法启动，随后出现报告、HOME、等待超时的连锁失败。此前502 Node、55 gate/lifecycle/scope和8 guards未包含这21项，不能推定完整公开补丁门通过。Ubuntu run43021327404仅确认补丁步骤退出1；公开日志API返回403，未直接取得远端底层stack，不将本地重现追认为远端错误的逐字证明。

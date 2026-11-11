@@ -6,42 +6,18 @@ import { join, dirname, resolve } from "node:path";
 import { parse } from "yaml";
 import { actualHost, environment, recordCommand, checkSuiteReport, SUITES, sealReports } from "./contract.mjs";
 
+import { workflowContract } from "./workflow-contract.mjs";
+
 const root = resolve(import.meta.dirname, "../..");
 const workflow = parse(readFileSync(join(root, ".github/workflows/entropybot-macos-qualification.yml"), "utf8"));
-function workflowContract(value) {
-  assert.deepEqual(value.on.push.branches, ["codex/macos-qualification"]);
-  assert.deepEqual(value.permissions, { contents: "read" });
-  assert.equal(value.concurrency["cancel-in-progress"], false);
-  const job = value.jobs.qualify;
-  assert.equal(job.if, "github.ref == 'refs/heads/codex/macos-qualification'");
-  assert.equal(job["runs-on"], "macos-15");
-  assert.equal(job["timeout-minutes"], 30);
-  assert.equal(job["continue-on-error"], undefined);
-  assert.deepEqual(job.steps.filter(step => step.uses).map(step => step.uses), [
-    "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
-    "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
-    "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
-  ]);
-  assert.equal(job.steps[1].with["persist-credentials"], false);
-  assert.deepEqual(job.steps[2].with, { "node-version": "24.22.2", architecture: "arm64", "check-latest": false, token: "" });
-  assert.match(job.steps[0].run, /test "\$\(\/usr\/bin\/uname -m\)" = arm64/);
-  assert.match(job.steps[0].run, /test "\$GITHUB_RUN_ATTEMPT" = 1/);
-  const command = job.steps[3];
-  assert.equal(command.if, undefined);
-  assert.equal(command["continue-on-error"], undefined);
-  assert.match(command.run, /set -euo pipefail/);
-  assert.match(command.run, /\/usr\/bin\/env -i PATH=/);
-  assert.match(command.run, /"\$NODE" scripts\/macos-qualification\/run.mjs/);
-  assert.doesNotMatch(command.run, /\|\|\s*true|secrets\.|TOKEN|NODE_OPTIONS|ignore-scripts|skip|echo /i);
-  assert.equal(job.steps[4].if, "always()");
-  assert.equal(job.steps[4].with.path, "${{ runner.temp }}/mac-qualification/");
-}
+
 test("workflow invokes real isolated qualification with fixed host/actions and always uploads", () => workflowContract(workflow));
 for (const [name, mutate] of [
   ["mutable action", w => { w.jobs.qualify.steps[1].uses = "actions/checkout@v4"; }],
   ["wrong architecture", w => { w.jobs.qualify["runs-on"] = "macos-15-intel"; }],
   ["no install entry", w => { w.jobs.qualify.steps[3].run = "echo passed"; }],
   ["ignored failure", w => { w.jobs.qualify.steps[3].run += " || true"; }],
+  ["skip as pass", w => { w.jobs.qualify.steps[3].run += " --skip-as-pass"; }],
   ["secret forwarded", w => { w.jobs.qualify.steps[3].run += "\nTOKEN=${{ secrets.TEST }}"; }],
   ["skipped command", w => { w.jobs.qualify.steps[3].if = "false"; }],
   ["rerun", w => { w.jobs.qualify.steps[0].run = w.jobs.qualify.steps[0].run.replace('test "$GITHUB_RUN_ATTEMPT" = 1', "true"); }],

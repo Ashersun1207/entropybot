@@ -16,7 +16,7 @@ jobs:
   qualify:
     if: github.ref == 'refs/heads/codex/macos-qualification'
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 360
     steps:
       - name: Record actual hosted architecture before dependency installation
         shell: bash
@@ -38,7 +38,7 @@ jobs:
           architecture: arm64
           check-latest: false
           token: ''
-      - name: Install, provision tools and exercise isolated lifecycle
+      - name: Install, provision tools and run diagnostic application suites
         shell: bash
         run: |
           set -euo pipefail

@@ -3,7 +3,7 @@
 Controller entry after independent review: push the reviewed exact commit to
 `refs/heads/codex/macos-qualification`. The push workflow is carried on that
 branch; no default-branch workflow registration or main merge is needed.
-Attempt 1 only, one 30 minute `macos-15` job, no retries. Actions startup and the
+Attempt 1 only, one serial 360 minute `macos-15` job, no retries. Actions startup and the
 hosted OS/toolcache are trusted for this diagnostic. See the
 [contract and limits](../../docs/verification/macos-qualification.md).
 
@@ -20,7 +20,7 @@ and provisions and starts official Electron. The local author checks use only
 existing tools and synthetic child processes:
 
 ```sh
-node --test scripts/macos-qualification/contract.unit.mjs
+node --test scripts/macos-qualification/contract.unit.mjs scripts/macos-qualification/application.unit.mjs
 ```
 
 The explicit `.unit.mjs` entry is outside ordinary Vitest discovery. It validates
@@ -48,7 +48,12 @@ The hosted entry executes:
    existing strict runner, no retry/skip/todo or empty report accepted. They
    exercise actual fake CLI exits, deliberate failures, aborts/signals,
    descendant reclamation and unknown cleanup controls.
-7. Existing authenticated leases, source/dependency inventories and the existing
+7. All ten main Vitest shards using the original strict adapter/command builder,
+   every tracked Node test with structured/TAP reconciliation, and all seven
+   original static commands. Each group retains its own source-bound audit and
+   exact skip dispositions; unknown skips, failures and todos block. Final shard
+   coverage is exact. Class-B assets remain unprovisioned and skips remain skips.
+8. Existing authenticated leases, source/dependency inventories and the existing
    independent POSIX audit. The observed domain can be clear while overall
    containment remains incomplete.
 
