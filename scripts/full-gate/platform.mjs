@@ -5,6 +5,7 @@ import { insist, source, unchanged, digest, vitestResults, strictTap } from "./c
 import { nodeResults } from "./node-results.mjs";
 import { PLATFORM_JOBS, executionEnvironment } from "./same-run.mjs";
 import { captureExecutionPaths } from "./execution-paths.mjs";
+import { beginResourceAudit } from "./resource-audit.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 function fileIdentity(path) {
@@ -46,11 +47,12 @@ export async function platformLane(jobName, env = process.env) {
   const { GateCommandRunner } = await import("../patch-gate-process.ts");
   const { createGateCapability, gateBootstrapArgs, gateVitestWorkerArg, assertGateLeases } = await import("../testing/verification-lifecycle.ts");
   const capability = createGateCapability(home);
-  const runner = new GateCommandRunner({ commandTimeoutMs: 900000, overallTimeoutMs: 1650000 });
   const commands = [
     { format: "vitest", argv: [process.execPath, ...gateBootstrapArgs(capability), installation.entry.path, "run", "--config", "scripts/full-gate/platform-vitest.config.mjs", "--runner", join(ROOT, "scripts/full-gate/strict-runner.ts"), gateVitestWorkerArg(capability), "--maxWorkers", "1", "--reporter=json", `--outputFile=${join(out, "platform-report.json")}`] },
     ...(nodeFiles.length ? [{ format: "node-events", argv: [process.execPath, ...gateBootstrapArgs(capability), "--test", "--test-concurrency=1", "--test-reporter=tap", `--test-reporter-destination=${join(out, "platform.tap")}`, `--test-reporter=${join(ROOT, "scripts/full-gate/node-reporter.mjs")}`, `--test-reporter-destination=${join(out, "platform-events.jsonl")}`, ...nodeFiles] }] : []),
   ];
+  const audit = await beginResourceAudit({ root: ROOT, home, binding: { sourceSha: before.sha, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, group: jobName }, output: join(out, "platform-resource-audit.json") });
+  const runner = new GateCommandRunner({ commandTimeoutMs: 900000, overallTimeoutMs: 1650000 });
   try {
     for (const command of commands) {
       unchanged(before, source(ROOT, before.sha));
@@ -83,10 +85,11 @@ export async function platformLane(jobName, env = process.env) {
       save();
     }
     assertGateLeases(capability, [...new Set(declarations.map(r => join(ROOT, r.file)))]);
-    lane.issues.push("independent detached-resource audit unavailable; same-run platform receipt acceptance blocked");
+    lane.resourceAudit = await audit.finish();
+    lane.issues.push("independent detached-resource confirmation domain incomplete; same-run platform receipt acceptance blocked");
     save();
     insist(false, lane.issues.join("; "));
-  } finally { await runner.close(); }
+  } finally { await runner.close(); await audit.finish(); }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try { if (process.argv[2] === "record-install") recordInstall(); else await platformLane(process.argv[2]); }

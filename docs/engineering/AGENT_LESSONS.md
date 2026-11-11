@@ -172,6 +172,12 @@
 - 产品文案提交修改共享 `place.local` / `rail.thisComputer` 后，原生菜单与切换器的旧英文、葡语测试 pin 也须核对；本次按既有目录采用 Your computer / Seu computador，保留角色、排序、无 Forget 和回调断言。入口为 `electron/menu.test.mjs`、`electron/environments.node-test.mjs`、`electron/native-text.node-test.mjs`。
 - locale import-graph 守卫新增指出 `server/routine-manual-request.e2e.test.ts` 的传递目录依赖，以及 `scripts/entropybot-ci-workflow.test.ts` 中 workflow 命令的保守文本命中。两者加入 `scripts/ci-scope.mjs` 的 locale 子集；不增加豁免或放宽图守卫。后者自身不解析翻译，额外运行短契约测试以保留守卫的保守边界。第一轮图守卫转绿但精确子集清单断言未同步（343 通过/1 失败）；第二轮同步清单测试，不改原图断言。此修复仅为前置回归，不能据此声称完整 F2 回归或发布通过；集成前仍须独立审查。
 
+## F2 POSIX 独立资源观察：明确确认域并保留总阻断
+
+- `scripts/full-gate/resource-audit.mjs` 复用现有进程枚举、startTime 与 profile 参数识别及 ProcessRegistry 数据格式，实际 public producer 写 source/run/attempt/group 绑定 artifact；不另建生命周期 manager、不发 signal、不按进程表差集或 PID gone 宣称全清理。显式 registry 缺失/坏格式/身份 stale、未知或超时枚举、source drift 均 unknown；最终存活为 residual，局部清空最多 clear-observed-domain，completeCleanup 固定 false。
+- 首次真实 Node fixture 发现 macOS `/var` 临时根与 canonical `/private/var` home 不同，导致 detached profile 漏检为 clear，并使 registry 路径拒绝。保留该轮 6 通过/5 失败及源码 hash；fixture 使用 realpath，入口拒绝 noncanonical home，回归仍覆盖 canonical 边界外 control。进程自身 argv 使用其他别名仍是明示盲区，不能扩大保证。原缺模块红源仅证明此前没有 public audit，实际 false-clear 证据来自随后真实 public producer 运行。
+- 回归 `scripts/full-gate-resource-audit.node-test.mjs` 含实际 owned detached Node 活过根退出、对真实 live PID 的 stale startTime、正常退出与空保留 registry、无关 control、unknown/hang/source/binding/Windows；不强行制造系统 PID 复用。主 runner/platform 的 finally 保留 artifact，verdict 检查原始 hash/绑定；现有 fixture scope 没有 durable 内部 CLI start-identity 库存，生产默认空 declared registry，故完整资源阻断保持。详见[确认域与限制](../verification/release-full-gate.md)。bounded async deadline 不覆盖阻塞内核 I/O；MJS strict、跨平台、全仓/Actions、真实用户数据与 Keychain 未验。仅本范围维护/安全复核，无依赖/安装/权限/外发或未知进程清理变更；最终验证和主控独立审查不能被局部通过替代。
+
 ## F2 disposition 合同：skip 身份和执行证据不能互相代替
 
 - `a08fc3727` 的新 consumer 合同要求 verdict 恰好五步，第二步为 `Strict totals: no failures or todos`。测试 skip 只有逐条 group/file/fullName 对账、唯一 class、具体原因、同源 target 证据及 controller 审阅后才可 accepted with dispositions；skip 不变为 pass。普通 pending、todo、重复/额外/缺失声明、错源/错run和未解决证据仍阻断。旧零 skip 保护是历史合同，不覆盖新决定。

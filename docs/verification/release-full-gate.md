@@ -441,3 +441,81 @@ receipt validators. Those modules have behavioral tests and scoped lint.
 Exact counts, failures, commands, pre/post hashes and logs are retained outside
 the checkout in
 `private/engineering-foundation-evidence/f2-full-gate-producer/`.
+
+## Bounded POSIX resource observation prerequisite
+
+`scripts/full-gate/resource-audit.mjs` now produces an independent, retained
+`resource-audit.json` through the public `beginResourceAudit(...).finish()` path.
+It reuses `listProcesses`, process start identities and `userDataDirOf` from
+`server/browser/chrome/processes.ts`, and reads explicitly declared existing
+`ProcessRegistry` files through bounded regular-file reads. It adds no lifecycle
+manager, stop mechanism or process signals. The producer requires a canonical
+owned synthetic home. The inventory has a 12-second asynchronous deadline per
+observation (configurable up to 15 seconds), at most 64 declared registry files,
+and the existing process-list subprocess has its own 10-second deadline. These
+are not hard deadlines for blocking kernel/filesystem I/O; the Linux `/proc`
+reader and source snapshot still have that pre-existing limitation.
+
+The artifact binds source SHA/tree/content snapshots, run ID, attempt, group,
+platform, home, exact declared registry paths, registry byte digests, observation
+and production times, observed PID/PPID/start-time/arguments, issues and its
+explicit blind spots. Only selected process rows are retained. Selection uses
+explicit registry PIDs and absolute owned-home `--user-data-dir` arguments,
+including previously observed PIDs at the final observation. It does not use a
+process-table difference. Missing/malformed/timed-out inventory, missing start
+identity, stale/reused identity, vanished declared registry, dirty/changed source
+or unsupported platform remain unknown. A final matching process is residual.
+An empty retained registry plus absence of all observed identities and marked
+profiles can yield **clear-observed-domain**, always with `completeCleanup: false`.
+PID disappearance alone never establishes full cleanup.
+
+The main and platform runners invoke this same public producer before/after their
+bounded commands and retain artifacts on command failure in `finally`. Main-lane
+receipts bind the artifact hash; the verdict reads the original bounded bytes,
+checks that hash, exact source/run/attempt/group and the observed-domain result.
+The platform artifact is `platform-resource-audit.json`; early platform capability
+rejection still occurs before commands, without fabricating an audit. Static
+checks also retain the main audit through `finally`. Windows remains explicitly
+unsupported before command launch. These paths do not read arbitrary fixture
+homes or search the user's directories for registries.
+
+**The full resource blocker remains unconditional.** Current runner calls declare
+no registry files: ordinary internal CLI groups are only present in the existing
+in-process verification scope, whose live inventory exposes group PIDs without a
+durable start-identity history. Fixture lease success does not provide that
+missing independent history. An owned-home profile observation is useful for
+normal marked resources and real detached synthetic processes, but cannot prove
+all normal internal detached fixture resources have exited. It also cannot prove
+absence of arbitrary malicious detached processes, unregistered/unmarked helpers,
+changed arguments, noncanonical profile aliases, OS-hidden entries, PID reuse
+within the POSIX start-time resolution, same-UID tampering, sockets/files or remote
+resources. No directories are deleted on this audit's authority. Full acceptance
+requires a separately reviewed complete inventory/confirmation chain for those
+normal resources as well as the existing lease/exit/close guarantees.
+
+`scripts/full-gate-resource-audit.node-test.mjs` exercises the public producer and
+validator, including actual owned Node processes: a detached process surviving
+its root, stale identity against a live unrelated control, normal exit with an
+empty retained registry, missing/null/throwing/hanging inventory, missing identity,
+registry loss, source drift, wrong binding and explicit Windows rejection. PID
+reuse is modeled by a stale start identity against an actual live PID; the suite
+does not force OS PID reuse. Controls outside the exact home boundary remain
+alive; the audit never signals them. Only the synthetic fixture teardown signals
+its own children. Original missing-module red-source proof and the subsequent
+actual false-clear `/var` versus `/private/var` failure are retained. Canonical
+fixture paths and rejection of noncanonical home inputs fix that observed gap;
+noncanonical process-argument aliases remain an explicit blind spot.
+
+Final frozen candidate commands, pre/post SHA/tree/status and file hashes, exact
+argv/environment, UTC times, exits, logs and synthetic audit artifacts are retained
+under `private/engineering-foundation-evidence/f2-posix-resource-audit/`. Focused
+F2 Node suites, size/docs guards, scoped deny-warning lint, tools TypeScript and
+the strict TypeScript custom runner are the validation scope; MJS strict typing,
+a full regression, Linux/Windows execution and real Actions are not claimed.
+No dependencies/lockfiles, trust/reviewer/asset approval roots, dispatch-only
+workflow, 15 jobs, five verdict steps, skip reconciliation, external-receipt
+rejection or 77 unresolved platform declarations change. Candidate pins only
+record this prerequisite for review; controller integration remains separate.
+Maintenance/security review of this bounded increment found no new download,
+network, credential, installation, persistent service or unknown-process killing
+path. The existing closure audit and its separate owner remain independent work.

@@ -1,11 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, appendFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { GROUPS, insist, exact, source, unchanged, safeArgv, vitestResults, strictTap, digest, nodeFiles } from "./core.mjs";
 import { nodeResults } from "./node-results.mjs";
 import { proposedDispositions } from "./dispositions.mjs";
 import { preflight } from "./preflight.mjs";
+import { beginResourceAudit } from "./resource-audit.mjs";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ASSETS = "/opt/entropybot-full-gate";
@@ -40,12 +41,11 @@ export async function lane(group, env = process.env) {
   }
   const out = join(env.RUNNER_TEMP, "full-gate", group);
   mkdirSync(out, { recursive: true });
-  const home = mkdtempSync(join(env.RUNNER_TEMP, "fg-home-"));
+  const home = realpathSync(mkdtempSync(join(env.RUNNER_TEMP, "fg-home-")));
   const childEnv = environment(home, `${ASSETS}/bin:${dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`);
   const { GateCommandRunner } = await import("../patch-gate-process.ts");
   const { createGateCapability, gateBootstrapArgs, gateVitestWorkerArg, assertGateLeases } = await import("../testing/verification-lifecycle.ts");
   const capability = createGateCapability(home);
-  const runner = new GateCommandRunner({ commandTimeoutMs: 1500000, overallTimeoutMs: group === "static-checks" ? 5000000 : 1650000 });
   let serial = 0;
   const run = async (argv, cwd = ROOT, timeoutMs = 1500000) => {
     unchanged(before, source(ROOT, env.GITHUB_SHA));
@@ -66,8 +66,11 @@ export async function lane(group, env = process.env) {
     }
   };
   const snapshots = phase => writeFileSync(join(out, `processes-${phase}.log`), execFileSync("ps", ["-axo", "pid,ppid,pgid,etime,command"], { encoding: "utf8", timeout: 10000 }));
-  snapshots("before");
+  const auditPath = join(out, "resource-audit.json");
+  const audit = await beginResourceAudit({ root: ROOT, home, binding: { sourceSha: before.sha, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, group }, output: auditPath });
+  const runner = new GateCommandRunner({ commandTimeoutMs: 1500000, overallTimeoutMs: group === "static-checks" ? 5000000 : 1650000 });
   try {
+    snapshots("before");
     if (group.startsWith("main-vitest-")) {
       const trust = JSON.parse(readFileSync(join(ROOT, "scripts/full-gate/disposition-trust.json"), "utf8"));
       const result = preflight(childEnv, { approvals: trust.assetHashes, tempRoot: env.RUNNER_TEMP });
@@ -123,9 +126,11 @@ export async function lane(group, env = process.env) {
     const after = source(ROOT, env.GITHUB_SHA);
     unchanged(before, after);
     snapshots("after");
-    writeFileSync(join(out, "receipt.json"), JSON.stringify({ group, sha: env.GITHUB_SHA, attempt: env.GITHUB_RUN_ATTEMPT, argv, files, discovered, before, after, exitCode: 0, timedOut: false, reportHash: digest(readFileSync(join(out, group === "electron-node" ? "report.tap" : "report.json"))), isolation: { syntheticHome: true, fakeEngines: true, live: "0" }, resources: { leasesVerified: true, ownedGroupStopped: runner.ownedGroupStopped, processAudit: "unknown" } }));
-    insist(false, "independent detached-resource/process audit is not implemented; evidence retained");
-  } finally { await runner.close(); }
+    await audit.finish();
+    const resourceAuditHash = digest(readFileSync(auditPath));
+    writeFileSync(join(out, "receipt.json"), JSON.stringify({ group, sha: env.GITHUB_SHA, attempt: env.GITHUB_RUN_ATTEMPT, argv, files, discovered, before, after, exitCode: 0, timedOut: false, reportHash: digest(readFileSync(join(out, group === "electron-node" ? "report.tap" : "report.json"))), isolation: { syntheticHome: true, fakeEngines: true, live: "0" }, resources: { leasesVerified: true, ownedGroupStopped: runner.ownedGroupStopped, processAudit: "unknown", resourceAuditHash } }));
+    insist(false, "independent detached-resource confirmation domain incomplete; narrowed audit evidence retained");
+  } finally { await runner.close(); await audit.finish(); }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   lane(process.argv[2]).catch(error => { console.error(error.message); process.exitCode = 1; });

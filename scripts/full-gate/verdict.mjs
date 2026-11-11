@@ -7,6 +7,7 @@ import { reconcile } from "./dispositions.mjs";
 import { regularBytes } from "./artifact-input.mjs";
 import { loadSameRun } from "./same-run.mjs";
 import { ROOT, provenance } from "./runner.mjs";
+import { validateResourceAudit } from "./resource-audit.mjs";
 
 export function verdict(check, directory, env = process.env) {
   insist(STEPS.includes(check), "unknown verdict invariant");
@@ -44,6 +45,9 @@ export function verdict(check, directory, env = process.env) {
     }
   } else if (check === STEPS[2]) {
     for (const record of records) {
+      const auditBytes = regularBytes(join(directory, record.group, "resource-audit.json"));
+      insist(digest(auditBytes) === record.resources?.resourceAuditHash, "independent resource audit altered");
+      validateResourceAudit(JSON.parse(auditBytes), { sourceSha: env.GITHUB_SHA, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, group: record.group });
       validateReceipt(record, env.GITHUB_SHA);
       for (const phase of ["before", "after"]) insist(regularBytes(join(directory, record.group, `processes-${phase}.log`)).length > 0, "missing process evidence");
     }
