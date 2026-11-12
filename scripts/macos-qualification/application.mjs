@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync, symlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { source, unchanged, exact, nodeFiles, vitestResults, strictTap, digest, insist } from "../full-gate/core.mjs";
-import { nodeResults } from "../full-gate/node-results.mjs";
+import { diagnosticOccurrences, diagnosticNodeResults } from "./diagnostic-identities.mjs";
 import { regularBytes } from "../full-gate/artifact-input.mjs";
 import { beginResourceAudit, validateResourceAudit } from "../full-gate/resource-audit.mjs";
 import { createGateCapability, assertGateLeases } from "../testing/verification-lifecycle.ts";
@@ -51,11 +51,12 @@ export async function applicationGroup({ root, reports, binding, group, before }
       receipt.discovered = discovered.map(f => resolve(root, f.file).slice(root.length + 1)).sort();
       await run(command.argv, "run", 1500000);
       parsed = vitestResults(JSON.parse(regularBytes(join(out, "report.json"))), root, group);
+      parsed.tests = diagnosticOccurrences(parsed.tests);
     } else {
       for (const [index, argv] of command.commands.entries()) await run(argv, `command-${index + 1}`, group === "electron-node" ? 1500000 : 900000);
       if (group === "electron-node") {
         const totals = strictTap(regularBytes(join(out, "report.tap")).toString());
-        parsed = nodeResults(regularBytes(join(out, "node-events.jsonl")).toString(), root, group);
+        parsed = diagnosticNodeResults(regularBytes(join(out, "node-events.jsonl")).toString(), root, group);
         insist(parsed.total === totals.tests && parsed.passed === totals.pass && parsed.skipped === totals.skipped, "application TAP/event mismatch");
         receipt.discovered = files;
         exact(parsed.files, files, "application Node discovery");

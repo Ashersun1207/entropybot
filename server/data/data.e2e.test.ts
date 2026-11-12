@@ -1,19 +1,15 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { launchVerificationServer, runControlOmb, verificationServerEnvironment } from "../../scripts/control-omb.ts";
+import { launchVerificationServer, runControlOmb } from "../../scripts/control-omb.ts";
 import { DATA_ROUTES, DATA_TOOL_NAMES, type DataCard, type DataSheet } from "../../shared/data-surface.ts";
-import { waitForExit } from "../testing/cleanup.ts";
 
 const CAPABILITY_KEY = "data-surface-e2e-capability";
 
 it("loads, queries, shows, pages, renders and exports through the real server", async () => {
   const fixture = await launchVerificationServer();
   const { dataDir, url, logPath } = fixture.info;
-  let server: ChildProcess | undefined;
   const api = async (method: string, path: string, body?: unknown, status = 200, headers: Record<string, string> = {}) => {
     const response = await fetch(url + path, {
       method, headers: { "content-type": "application/json", origin: url, ...headers },
@@ -24,15 +20,7 @@ it("loads, queries, shows, pages, renders and exports through the real server", 
     return text ? JSON.parse(text) as any : null;
   };
   try {
-    // Restarted with the capability key the bot-side calls need.
-    await waitForExit(fixture.child, { signal: "SIGTERM" });
-    const log = openSync(logPath, "a", 0o600);
-    server = spawn(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("../index.ts", import.meta.url))], {
-      cwd: fileURLToPath(new URL("../..", import.meta.url)),
-      env: { ...verificationServerEnvironment({}, dataDir, Number(new URL(url).port)), OMB_TEST_INTERNAL_CAPABILITY_KEY: CAPABILITY_KEY },
-      stdio: ["ignore", log, log],
-    });
-    closeSync(log);
+    await fixture.restart(undefined, { env: { OMB_TEST_INTERNAL_CAPABILITY_KEY: CAPABILITY_KEY } });
     await expect.poll(async () => {
       try { return (await fetch(url + "/api/health", { signal: AbortSignal.timeout(1_000) })).ok; } catch { return false; }
     }, { timeout: 30_000 }).toBe(true);
@@ -223,7 +211,6 @@ it("loads, queries, shows, pages, renders and exports through the real server", 
       console.info(`Data extension evidence: ${evidencePath}`);
     }
   } finally {
-    if (server) await waitForExit(server, { signal: "SIGTERM" });
-    rmSync(dataDir, { recursive: true, force: true });
+    await fixture.close();
   }
 }, 180_000);

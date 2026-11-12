@@ -2,6 +2,14 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## macOS 首次应用实跑：重复名称、显式堆预算与 managed fixture 收尾
+
+- run43067442325/attempt1在4f43ebdd3上失败，不能以0断言失败称全通过：shard09的data.e2e文件因pending fixture租约被判failed suite，Vitest success=false/exit1；static tsc -b在约2GiB出现真实V8 OOM/SIGABRT。stderr堆栈、178份原报告及源码/依赖绑定证据保留在macos-full-suite/hosted-repair-43067442325，原run不重写。
+- 逐源码定位43组重名：36组参数化标题、6组字面重复调用、1组Node循环模板。main所有原报告共60个重复增量（成功进入对账的分片47，失败09另13），Node另2；都是真实独立断言。仅诊断层给冲突的group/file/fullName追加0基occurrence；Vitest依原assertionResults声明顺序，Node依entryFile/testId声明顺序，不依完成时序或pass/skip。每个skip occurrence须独立source-bound声明，模糊旧声明不扩增，singleton保留旧identity。正式F2 identity/receipts/dispositions尚未同步，仍是独立必修阻塞；不得用诊断修复宣称F2已修。
+- pnpm的.bin/tsc是shell shim，不能交给node当JS；三条TypeScript静态命令固定node --max-old-space-size=6144执行实际typescript/bin/tsc，保持七命令及无NODE_OPTIONS构造环境，匹配普通CI预算。tools原hosted已过，server未到达；显式flag不证明新hosted编译一定通过，不做本地人为OOM实验。
+- data.e2e原测试直接waitForExit(managed child)再裸spawn替代server，仅退出进程不更新fixture lease；本地原严格runner+capability实际复现1断言通过但file失败/fixture pending。修复只用现有fixture.restart/close，断言保留，要求原生命周期收据；不放松supervisor/ESRCH。原EPERM文本来自outer presence probe，最终groupGone和child exit1均有记录，但未留OS原因，不能认定孤儿group或把EPERM当ESRCH。
+- shard01–09审计全为history-inventory-rejected，先于/独立于身份对账失败；原artifact没有具体history异常/实际文件数，64上限溢出只是可公开API复现的候选根因。保持unknown/预算/资源拒绝，不能将本地fixture修复说成这些大分片的收尾已验收。后续需主控专门解析此边界，独立审查及新exact SHA attempt1，quality ledger不由执行者结束。
+
 ## macOS catalog R1：同步父进程读取也须复用有界 nonblocking reader
 
 - 独立审查 `ses_e346b8c44ffemnMfVROLTeu1Lp` 对 `7bea3de220d610f65e96d1a0b3e17b9f784816c0` 返回P2：两处裸 readFileSync/JSON.parse 既接受symlink，也会在无writer FIFO的open阻塞父orchestrator，子命令截止保护不到此路径。原clean提交的公开reconcileDiagnostic在隔离复制模块中实际复现symlink接受和before-read后的FIFO挂起；外部3秒watchdog kill/reap，证据在macos-full-suite/review-r1。未证明正式gate绕过。

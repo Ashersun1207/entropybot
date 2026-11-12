@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { digest, exact, insist, safeArgv } from "../full-gate/core.mjs";
-import { identity } from "../full-gate/dispositions.mjs";
+import { diagnosticIdentity as identity, diagnosticAssertionKey as assertionKey, assertDiagnosticIdentities } from "./diagnostic-identities.mjs";
 import { vitestCommand } from "../full-gate/vitest-command.mjs";
 import { gateBootstrapArgs } from "../testing/verification-lifecycle.ts";
 import { regularBytes } from "../full-gate/artifact-input.mjs";
@@ -13,9 +13,9 @@ export function applicationCommands({ root, group, capability, out, files }) {
   const commands = group === "electron-node" ? [[process.execPath, ...gateBootstrapArgs(capability), "--test", "--test-concurrency=2", "--test-reporter=tap", `--test-reporter-destination=${join(out, "report.tap")}`, `--test-reporter=${join(root, "scripts/full-gate/node-reporter.mjs")}`, `--test-reporter-destination=${join(out, "node-events.jsonl")}`, ...files]] : [
     ["/usr/bin/git", "diff", "--check"],
     [join(root, "node_modules/.bin/oxlint"), "--deny-warnings", "."],
-    [join(root, "node_modules/.bin/tsc"), "-p", "tsconfig.tools.json"],
-    [join(root, "node_modules/.bin/tsc"), "-b"],
-    [join(root, "node_modules/.bin/tsc"), "-p", "tsconfig.server.json"],
+    [process.execPath, "--max-old-space-size=6144", join(root, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.tools.json"],
+    [process.execPath, "--max-old-space-size=6144", join(root, "node_modules/typescript/bin/tsc"), "-b"],
+    [process.execPath, "--max-old-space-size=6144", join(root, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.server.json"],
     [process.execPath, "scripts/entropybot-release.mjs", "check"],
     [process.execPath, "scripts/check-patches.mjs", "--verify"],
   ];
@@ -23,7 +23,6 @@ export function applicationCommands({ root, group, capability, out, files }) {
   commands.forEach(safeArgv);
   return { commands };
 }
-const assertionKey = row => JSON.stringify([row.file, row.fullName]);
 const concrete = value => typeof value === "string" && value.trim().length > 3 && !/^(unknown|unresolved|pending|todo|tbd)$/i.test(value);
 export const SKIP_CATALOG_LIMIT = 1024 * 1024;
 export function loadSkipCatalog(path = new URL("./skip-declarations.json", import.meta.url)) {
@@ -35,7 +34,9 @@ export function loadSkipCatalog(path = new URL("./skip-declarations.json", impor
     && Array.isArray(catalog.entries) && catalog.entries.length > 0, "invalid diagnostic catalog shape");
   const fields = ["file", "fullName", "class", "reason", "targetPlatform", "sourceHash", "evidenceRef", "missingCapability", "policyRef", "targetEvidence"].sort().join();
   for (const entry of catalog.entries) {
-    insist(entry && Object.keys(entry).sort().join() === fields
+    const expectedFields = entry && Object.hasOwn(entry, "occurrence") ? fields.split(",").concat("occurrence").sort().join() : fields;
+    insist(entry && Object.keys(entry).sort().join() === expectedFields
+      && (!Object.hasOwn(entry, "occurrence") || Number.isSafeInteger(entry.occurrence) && entry.occurrence >= 0)
       && ["file", "fullName", "reason"].every(key => concrete(entry[key]))
       && ["platform-specific", "environment-not-provisioned", "policy-prohibited"].includes(entry.class)
       && ["darwin", "linux", "win32"].includes(entry.targetPlatform) && /^[a-f0-9]{64}$/.test(entry.sourceHash)
@@ -45,6 +46,7 @@ export function loadSkipCatalog(path = new URL("./skip-declarations.json", impor
   return { bytes, catalog };
 }
 export function diagnosticDispositions(tests, catalog, root, binding) {
+  assertDiagnosticIdentities(tests);
   insist(new Set(catalog.entries.map(assertionKey)).size === catalog.entries.length, "duplicate diagnostic declaration");
   const entries = tests.filter(t => t.status === "skipped").map(test => {
     const declaration = catalog.entries.find(row => assertionKey(row) === assertionKey(test));
@@ -55,7 +57,7 @@ export function diagnosticDispositions(tests, catalog, root, binding) {
   return { kind: "macos-application-diagnostic-dispositions", ...binding, entries };
 }
 export function reconcileDiagnostic(tests, bundle, binding, policy, catalog) {
-  insist(tests.length > 0 && new Set(tests.map(identity)).size === tests.length, "empty/duplicate test identities");
+  assertDiagnosticIdentities(tests);
   insist(tests.every(t => ["passed", "skipped"].includes(t.status)), "failure/todo/nonterminal test");
   insist(bundle?.kind === "macos-application-diagnostic-dispositions" && ["sourceSha", "runId", "attempt"].every(k => bundle[k] === binding[k]) && binding.attempt === "1", "diagnostic disposition binding mismatch");
   const skipped = tests.filter(t => t.status === "skipped");
@@ -66,7 +68,7 @@ export function reconcileDiagnostic(tests, bundle, binding, policy, catalog) {
     insist(actual.has(identity(entry)), "mismatched diagnostic skip");
     const declared = catalog.entries.find(row => assertionKey(row) === assertionKey(entry));
     insist(declared && Object.entries(declared).every(([key, value]) => entry[key] === value), "diagnostic classification differs from source-bound declaration");
-    insist(Object.keys(entry).sort().join() === ["group", "file", "fullName", "class", "reason", "targetPlatform", "sourceHash", "evidenceRef", "missingCapability", "policyRef", "targetEvidence"].sort().join(), "unexpected diagnostic disposition fields");
+    insist(Object.keys(entry).sort().join() === ["group", "file", "fullName", "class", "reason", "targetPlatform", "sourceHash", "evidenceRef", "missingCapability", "policyRef", "targetEvidence", ...(Object.hasOwn(entry, "occurrence") ? ["occurrence"] : [])].sort().join(), "unexpected diagnostic disposition fields");
     insist(["platform-specific", "environment-not-provisioned", "policy-prohibited"].includes(entry.class), "invalid diagnostic class");
     insist(concrete(entry.reason) && /^[a-f0-9]{64}$/.test(entry.sourceHash) && entry.evidenceRef === `${entry.file}#sha256=${entry.sourceHash}`, "invalid diagnostic source/reason reference");
     if (entry.class === "platform-specific") {

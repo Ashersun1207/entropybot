@@ -194,11 +194,89 @@ positive total = passed + skipped, failed=todo=retries=0, but never supplies
 formal disposition acceptance or completeQualification. The 280 historical
 classifications require re-verification against actual hosted output.
 
-Author regression entry: the two macOS `.unit.mjs` suites, existing real Vitest
+Author regression entry: the macOS `.unit.mjs` suites, existing real Vitest
 CLI fixture, POSIX resource/source-binding tests and bounded archive preparer
 suite. Use the already installed same-lock dependencies and existing Node only;
 never invoke the hosted entry locally. Local evidence lives outside checkout in
 the controller-designated macos-full-suite evidence directory. Independent review
 and new hosted execution remain prerequisites; no real application-suite counts
 are inferred from these synthetic checks.
+
+## First application attempt and bounded repairs
+
+Attempt-1 run `43067442325` executed exact source
+`4f43ebdd3d9723e562bf146d780ad1a678cff6c4` and failed. Its original ten reports
+contain 31,334 passed assertions and 270 skips, with zero assertion failures or
+todos. Node contains 2,267 passed assertions and nine skips. These counts do not
+make the run successful: shard 09 has a failed suite and exit 1, and static
+TypeScript build mode aborted with a genuine V8 heap-exhaustion stack at about
+2 GiB. The original failed run and reports remain unchanged.
+
+Diagnostic identity now extends group/file/fullName with an `occurrence` integer
+ONLY when that name collides in the same file and group. Noncolliding identities
+stay byte-compatible. Vitest JSON exposes no assertion position field. The
+ordinal is zero-based among equal fullName entries in that file's original
+assertionResults array, counting passed AND skipped entries; the pinned runner's
+declaration/report order, unchanged source/config and original report hash bind
+this order. It is not derived from timing, status, duration or title sorting.
+Source/config changes invalidate cross-run assumptions about ordinal meaning.
+Node uses the original strict structured parser first, then orders parsed records
+by entryFile and declaration testId before assigning equal-name ordinals, so
+completion timing cannot swap occurrences. Original reports are never reordered
+or rewritten. Every assertion survives; ordinals never collapse tests.
+
+The collision inventory accounts for each source call site: 43 equal-name groups,
+including 36 parameterized rendered-title collisions, six literal duplicate call
+sites and one Node loop-generated title collision. There are 60 main duplicate
+extras in all raw reports (47 in shards that reached reconciliation plus 13 in
+failed shard 09), and two Node extras. All these colliding assertions passed in
+this run. Source hashes, exact titles, indices and call-site lines are retained
+in the external hosted-repair evidence. This is not a test-name cleanup or a
+reason to remove duplicate assertions.
+
+A duplicated skipped title must have an explicit source-bound declaration for
+EACH occurrence. An ambiguous historical declaration without an ordinal does
+not expand to cover all collisions. Missing, extra, duplicate, invalid, mismatched
+or source-altered occurrences still reject; a passed occurrence cannot consume
+a skipped occurrence's disposition. The historical 280-entry catalog bytes and
+A/B/C semantics remain unchanged. This implementation is diagnostic-local:
+formal full-gate core, Node parser, dispositions and candidate pins are unchanged.
+F2 still uses group/file/fullName alone and will encounter the SAME collisions.
+Its producer, target receipts and signed disposition contracts require a separate
+reviewed coherent identity change before activation; these diagnostic results do
+not fix or activate F2.
+
+All three diagnostic TypeScript commands now invoke the actual installed
+TypeScript JavaScript entry with fixed Node argv
+`--max-old-space-size=6144`, matching ordinary CI's budget. The pnpm .bin/tsc
+entry is a shell shim, so it is not passed as JavaScript to Node. No caller flag
+or NODE_OPTIONS enters the constructed environment. Hosted tools TypeScript had
+already passed; server TypeScript was not reached. The same explicit cap covers
+all three without changing the seven-command coverage or any execution/resource
+budget. Other static commands have no observed heap-exhaustion evidence. Actual
+hosted success under this cap still requires a new exact-SHA attempt.
+
+Shard 09's failed suite is server/data/data.e2e.test.ts. Its one assertion passed,
+but the test terminated the managed fixture directly, started a replacement
+server outside that lifecycle and removed its directory while its fixture lease
+remained pending. The original test reproduces locally with the actual strict
+runner, capability bootstrap, isolated HOME and fake engines: one passed
+assertion, a failed file, and a pending fixture/unknown file lease. The test now
+uses existing fixture.restart and fixture.close, preserving its assertions and
+requiring generation stop receipts and directory cleanup through the owner.
+No supervisor signal/ESRCH rule is relaxed.
+
+The outer command also retained transient `kill EPERM` text. Missing term/kill
+attempt timestamps plus the supervisor's code place that text on its signal-0
+presence-probe path; the child itself exited 1 and final group disappearance was
+observed. The actual OS reason for EPERM was not captured and cannot be inferred
+from this report. No EPERM is converted to success or ESRCH. Moreover, shards
+01–09 all report history-inventory-rejected/unknown, independently of duplicate
+identities and shard 09's failed suite. The artifact does not distinguish the
+existing 64-file limit, unfinished history writes or other history read failures;
+no exact original inventory size is recoverable. Budget overflow is a concrete
+local public-API rejection path and a hypothesis for those large shards, not a
+retrospectively proved hosted cause. Audit/resource acceptance remains blocked
+until the controller resolves that boundary without raising budgets or hiding
+unknowns. A new hosted run can still fail on this unchanged resource limitation.
 
