@@ -160,9 +160,10 @@ reports are retained even when the command fails. Each capability secret is scan
 by the existing quarantine, in addition to the outer capability scan. Independent
 phases continue after failures; failed/missing groups block exact coverage. The
 existing resource producer and validator run per group in finally, bind the group,
-source and run, and keep completeCleanup false. The 64-record audit bound remains:
-a larger group, short-lived unidentified process or unconfirmed lease can cause
-unknown and block the diagnostic. No complete resource containment is claimed.
+source and run, and keep completeCleanup false. Durable group history accepts at
+most 1,024 files, separately from the 64 declared Chrome registry files. Overflow,
+a short-lived unidentified process or unconfirmed lease still causes unknown and
+blocks the diagnostic. No complete resource containment is claimed.
 
 Before dependency snapshots, fresh node_modules cache links for `.vite` and
 `.vite-temp` point to explicitly retained owned scratch directories. This lets
@@ -277,6 +278,53 @@ existing 64-file limit, unfinished history writes or other history read failures
 no exact original inventory size is recoverable. Budget overflow is a concrete
 local public-API rejection path and a hypothesis for those large shards, not a
 retrospectively proved hosted cause. Audit/resource acceptance remains blocked
-until the controller resolves that boundary without raising budgets or hiding
-unknowns. A new hosted run can still fail on this unchanged resource limitation.
+until the controller resolves that boundary with a reviewed finite capacity and
+preserved unknown rejection. The bounded correction below addresses capacity;
+a new hosted run is still required to establish the real workload result.
+
+## Durable history capacity correction (2026-11-12)
+
+The controller's 65-record public API probe confirms that the unchanged reader
+rejects legitimate retained histories above 64. A main shard runs many test files
+with two workers; each fixture server generation and detached CLI launch adds a
+record that must survive until both independent observations. This is cumulative
+launch history, not a concurrent-process limit. Fixture restarts and multiple CLI
+calls per file make 64 unsuitable for the real shard structure. Shards 01–09 had
+history-inventory-rejected while shard 10 had 59 records and a clear domain. The
+original failed artifacts do not preserve exact inventories for the rejected
+shards; no exact maximum or leak conclusion is inferred from that absence.
+
+`MAX_GROUP_HISTORY_FILES` is 1,024: sixteen times the rejected 64-file boundary,
+with space for hundreds of fixture/CLI launches and worker-driven activity in a
+shard. This is a deliberately conservative finite capacity chosen from launch
+structure, not a measured local shard maximum or a guarantee for future suites.
+No full local shard was run. At 65,536 bytes per file the authenticated history
+acceptance budget is at most 64 MiB of file bytes per inventory. The reader still
+rejects 1,025 files before reading identities. Both audit observations retain a
+history-path union bounded to 1,024, so deleting and replacing paths cannot reset
+that budget. No history file is deleted by the producer or audit.
+
+The audit's former combined 64-file check also needed coordination. Its explicit
+`registryFiles` input still accepts at most 64 declared registry paths. History
+files are discovered separately through `readGroupHistory`; their retained union
+has the shared 1,024 cap, and the combined inventory has a finite 1,088 cap. Chrome
+registry capacity and row semantics are unchanged. Filename, 65,536-byte per-file,
+HMAC, binding/nonce, identity, status and timestamp validation remain mandatory;
+O_NOFOLLOW/O_NONBLOCK reads, terminal unknown, absence plus ESRCH for stopped,
+stale-identity probe ordering and disappearance detection remain unchanged.
+
+Public API regressions cover 65, 1,023 and 1,024 authenticated files with 64 Chrome
+registries, 1,025 rejection, a retained-union overflow despite individually valid
+inventories, and per-file/name/authentication/identity rejection. Synthetic repeated
+records derive from one actually observed owned child, stopped and reaped with
+ESRCH; they measure inventory acceptance, not 1,024 independent process launches.
+Existing real-child unknown, stale, false-stopped and same-group orphan controls
+remain required. Overflow still produces unknown and fails audit validation.
+
+The shared F2 producer benefits from this capacity correction but is NOT activated.
+`completeCleanup` and `completeQualification` remain false. Formal identity,
+installation, trust, policy, reviewer and asset blockers remain unchanged. Candidate
+pin hashes follow only the two changed producer files; the closure stays at 320
+paths. Independent review, controller integration and a new exact-SHA hosted
+attempt remain required. Local synthetic checks do not qualify the full suite.
 

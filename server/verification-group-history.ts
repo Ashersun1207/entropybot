@@ -8,6 +8,7 @@ export type GroupBinding = { sourceSha: string; runId: string; attempt: string; 
 export type GroupCapability = { directory: string; gateNonce: string; secret: string; processBinding?: GroupBinding };
 export type GroupIdentity = { kind: "verification-process-group"; pid: number; pgid: number; startTime: string | null; ownerPid: number; ownerStartTime: string | null; launchedAt: string; gateNonce: string; binding: GroupBinding; creator: string; status: "pending" | "stopped" | "unknown" };
 export type GroupHistory = { ready: Promise<void>; finish: (stopped: boolean) => Promise<void> };
+export const MAX_GROUP_HISTORY_FILES = 1024;
 
 function owned(path: string, directory: boolean) {
   const stat = lstatSync(path);
@@ -26,7 +27,7 @@ function mac(capability: GroupCapability, payload: string) { return createHmac("
 export function readGroupHistory(capability: GroupCapability): { files: string[]; identities: GroupIdentity[] } {
   const directory = groupHistoryDirectory(capability);
   const names = readdirSync(directory).sort();
-  if (names.length > 64) throw new Error("Process history file budget exceeded");
+  if (names.length > MAX_GROUP_HISTORY_FILES) throw new Error("Process history file budget exceeded");
   const files = names.map(name => {
     if (!/^[a-f0-9-]{36}\.json$/.test(name)) throw new Error("Unfinished process history write");
     return join(directory, name);

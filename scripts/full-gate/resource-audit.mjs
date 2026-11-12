@@ -1,7 +1,7 @@
 import { realpathSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { listProcesses, userDataDirOf } from "../../server/browser/chrome/processes.ts";
-import { readGroupHistory, readGroupIdentity, groupPresence } from "../../server/verification-group-history.ts";
+import { MAX_GROUP_HISTORY_FILES, readGroupHistory, readGroupIdentity, groupPresence } from "../../server/verification-group-history.ts";
 import { digest, insist, source, unchanged } from "./core.mjs";
 import { regularBytes } from "./artifact-input.mjs";
 
@@ -83,6 +83,7 @@ export async function beginResourceAudit({ root, home, binding, output, registry
   insist(!processCapability || dirname(processCapability.directory) === home, "process history capability outside owned home");
   binding = Object.freeze({ ...binding });
   registryFiles = [...registryFiles];
+  let historyFiles = [];
   const domain = processCapability ? GROUP_DOMAIN : DOMAIN;
   const blindSpots = processCapability ? BLIND_SPOTS.map(s => s === "normal internal detached CLI groups not durably inventoried" ? "only capability-bound GateCommandRunner and VerificationProcessScope groups inventoried; other spawners and escaped descendants unconfirmed" : s) : BLIND_SPOTS;
   const startedAt = new Date().toISOString();
@@ -93,8 +94,11 @@ export async function beginResourceAudit({ root, home, binding, output, registry
     if (processCapability) {
       try {
         insist(JSON.stringify(processCapability.processBinding) === JSON.stringify(binding), "process history binding mismatch");
-        const declared = [...new Set([...registryFiles, ...readGroupHistory(processCapability).files])].sort();
-        insist(declared.length <= 64 && declared.every(file => inside(home, file)), "process history file budget or home boundary exceeded");
+        const retained = [...new Set([...historyFiles, ...readGroupHistory(processCapability).files])].sort();
+        insist(retained.length <= MAX_GROUP_HISTORY_FILES && retained.every(file => inside(home, file)), "process history file budget or home boundary exceeded");
+        historyFiles = retained;
+        const declared = [...new Set([...registryFiles, ...historyFiles])].sort();
+        insist(declared.length <= 64 + MAX_GROUP_HISTORY_FILES && declared.every(file => inside(home, file)), "resource audit aggregate file budget or home boundary exceeded");
         registryFiles = declared;
       } catch (error) {
         snapshot.historyInventoryFailure = { code: registryFailureCode(error, "history-inventory") };

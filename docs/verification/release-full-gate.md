@@ -784,7 +784,11 @@ an ESRCH group-presence probe. Records are retained, never removed as cleanup.
 `readGroupHistory` returns declared paths and authenticated parsed identities.
 The audit reads declared files at both observations and discovers new files from
 that owned directory, retaining the union so a previously observed deletion stays
-unknown. The existing 64-file audit bound is retained; overflow fails unknown.
+unknown. Durable history and its retained path union are bounded to 1,024 files;
+the separate declared Chrome registry bound stays 64, with a combined bound of
+1,088. Overflow fails unknown. The [capacity rationale](macos-qualification.md#durable-history-capacity-correction-2026-11-12)
+distinguishes cumulative fixture/CLI launches from concurrent processes; this
+shared producer correction does not activate F2 or relax its resource blocker.
 The additional registry kind requires a valid start identity, integer PID/PGID,
 ISO launch time and an owned-home path. Original Chrome registry rows and their
 profile selection retain their previous semantics. Group presence uses only

@@ -2,6 +2,14 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## macOS durable history 容量：累计启动数与 Chrome registry 预算分开
+
+- 主控65-record公开API探针确认64上限会拒绝合法累计history；main shard两worker、多文件fixture server/restart与CLI各追加持久记录，不能用并发worker数推导文件容量。run43067442325的01–09为history-inventory-rejected、10为59且clear；拒绝分片原artifact无精确库存，不能补造实际最大值或漏进程结论。本轮按真实启动结构保守选择1,024，不宣称本地整shard测量。
+- `readGroupHistory`与audit原联合路径检查都须修正；Chrome显式registry仍64，history两次观察的路径union独立上限1,024，组合有限1,088。删除/替换不能重置union预算；overflow仍unknown并阻断，不删除history。每文件65,536/HMAC/身份/nonce/binding、nonblocking/no-follow、unknown终态、absence+ESRCH及stale零probe保持。
+- 回归入口`scripts/full-gate-group-history.node-test.mjs`公开API覆盖65/1,023/1,024+64 Chrome clear、1,025拒绝、单次库存合法但union溢出、per-file/name/MAC/identity拒绝，保留真实owned child未知与假stop/orphan负例。容量夹具复制一个实际退出且ESRCH确认的owned child认证记录，不冒称启动1,024个进程。共享F2 producer受益但不激活；completeCleanup/completeQualification=false、trust/policy/reviewer/assets不改，320 pins仅同步两个producer hash。独立审查与新exact-SHA hosted仍由主控推进，quality ledger不动。
+
+- 本轮首次冻结组合误将Vitest专用`patch-gate-cli.test.mjs`交给Node runner，488通过/1文件失败，失败在vi mock初始化，不是产品回归；`.mjs`后缀不代表Node test。后续Node组合只列`.unit.mjs`/`.node-test.mjs`，CLI用原strict Vitest单独运行。共享依赖库存仅Vitest results cache字节变化，包字节一致；保留差异、不覆盖未知cache凑hash相等，后续验证禁用cache并重新记录前后完整库存。
+
 ## macOS 首次应用实跑：重复名称、显式堆预算与 managed fixture 收尾
 
 - run43067442325/attempt1在4f43ebdd3上失败，不能以0断言失败称全通过：shard09的data.e2e文件因pending fixture租约被判failed suite，Vitest success=false/exit1；static tsc -b在约2GiB出现真实V8 OOM/SIGABRT。stderr堆栈、178份原报告及源码/依赖绑定证据保留在macos-full-suite/hosted-repair-43067442325，原run不重写。

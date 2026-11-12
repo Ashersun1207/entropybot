@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { createGateCapability, assertGateLeases, VerificationLifecycle } from "./testing/verification-lifecycle.ts";
 import { GateCommandRunner } from "./patch-gate-process.ts";
 import { VerificationProcessScope } from "../server/verification-process-scope.ts";
-import { startGroupHistory, readGroupHistory, groupPresence } from "../server/verification-group-history.ts";
+import { MAX_GROUP_HISTORY_FILES, startGroupHistory, readGroupHistory, groupPresence } from "../server/verification-group-history.ts";
 import { listProcesses } from "../server/browser/chrome/processes.ts";
 import { beginResourceAudit, validateResourceAudit } from "./full-gate/resource-audit.mjs";
 
@@ -54,6 +54,81 @@ function resign(capability, file, change) {
   frame.payload = JSON.stringify(row); frame.mac = createHmac("sha256", capability.secret).update(frame.payload).digest("hex");
   writeFileSync(file, JSON.stringify(frame));
 }
+
+async function stoppedInventory(t, count) {
+  const f = fixture(t); const p = await owned(t);
+  const history = startGroupHistory(p.child, f.capability, "owned-capacity-fixture"); await history.ready;
+  await p.stop(); await history.finish(true);
+  assert.equal(groupPresence(p.child.pid), false);
+  const file = readGroupHistory(f.capability).files[0];
+  const bytes = readFileSync(file);
+  const add = () => {
+    const next = join(f.home, "verification-processes", `${randomUUID()}.json`);
+    writeFileSync(next, bytes, { mode: 0o600, flag: "wx" });
+    return next;
+  };
+  for (let i = 1; i < count; i++) add();
+  return { ...f, file, bytes, add };
+}
+
+for (const count of [65, 1023, 1024]) test(`${count} authenticated retained group files enumerate and independently clear`, async t => {
+  assert.equal(MAX_GROUP_HISTORY_FILES, 1024);
+  const f = await stoppedInventory(t, count);
+  const history = readGroupHistory(f.capability);
+  assert.equal(history.files.length, count); assert.equal(history.identities.length, count);
+  assert.ok(history.identities.every(row => row.status === "stopped"));
+  const registries = Array.from({ length: 64 }, (_, i) => {
+    const file = join(f.home, `chrome-${i}.json`); writeFileSync(file, "[]"); return file;
+  });
+  const result = await (await beginResourceAudit({ ...f, registryFiles: registries })).finish();
+  assert.equal(result.registryFiles.length, count + 64);
+  assert.equal(result.status, "clear-observed-domain");
+  assert.deepEqual(validateResourceAudit(result, f.binding), { observedDomainClear: true, completeCleanup: false });
+  await assert.rejects(beginResourceAudit({ ...f, registryFiles: [...registries, join(f.home, "extra.json")] }), /registry/);
+});
+
+test("history overflow remains unknown and blocked through the public reader and audit", async t => {
+  const f = await stoppedInventory(t, MAX_GROUP_HISTORY_FILES);
+  const audit = await beginResourceAudit(f);
+  const extra = f.add();
+  assert.throws(() => readGroupHistory(f.capability), /file budget exceeded/);
+  const result = await audit.finish();
+  assert.equal(result.status, "unknown");
+  assert.equal(result.after.historyInventoryFailure.code, "history-inventory-rejected");
+  assert.throws(() => validateResourceAudit(result, f.binding), /audit/);
+  assert.equal(statSync(extra).size, f.bytes.length);
+  rmSync(extra);
+});
+
+test("retained history union is bounded even when each individual inventory fits", async t => {
+  const f = await stoppedInventory(t, MAX_GROUP_HISTORY_FILES);
+  const audit = await beginResourceAudit(f);
+  rmSync(f.file); const replacement = f.add();
+  assert.equal(readGroupHistory(f.capability).files.length, MAX_GROUP_HISTORY_FILES);
+  const result = await audit.finish();
+  assert.equal(result.status, "unknown");
+  assert.ok(result.after.historyInventoryFailure);
+  assert.throws(() => validateResourceAudit(result, f.binding), /audit|history/);
+  assert.equal(statSync(replacement).size, f.bytes.length);
+});
+
+test("larger inventory preserves file name, byte cap, authentication and identity checks", async t => {
+  const f = await stoppedInventory(t, 65);
+  writeFileSync(f.file, Buffer.alloc(65537));
+  assert.throws(() => readGroupHistory(f.capability), /Invalid process history file/);
+  writeFileSync(f.file, f.bytes);
+  const frame = JSON.parse(f.bytes); frame.mac = "0".repeat(64); writeFileSync(f.file, JSON.stringify(frame));
+  assert.throws(() => readGroupHistory(f.capability), /Unauthenticated/);
+  for (const change of [row => { row.kind = "other"; }, row => { row.ownerPid = 0; }, row => { row.status = "other"; }, row => { row.gateNonce = randomUUID(); }, row => { row.binding.group = "other"; }, row => { row.pid = 1; }, row => { row.pgid = 0; }, row => { row.launchedAt = "bad"; }]) {
+    writeFileSync(f.file, f.bytes); resign(f.capability, f.file, change);
+    assert.throws(() => readGroupHistory(f.capability), /Invalid process history identity/);
+  }
+  writeFileSync(f.file, f.bytes);
+  const unfinished = join(f.home, "verification-processes", "unfinished.tmp"); writeFileSync(unfinished, "{}");
+  assert.throws(() => readGroupHistory(f.capability), /Unfinished/);
+  rmSync(unfinished);
+  assert.equal(readGroupHistory(f.capability).files.length, 65);
+});
 
 test("public history persists start/owner/source identity and terminal stop; lease directory stays strict", async t => {
   const f = fixture(t); const p = await owned(t);
