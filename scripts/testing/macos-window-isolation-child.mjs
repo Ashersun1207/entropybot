@@ -35,7 +35,7 @@ const loader = registerHooks({
   load(url, context, next) {
     if (url !== main) return next(url, context);
     const original = readFileSync(new URL(url), "utf8");
-    const matches = original.split("\n").filter(line => /^app\.setPath\("userData",/.test(line));
+    const matches = original.split("\n").filter(line => line.startsWith('app.setPath("userData",'));
     assert.equal(matches.length, 1, "real main profile override must be unambiguous");
     override = { sourceSha256: createHash("sha256").update(original).digest("hex"), statement: matches[0] };
     // Only the real profile override executes locally; native startup and every main dependency stay intercepted.

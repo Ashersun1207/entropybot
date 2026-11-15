@@ -433,6 +433,7 @@
 - 独立复审 ses_e1fb1c641ffeeBhf4rYx4K2qIx 对 1012fb8206 退回两项 P2：真实 main 会用 appData/openmausbot 覆盖 wrapper 的 userData，CLI 参数与 HOME 不能证明最终 profile 隔离；manual updater 分支先于 dev guard，15 秒和每小时均可发 GitHub 请求。两者都不是主控仅空白修复引入，原 Node94 通过未覆盖这些生产消费者。
 - 修复在诊断 wrapper 导入 main 前设置 appData 及与 main 一致的 userData，并将 sessionData/logs/temp/crashDumps 一并放入规范自有 HOME；导入后、窗口验收前及父进程读报告时验证有效路径、realpath 与目录 owner，只保留路径字符串。新增 unpackaged-only 的 OMB_MACOS_WINDOW_DIAGNOSTIC=1 updater guard，同时阻止定时调度与显式 manualCheck；普通 dev、packaged 行为保留，不改 UPDATE_MODE/main、观察时长或资源审计边界。
 - 回归仍从 window.unit.mjs 进入：实际 Node child 导入真实 wrapper，在真实 main import 路径仅执行从 main 读取的 profile override（其他 native startup 截止），验证两次赋值和外逃 profile/session 拒绝；真实 updater ESM 用 Electron stub、mock timers 与截获 fetch 跨过 15 秒和一小时，诊断零请求，普通 dev/flagged packaged 对照仍请求。全 Electron/平台效果只能由复审后的 hosted attempt 1 证明；本地未 build/启动 Electron/联网/接触 Keychain，completeQualification/completeCleanup 仍 false。修复身份与最终计数以本条所属提交及外部回执为准。
+- 首次冻结修复的 Node100、guards8 和 updater35 均通过；deny-warning lint 因测试夹具用前缀 regex 提取 main 语句而拒绝（prefer-string-starts-ends-with）。仅改为等价 startsWith，保持真实语句提取、唯一性断言和原生启动截断，不降低 lint；原失败日志与源码/依赖/Node 前后快照保留，第二轮重新冻结并跑完整门槛。
 
 ## 不应合并的改动
 
