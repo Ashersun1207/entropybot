@@ -51,4 +51,3 @@ export function requireDrawnRegion(png) {
   return { width: image.width, height: image.height, colourBuckets: histogram.size, nonDominantPixels: varied,
     scope: "bounded text-region pixel presence only; not visual correctness or interaction acceptance" };
 }
-
