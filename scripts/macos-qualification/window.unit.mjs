@@ -36,10 +36,10 @@ test("public commands build source and launch real main wrapper with mock Keycha
   assert.ok(commands.worker.includes("/owned/source/scripts/macos-qualification/window.mjs"));
   assert.equal(JSON.stringify(commands).includes("cloudflared"), false);
 });
-function isolationChild(mode, check) {
+function isolationChild(mode, check, fixtureName = "macos-window-isolation-child.mjs") {
   const home = realpathSync(mkdtempSync("/private/tmp/mwi-"));
   try {
-    const fixture = fileURLToPath(new URL("../testing/macos-window-isolation-child.mjs", import.meta.url));
+    const fixture = fileURLToPath(new URL(`../testing/${fixtureName}`, import.meta.url));
     const argv = [fixture, home, mode];
     const env = environment(home, dirname(process.execPath));
     const result = spawnSync(process.execPath, argv, { env, encoding: "utf8", timeout: 10000 });
@@ -50,6 +50,17 @@ function isolationChild(mode, check) {
     check(report, result.status, home);
   } finally { rmSync(home, { recursive: true, force: true }); }
 }
+for (const mode of ["window", "application"]) test(`real preinstall import closure for ${mode} mode resolves with installed packages unavailable`, () => {
+  isolationChild(`preinstall-${mode}`, (report, status) => {
+    assert.equal(status, 0);
+    assert.equal(report.preinstallImported, true);
+    assert.ok(report.startupModules.some(url => url.endsWith("/macos-qualification/application.mjs")));
+    assert.ok(!report.startupModules.some(url => url.includes("/node_modules/") || url.endsWith("/macos-qualification/window.mjs") || url.endsWith("/control-omb.ts")));
+    assert.deepEqual(report.deniedPackageControls, ["yaml", "zod"]);
+    assert.match(report.sourceSha256, /^[a-f0-9]{64}$/);
+  }, "macos-preinstall-import-child.mjs");
+});
+
 test("real entry survives main's actual userData override inside owned app/session/log paths", () => {
   isolationChild("owned-profile", (report, status, home) => {
     assert.equal(status, 0);

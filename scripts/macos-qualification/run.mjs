@@ -10,7 +10,6 @@ import { actualHost, environment, identity, inventory, writeReport, requireValue
 import { applicationSuites, provisionDiagnosticCache } from "./application.mjs";
 import { workflowContract } from "./workflow-contract.mjs";
 import { windowWorkflowContract } from "./window-workflow-contract.mjs";
-import { applicationWindow } from "./window.mjs";
 
 const [reportArgument, sha, runId, attempt, mode] = process.argv.slice(2);
 requireValue(mode === undefined || mode === "window", "unknown qualification mode");
@@ -141,6 +140,7 @@ try {
       if (windowMode) {
         await phase("source-application-window", async () => {
           requireValue(electronReady && dependencyBefore, "window requires provisioned Electron and dependency baseline");
+          const { applicationWindow } = await import("./window.mjs");
           await applicationWindow({ root, reports, home, env, capability, pnpm });
         });
       } else {

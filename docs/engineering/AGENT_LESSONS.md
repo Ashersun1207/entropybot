@@ -435,6 +435,12 @@
 - 回归仍从 window.unit.mjs 进入：实际 Node child 导入真实 wrapper，在真实 main import 路径仅执行从 main 读取的 profile override（其他 native startup 截止），验证两次赋值和外逃 profile/session 拒绝；真实 updater ESM 用 Electron stub、mock timers 与截获 fetch 跨过 15 秒和一小时，诊断零请求，普通 dev/flagged packaged 对照仍请求。全 Electron/平台效果只能由复审后的 hosted attempt 1 证明；本地未 build/启动 Electron/联网/接触 Keychain，completeQualification/completeCleanup 仍 false。修复身份与最终计数以本条所属提交及外部回执为准。
 - 首次冻结修复的 Node100、guards8 和 updater35 均通过；deny-warning lint 因测试夹具用前缀 regex 提取 main 语句而拒绝（prefer-string-starts-ends-with）。仅改为等价 startsWith，保持真实语句提取、唯一性断言和原生启动截断，不降低 lint；原失败日志与源码/依赖/Node 前后快照保留，第二轮重新冻结并跑完整门槛。
 
+### macOS 首次窗口实跑：安装前 import closure 必须无包依赖
+
+- 主控报告真实 hosted run 43745001727/attempt1/source9a2e95b88 在启动期失败，203B artifact 只有 workflow 写出的 host.txt，run.mjs 的 source-before/node-tool/summary 均不存在。根因是新增静态 window.mjs import 经 control-omb.ts→headless team 模块提前解析裸 yaml/zod；新 checkout 此时尚未安装 node_modules，ESM linking 在 try/finally 之前已失败。此前本地沿用 same-lock deps 的100项 Node/其他门槛掩盖了这一安装前依赖，不能把它归为普通 phase failure，也不改写旧实跑结果。
+- 最小修复仅将 run.mjs 的 window import 移入已安装、Electron provision/依赖基线完成后的 window phase；普通 application-suite 模式启动也不再引入 window/control 图。回归从 window.unit.mjs 启动 Node child，通过公开 resolver hook 拒绝所有包解析和 node_modules 路径，实际 import 真实入口的静态模块集合，省略会下载/安装的入口 body；两种模式均须零包加载，yaml/zod 显式负对照必须拒绝。保持目录中原有 deps，不做真实删除/安装/下载/联网或 Electron 启动。
+- 安装前模块集合必须在依赖不可用的控制下单独验证，已安装环境的单测不提供此证据。修复身份/精确计数见本条所属提交和外部 source-bound 回执；窗口/P2隔离/health/pixels/updater/资源与 trust 边界不变，completeQualification/completeCleanup 仍 false，独立复审及 NEW exact-SHA attempt1 仍待主控执行，禁止 rerun43745001727。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

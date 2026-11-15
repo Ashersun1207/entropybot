@@ -1,7 +1,9 @@
 # Hosted macOS source application window
 
 This is a bounded diagnostic for the next macOS gap after installation, vendor
-Electron startup and the application suites. It has not run on a hosted Mac yet.
+Electron startup and the application suites. First hosted window run 43745001727,
+attempt 1, source 9a2e95b88, failed before diagnostics: its 203-byte artifact
+contains only the workflow's host.txt. It supplies no application-window result.
 Independent review must precede the controller pushing a NEW exact SHA to
 `codex/macos-window-readiness`; the first attempt's original reports determine
 its result. Local author checks never build, download or launch Electron.
@@ -14,6 +16,21 @@ Its 35-minute job bound covers the unchanged direct pnpm acquisition, frozen
 install and explicit pristine Electron provisioning. It runs no application test
 shards in this mode; their earlier evidence remains separate. The original
 qualification workflow and formal F2 contracts are unchanged.
+
+The first hosted failure was an import-time dependency, not a recorded phase
+failure. run.mjs's static window import reached control-omb.ts, the headless team
+modules and bare yaml/zod before the fresh checkout had node_modules. The entry
+now dynamically imports window.mjs only inside the installed window phase after
+Electron provisioning and the dependency baseline. The application-suite mode
+does not load that window/control graph at startup. No install, lifecycle,
+window assertion or report contract changes. A Node-child regression imports the
+actual run.mjs static startup module set while a public resolution hook denies
+all installed packages and node_modules paths. It omits the entry body so no host
+checks, download or install runs locally. The common startup graph must resolve
+for both modes without window/control modules; explicit yaml/zod import controls
+must fail under the same hook. This closes the local same-lock-dependencies blind
+spot. The old hosted failure remains immutable; the controller must use a new
+reviewed exact-SHA attempt 1, never rerun 43745001727.
 
 After the existing dependency snapshot and owned mutable Vite cache links, the
 entry executes the public pnpm `build` script: `tsc -b`, server TypeScript and
