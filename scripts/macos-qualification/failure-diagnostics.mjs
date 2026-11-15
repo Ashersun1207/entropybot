@@ -6,7 +6,7 @@ import { windowPaths } from "./window-observer.mjs";
 export const FAILURE_LOG = "window-entry-failures.log";
 const TAIL_BYTES = 8192;
 const REPORT_BYTES = 128 * 1024;
-const PRIVATE_RECORD = /"(?:accounts?|users?|sessions?|credentials?)"\s*:\s*[\[{]/i;
+const PRIVATE_RECORD = /"(?:accounts?|users?|sessions?|credentials?)"\s*:\s*[[{]/i;
 
 function ownedDirectory(path) {
   try { const stat = lstatSync(path); return stat.isDirectory() && !stat.isSymbolicLink() && stat.uid === process.getuid() && realpathSync(path) === path; }
@@ -19,7 +19,7 @@ function scrub(text, secrets) {
   return redactSecretsInLine(out)
     .replace(/\b(?:account(?:Id|_id)?|user(?:Id|_id)?|session(?:Id|_id)?|email|hmac|mac|signature|capability)\b["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;}]+)/gi, "[private diagnostic field redacted]")
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email redacted]")
-    .replace(/\b[A-Za-z0-9_+\/-]{40,}={0,2}\b/g, "[opaque value redacted]");
+    .replace(/\b[A-Za-z0-9_+/-]{40,}={0,2}\b/g, "[opaque value redacted]");
 }
 function safeLines(text, secrets, first = false) {
   if (PRIVATE_RECORD.test(text)) return "[private structured diagnostic tail omitted]";
