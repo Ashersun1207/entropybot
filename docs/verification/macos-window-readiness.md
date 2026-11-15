@@ -97,6 +97,13 @@ counts each, never filenames or dump bytes. Output text is capped at 128 KiB;
 existing artifact quarantine still checks the complete report set. No config,
 cookies, session database, credential file or whole profile is exported. Capture
 failure remains explicit and never turns the command failure into success.
+Both capture output and its fallback status output are best effort: even if both
+writes fail, the original command rejection is rethrown. The independent review
+of 46defb768 found that an unprotected fallback could previously replace that
+rejection with EEXIST/ENOSPC. New public-API synthetic-child controls force both
+writes to fail through real pre-existing files or targeted ENOSPC injection;
+they require the original command error and retained exit/stdio/group evidence.
+No real disk exhaustion is used, and pre-existing diagnostic contents stay intact.
 
 A real synthetic Node child writes known crash/session lines and exits 1 with
 empty stdio. The public failure command path must retain exit/close/group evidence,

@@ -17,7 +17,9 @@ export async function runWindowElectron({ home, ...options }) {
       const { report: _report, ...metadata } = capture;
       writeReport(options.reports, "window-failure-diagnostics.json", { status: "captured", ...metadata });
     } catch {
-      writeReport(options.reports, "window-failure-diagnostics-status.json", { status: "capture-unavailable", completeQualification: false, completeCleanup: false });
+      try {
+        writeReport(options.reports, "window-failure-diagnostics-status.json", { status: "capture-unavailable", completeQualification: false, completeCleanup: false });
+      } catch {}
     }
     throw error;
   }

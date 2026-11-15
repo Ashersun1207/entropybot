@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync, readdirSync, symlinkSync, linkSync } from "node:fs";
+import fs, { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync, readdirSync, symlinkSync, linkSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -159,6 +160,55 @@ test("failed real Node command exports bounded owned crash/session tails and ret
     if (process.env.MAC_CATALOG_EVIDENCE) writeFileSync(join(process.env.MAC_CATALOG_EVIDENCE, "window-failure-fixture.json"), JSON.stringify({ command, metadata, report: text }, null, 2), { flag: "wx" });
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+for (const code of ["EEXIST", "ENOSPC"]) test(`public failure path preserves command rejection when capture and fallback writes fail with ${code}`, async t => {
+  const home = realpathSync(mkdtempSync("/private/tmp/mwe-"));
+  const reports = join(home, "reports"); mkdirSync(reports);
+  const capability = createGateCapability(home);
+  const metadataPath = join(reports, "window-failure-diagnostics.json");
+  const statusPath = join(reports, "window-failure-diagnostics-status.json");
+  const writeFailures = [];
+  const metadataFailure = Object.assign(new Error("synthetic capture ENOSPC"), { code: "ENOSPC" });
+  const statusFailure = Object.assign(new Error("synthetic status ENOSPC"), { code: "ENOSPC" });
+  const name = `window-failed-output-${code.toLowerCase()}`;
+  try {
+    if (code === "EEXIST") {
+      writeFileSync(metadataPath, "pre-existing capture metadata");
+      writeFileSync(statusPath, "pre-existing status metadata");
+    }
+    const originalWrite = fs.writeFileSync;
+    t.mock.method(fs, "writeFileSync", (path, ...args) => {
+      if (path !== metadataPath && path !== statusPath) return originalWrite(path, ...args);
+      writeFailures.push(path === metadataPath ? "capture" : "fallback");
+      if (code === "ENOSPC") throw path === metadataPath ? metadataFailure : statusFailure;
+      return originalWrite(path, ...args);
+    });
+    syncBuiltinESMExports();
+    const fixture = fileURLToPath(new URL("../testing/macos-window-failure-child.mjs", import.meta.url));
+    let surfaced;
+    await assert.rejects(runWindowElectron({ home, reports, name, executable: process.execPath, argv: [fixture, home],
+      cwd: fileURLToPath(new URL("../../", import.meta.url)), env: environment(home, dirname(process.execPath)), timeoutMs: 10000, capability }), error => {
+      surfaced = error;
+      assert.equal(error.name, "Error");
+      assert.equal(error.message, `${name}: command failed or incomplete; see original reports`);
+      assert.equal(error.code, undefined);
+      assert.notEqual(error, metadataFailure); assert.notEqual(error, statusFailure);
+      return true;
+    });
+    assert.deepEqual(writeFailures, ["capture", "fallback"]);
+    const command = JSON.parse(readFileSync(join(reports, `${name}.json`)));
+    assert.equal(command.outcome.ok, false); assert.equal(command.outcome.exitCode, 1);
+    for (const field of ["exitAt", "closeAt", "groupGoneAt"]) assert.equal(typeof command.outcome[field], "number");
+    if (code === "EEXIST") {
+      assert.equal(readFileSync(metadataPath, "utf8"), "pre-existing capture metadata");
+      assert.equal(readFileSync(statusPath, "utf8"), "pre-existing status metadata");
+    }
+    if (process.env.MAC_CATALOG_EVIDENCE) writeFileSync(join(process.env.MAC_CATALOG_EVIDENCE, `window-failure-output-${code.toLowerCase()}.json`), JSON.stringify({ code, writeFailures, surfaced: { name: surfaced.name, message: surfaced.message }, command }, null, 2), { flag: "wx" });
+  } finally {
+    t.mock.restoreAll(); syncBuiltinESMExports();
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test("failure collector rejects linked logs and binary contents, bounds crash entry count, and reports missing files", () => {
   const home = realpathSync(mkdtempSync("/private/tmp/mwf-"));
   try {

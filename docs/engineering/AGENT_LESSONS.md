@@ -447,6 +447,12 @@
 - 诊断 wrapper 在导入 main 前复用 crash listeners/appendDesktopCrashRecord，记录经脱敏和完整行字节界限处理的 entry/main/observation/watchdog 错误；worker 在命令失败后、夹具清理前复用 readSafeLogTail/buildDiagnosticsReport/diagnosticsFileName，仅读十一条固定自有日志路径，每条8KiB/64行/单行2KiB、输出128KiB。链接、多硬链、非 owner/非 canonical、binary 和账户结构状态拒绝或省略；capability 精确值、HMAC/opaque、凭证/URL参数/账户字段再脱敏，Crashpad/dump 只保留每目录最多16项计数，不读名称/内容，不上传 profile/session DB/config/Keychain。原错误始终重抛，收集失败也显式标未知。
 - 回归用真实合成 Node child 写 crash/session 日志、无 stdio 并 exit1，公开 command API 必须保留失败/exit/close/group 证据，投影已知错误且排除 capability/HMAC/account/password/profile/dump canary，继续通过原 quarantine；另测 link/binary/missing/structured-account/计数上限。保留原 hosted 字节与失败结论，无新增 no-sandbox/disable-gpu/logging flag 或语义修复；真实错误仍待独立复审后的 NEW exact-SHA attempt1 揭示，禁止 rerun43747320501，完整资格/回收仍 false。
 
+### 窗口诊断复审：fallback 写失败也不能替换主错误
+
+- 独立复审 ses_e1f261fb1ffemdW7QWv9dQ5KY9 在 46defb768 通过真实合成 child exit1 及预置 metadata/status 文件复现：capture 写入 EEXIST 后，fallback status 的第二次写入仍未保护，向外抛 EEXIST，覆盖原 command failed or incomplete。原104项通过只验证正常诊断输出和拒绝读取，没有覆盖诊断输出自身连续失败；主控仅去除 regex 多余转义不引入此问题。
+- 最小修复给 fallback writeReport 单独加 try/catch；不论 capture 或 status 写失败，控制流均到原 throw error，保留命令主失败。公开 API 回归仍启动真实自有 Node child exit1；一例真实预置两文件造成 EEXIST，一例仅在两个目标输出拦截 ENOSPC，不填满磁盘或注入真实用户数据。两例都断言两个输出写入失败被实际触发、表面错误仍为原命令失败而非文件错误、原 command receipt 的 exit/stdio-close/group 观察完整，且 EEXIST 的旧内容不覆盖。
+- 11路径/8KiB尾部/行界限/128KiB报告/crash计数16、canary排除和quarantine保持不变，不增加日志、sandbox/GPU flag 或启动语义修复。真实 hosted 根因仍未知，独立复审后由主控集成完整链并发 NEW exact-SHA attempt1，不 rerun43747320501。修复身份/最终冻结计数见本条所属提交及外部回执，完整资格/回收仍 false。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
