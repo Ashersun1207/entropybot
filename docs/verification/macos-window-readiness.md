@@ -79,7 +79,7 @@ the Electron command. Report failure does not become qualification success.
 
 Author regressions are the macOS `.unit.mjs` suites, including the new public
 window observer/health/pixel/dist/command tests, the existing eight engineering
-guards, lint, tools TypeScript, scoped TypeScript syntax/type checks and diff
+guard assertions, lint, tools TypeScript, scoped TypeScript syntax/type checks and diff
 check. These tests drive actual public functions, including both event orders,
 never-ready/missing-load, late events, renderer/frame failure, wrong health
 identity/port/capabilities, absent build output, blank PNG, mutable action,

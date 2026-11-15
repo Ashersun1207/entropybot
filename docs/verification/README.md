@@ -7,6 +7,7 @@ validation, task pinning, bounded transcripts, wait states, and redaction as
 external MCP clients and scripts.
 
 - [macOS first: hosted arm64 diagnostic qualification](macos-qualification.md)
+- [Hosted macOS source application window readiness](macos-window-readiness.md)
 - [Offline toolchain candidate preparation (data only)](toolchain-preparation.md)
 - [Darwin arm64 verified bootstrap staging (fixture only)](full-gate-bootstrap-staging.md)
 - [Node 24.22.2 official release key publication and identity (unapproved)](node-release-signature.md)

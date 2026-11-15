@@ -426,6 +426,7 @@
 
 - 安装、Electron `--version` 和全应用测试通过仍未覆盖真实主窗口。`scripts/verify-window-frame.ts` 是预览脚本，`smoke-app-frames.mjs` 是内嵌页面隔离测试；不能把它们的截图或 DOM 文案追认为实际主窗口已绘制。新增窗口诊断复用源服务夹具、boot identity、PNG decoder、命令监督和资源审计，完整导入真实 main；须同时等主窗口 ready-to-show/did-finish-load、匹配 owned PID/static/capabilities 的 HTTP200 和可见文本区域像素变化。范围与余项见 [窗口诊断](../verification/macos-window-readiness.md)，首次 hosted 执行仍待独立审查后由主控发起。
 - 首次公开 API 单测 18 通过/1 失败是夹具临时目录使用 macOS `/var` 别名而非规范路径，触发正确的外部 dist 链接拒绝。修复仅 canonicalize 自有夹具根；保留缺失 dist/JS 入口、错误 health/端口、窗口从未就绪和非空纯色 PNG 的负例。未在本机 build/启动 Electron，不把单测成功视为平台证据；first-JavaScript/PGP、完整回收、签名安装和 F2 仍未关闭。
+- 首次冻结候选 Node 94 项通过，但文档守卫 7 通过/1 失败：新增验证说明只有间接链接，守卫要求 README 直接可达。补直接入口，不降低守卫。同轮完整依赖哈希只变动 `.vite/vitest` 的 results.json，所选执行入口未变；作者配置现显式将 Vitest results cache 放在自有证据目录，保留原差异，不回写共享缓存或把旧回执改称完全未变。
 
 ## 不应合并的改动
 
