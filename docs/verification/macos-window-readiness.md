@@ -4,6 +4,10 @@ This is a bounded diagnostic for the next macOS gap after installation, vendor
 Electron startup and the application suites. First hosted window run 43745001727,
 attempt 1, source 9a2e95b88, failed before diagnostics: its 203-byte artifact
 contains only the workflow's host.txt. It supplies no application-window result.
+The second run 43747320501, attempt 1, source 1224eb4f3, passed startup/install
+and failed only source-application-window: Electron exited 1 without an accepted
+observation. Its retained stderr has only backupd XPC noise, not an identified
+main-process cause; the failed run remains immutable.
 Independent review must precede the controller pushing a NEW exact SHA to
 `codex/macos-window-readiness`; the first attempt's original reports determine
 its result. Local author checks never build, download or launch Electron.
@@ -71,6 +75,40 @@ flag is exactly 1 AND the app is unpackaged. Packaged apps ignore the flag, and
 ordinary unpackaged manual-update behavior is unchanged. It neither changes
 UPDATE_MODE nor shortens the readiness observation. The accepted report also
 requires the diagnostic updater guard to remain enabled.
+
+Failure visibility uses the existing desktop diagnostics APIs. Before importing
+main, the wrapper installs the existing crash listeners and records bounded,
+redacted error details for entry/import failure, main exceptions, observation
+rejection and the unchanged watchdog. The real Electron command's failure is
+re-thrown after a best-effort capture, before fixture cleanup. The collector
+uses readSafeLogTail on eleven fixed owned log paths: the wrapper failure log,
+desktop/server/updater/main/session logs, and the known profile/session Chromium
+text logs. Missing or rejected inputs are explicit. Canonical owned directories,
+regular single-link owned files, 8 KiB reads, complete lines, at most 64 lines per
+file and 2 KiB per line bound the input. It never scans arbitrary profile files.
+
+buildDiagnosticsReport and diagnosticsFileName produce one flat diagnostics text
+report plus fixed-schema inventory metadata. Known credential patterns and URL
+parameters use the existing scrubber; the collector additionally removes exact
+capability secret values, opaque HMAC/token-like strings, account/email fields
+and structured private state. Redaction precedes output bounds. Binary text-log
+inputs are omitted; crash/Crashpad directories contribute at most sixteen entry
+counts each, never filenames or dump bytes. Output text is capped at 128 KiB;
+existing artifact quarantine still checks the complete report set. No config,
+cookies, session database, credential file or whole profile is exported. Capture
+failure remains explicit and never turns the command failure into success.
+
+A real synthetic Node child writes known crash/session lines and exits 1 with
+empty stdio. The public failure command path must retain exit/close/group evidence,
+export those lines, exclude capability/HMAC/account/password/profile/dump canaries,
+and pass the existing artifact quarantine. A separate public collector test rejects
+symlink/hardlink/binary logs, omits structured account state and caps crash counts.
+No Electron launch, logging/sandbox/GPU flag, observation timeout or semantic
+startup fix is added. The next hosted attempt should show a safe main/import or
+observation error and available app log tails; native failure before the wrapper
+runs can still leave only missing-log metadata. The ~91-second failed command
+also fits the existing 90-second readiness timeout, so exit timing alone is not
+proof of the underlying startup cause. No real application-window pass is claimed.
 
 The actual assertions are:
 

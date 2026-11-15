@@ -441,6 +441,12 @@
 - 最小修复仅将 run.mjs 的 window import 移入已安装、Electron provision/依赖基线完成后的 window phase；普通 application-suite 模式启动也不再引入 window/control 图。回归从 window.unit.mjs 启动 Node child，通过公开 resolver hook 拒绝所有包解析和 node_modules 路径，实际 import 真实入口的静态模块集合，省略会下载/安装的入口 body；两种模式均须零包加载，yaml/zod 显式负对照必须拒绝。保持目录中原有 deps，不做真实删除/安装/下载/联网或 Electron 启动。
 - 安装前模块集合必须在依赖不可用的控制下单独验证，已安装环境的单测不提供此证据。修复身份/精确计数见本条所属提交和外部 source-bound 回执；窗口/P2隔离/health/pixels/updater/资源与 trust 边界不变，completeQualification/completeCleanup 仍 false，独立复审及 NEW exact-SHA attempt1 仍待主控执行，禁止 rerun43745001727。
 
+### macOS 窗口失败：隔离 profile 不能同时隔离掉诊断证据
+
+- 真实 run43747320501/attempt1/source1224eb4f3 已越过安装前 import 问题，42 份报告中仅 source-application-window 失败；Electron exit1 有 exit/close/group 观察，却无 observation/health-frame，stdio 只有非致命 backupd XPC 噪声。原 profile 未上传是正确隐私边界，但原 failure path 没有投影自有诊断，因而缺少实际错误。约91秒也符合既有90秒窗口超时，不能凭 exit1 或噪声推断 sandbox/GPU 或具体主进程根因。
+- 诊断 wrapper 在导入 main 前复用 crash listeners/appendDesktopCrashRecord，记录经脱敏和完整行字节界限处理的 entry/main/observation/watchdog 错误；worker 在命令失败后、夹具清理前复用 readSafeLogTail/buildDiagnosticsReport/diagnosticsFileName，仅读十一条固定自有日志路径，每条8KiB/64行/单行2KiB、输出128KiB。链接、多硬链、非 owner/非 canonical、binary 和账户结构状态拒绝或省略；capability 精确值、HMAC/opaque、凭证/URL参数/账户字段再脱敏，Crashpad/dump 只保留每目录最多16项计数，不读名称/内容，不上传 profile/session DB/config/Keychain。原错误始终重抛，收集失败也显式标未知。
+- 回归用真实合成 Node child 写 crash/session 日志、无 stdio 并 exit1，公开 command API 必须保留失败/exit/close/group 证据，投影已知错误且排除 capability/HMAC/account/password/profile/dump canary，继续通过原 quarantine；另测 link/binary/missing/structured-account/计数上限。保留原 hosted 字节与失败结论，无新增 no-sandbox/disable-gpu/logging flag 或语义修复；真实错误仍待独立复审后的 NEW exact-SHA attempt1 揭示，禁止 rerun43747320501，完整资格/回收仍 false。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

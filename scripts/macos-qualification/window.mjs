@@ -6,6 +6,22 @@ import { consumeGateCapability, gateBootstrapArgs } from "../testing/verificatio
 import { identity, inventory, recordCommand, requireValue, writeReport } from "./contract.mjs";
 import { windowCommands, requireWindowDist, requireWindowHealth, requireDrawnRegion, WINDOW_ORIGIN } from "./window-contract.mjs";
 import { assertWindowPaths } from "./window-observer.mjs";
+import { collectWindowFailure } from "./failure-diagnostics.mjs";
+
+export async function runWindowElectron({ home, ...options }) {
+  try { return await recordCommand(options); }
+  catch (error) {
+    try {
+      const capture = collectWindowFailure(home, [options.capability?.secret]);
+      writeReport(options.reports, capture.fileName, capture.report);
+      const { report: _report, ...metadata } = capture;
+      writeReport(options.reports, "window-failure-diagnostics.json", { status: "captured", ...metadata });
+    } catch {
+      writeReport(options.reports, "window-failure-diagnostics-status.json", { status: "capture-unavailable", completeQualification: false, completeCleanup: false });
+    }
+    throw error;
+  }
+}
 
 export async function applicationWindow({ root, reports, home, env, capability, pnpm, record = recordCommand }) {
   const commands = windowCommands(root, pnpm, home, gateBootstrapArgs(capability));
@@ -33,7 +49,7 @@ export async function windowWorker(reports) {
     const healthBefore = await requireWindowHealth({ pid: fixture.child.pid });
     const argv = windowCommands(root, null, home, []).electron;
     const executableBefore = identity(argv[0]);
-    await recordCommand({ reports, name: "window-electron", executable: argv[0], argv: argv.slice(1), cwd: root,
+    await runWindowElectron({ home, reports, name: "window-electron", executable: argv[0], argv: argv.slice(1), cwd: root,
       env: { ...process.env, ELECTRON_START_URL: WINDOW_ORIGIN, OMB_DATA_DIR: fixture.info.dataDir }, timeoutMs: 125000, capability });
     const observation = JSON.parse(readFileSync(join(home, "window-observation.json"), "utf8"));
     requireValue(observation.readyToShow === true && observation.didFinishLoad === true && observation.location === `${WINDOW_ORIGIN}/` && observation.platform === "darwin" && observation.bridge === "function", "application window readiness incomplete");

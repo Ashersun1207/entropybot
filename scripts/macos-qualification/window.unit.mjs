@@ -1,18 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync, readdirSync, symlinkSync, linkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { environment } from "./contract.mjs";
+import { environment, sealReports } from "./contract.mjs";
+import { collectWindowFailure } from "./failure-diagnostics.mjs";
 import { parse } from "yaml";
 import { encodePng } from "../testing/png.ts";
 import { windowWorkflowContract } from "./window-workflow-contract.mjs";
 import { windowCommands, requireWindowDist, requireWindowHealth, requireDrawnRegion, WINDOW_ORIGIN } from "./window-contract.mjs";
 import { observeApplicationWindow, windowPaths, assertWindowPaths } from "./window-observer.mjs";
-import { applicationWindow } from "./window.mjs";
+import { applicationWindow, runWindowElectron } from "./window.mjs";
 import { createGateCapability } from "../testing/verification-lifecycle.ts";
 
 const workflow = parse(readFileSync(new URL("../../.github/workflows/entropybot-macos-window.yml", import.meta.url), "utf8"));
@@ -131,6 +132,53 @@ test("public orchestration builds before worker and stops on build failure or ab
     assert.equal(JSON.parse(readFileSync(join(reports, "window-build.json"))).packaging, false);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+test("failed real Node command exports bounded owned crash/session tails and retains exit failure without secrets", async () => {
+  const home = realpathSync(mkdtempSync("/private/tmp/mwf-"));
+  const reports = join(home, "reports"); mkdirSync(reports);
+  const quarantine = join(home, "quarantine"); mkdirSync(quarantine);
+  const capability = createGateCapability(home);
+  try {
+    const fixture = fileURLToPath(new URL("../testing/macos-window-failure-child.mjs", import.meta.url));
+    await assert.rejects(runWindowElectron({ home, reports, name: "window-electron-fixture", executable: process.execPath, argv: [fixture, home],
+      cwd: fileURLToPath(new URL("../../", import.meta.url)), env: environment(home, dirname(process.execPath)), timeoutMs: 10000, capability }), /command failed/);
+    const command = JSON.parse(readFileSync(join(reports, "window-electron-fixture.json")));
+    assert.equal(command.outcome.ok, false); assert.equal(command.outcome.exitCode, 1);
+    for (const field of ["exitAt", "closeAt", "groupGoneAt"]) assert.equal(typeof command.outcome[field], "number");
+    const metadata = JSON.parse(readFileSync(join(reports, "window-failure-diagnostics.json")));
+    const text = readFileSync(join(reports, metadata.fileName), "utf8");
+    assert.match(text, /synthetic main startup failure: fixture method unavailable/);
+    assert.match(text, /stage=entry/); assert.match(text, /error=TypeError/);
+    assert.match(text, /synthetic session failure detail/); assert.match(text, /synthetic server tail detail/);
+    assert.ok(metadata.inventory.every(row => (row.readBytes ?? 0) <= 8192));
+    assert.ok(Buffer.byteLength(text) <= 128 * 1024);
+    assert.equal(metadata.crashInventories.find(row => row.label === "crash-dumps").observedEntries, 1);
+    const allReports = readdirSync(reports).map(name => readFileSync(join(reports, name), "utf8")).join("\n");
+    for (const secret of [capability.secret, "b".repeat(64), "fixture-private-account", "fixture-private@example.test", "fixture-private-password", "PROFILE_BODY_CANARY", "PRIVATE_PROFILE_BYTES", "PRIVATE_CRASH_DUMP"]) assert.ok(!allReports.includes(secret), "private fixture value leaked");
+    assert.ok(sealReports(reports, quarantine, capability.secret).some(row => row.name === metadata.fileName));
+    assert.equal(metadata.completeQualification, false); assert.equal(metadata.completeCleanup, false);
+    if (process.env.MAC_CATALOG_EVIDENCE) writeFileSync(join(process.env.MAC_CATALOG_EVIDENCE, "window-failure-fixture.json"), JSON.stringify({ command, metadata, report: text }, null, 2), { flag: "wx" });
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+test("failure collector rejects linked logs and binary contents, bounds crash entry count, and reports missing files", () => {
+  const home = realpathSync(mkdtempSync("/private/tmp/mwf-"));
+  try {
+    const paths = windowPaths(home);
+    for (const path of Object.values(paths)) mkdirSync(path, { recursive: true });
+    const privateFile = join(home, "private-fixture"); writeFileSync(privateFile, "PRIVATE_LINK_BYTES\n");
+    symlinkSync(privateFile, join(paths.logs, "updater.log"));
+    linkSync(privateFile, join(paths.userData, "LOG"));
+    writeFileSync(join(paths.sessionData, "LOG"), Buffer.from([0, 1, 2, 3]));
+    writeFileSync(join(paths.logs, "main.log"), '{"account":{"id":"PRIVATE_ACCOUNT_BYTES"}}\n');
+    for (let index = 0; index < 20; index++) writeFileSync(join(paths.crashDumps, `private-${index}.dmp`), "PRIVATE_DUMP_BYTES");
+    const result = collectWindowFailure(home);
+    for (const label of ["updater", "profile-log", "entry"]) assert.equal(result.inventory.find(row => row.label === label).status, "missing-or-rejected");
+    assert.equal(result.inventory.find(row => row.label === "session-log").status, "private-or-binary-omitted");
+    assert.equal(result.crashInventories[0].observedEntries, 16); assert.equal(result.crashInventories[0].limitReached, true);
+    assert.ok(!JSON.stringify(result).includes("PRIVATE_"));
+    assert.match(result.report, /private structured diagnostic tail omitted/);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
 function health() { return { app: "entropybot", pid: 1234, static: true, capabilities: { guardedMessages: 1, guardedRequests: 1, guardedFullAccess: 1, guardedOnBehalfOf: 1 } }; }
 test("public health probe exercises identity polling and expected fixed URL/status/pid/static/capabilities", async () => {
   const calls = [];
