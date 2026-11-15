@@ -9,11 +9,16 @@ import { createGateCapability, gateBootstrapArgs, gateVitestWorkerArg, assertGat
 import { actualHost, environment, identity, inventory, writeReport, requireValue, recordCommand, downloadPnpm, checkSuiteReport, SUITES, ELECTRON_SHA, sealReports } from "./contract.mjs";
 import { applicationSuites, provisionDiagnosticCache } from "./application.mjs";
 import { workflowContract } from "./workflow-contract.mjs";
+import { windowWorkflowContract } from "./window-workflow-contract.mjs";
+import { applicationWindow } from "./window.mjs";
 
-const [reportArgument, sha, runId, attempt] = process.argv.slice(2);
+const [reportArgument, sha, runId, attempt, mode] = process.argv.slice(2);
+requireValue(mode === undefined || mode === "window", "unknown qualification mode");
+const windowMode = mode === "window";
+const workflowFile = windowMode ? ".github/workflows/entropybot-macos-window.yml" : ".github/workflows/entropybot-macos-qualification.yml";
 const root = resolve(import.meta.dirname, "../..");
 const reports = realpathSync(reportArgument);
-const summary = { kind: "macos-qualification-diagnostic", startedAt: new Date().toISOString(), sourceSha: sha, runId, attempt, phases: [],
+const summary = { kind: "macos-qualification-diagnostic", scope: windowMode ? "source-application-window" : "application-suites", startedAt: new Date().toISOString(), sourceSha: sha, runId, attempt, phases: [],
   missingCapabilities: ["first-JavaScript trust qualification", "Node PGP verification", "complete resource containment", "authoritative F2 producer/trust approval", "Entropybot signing/notarization and installed application acceptance"],
   outOfScope: ["release acceptance", "packaging", "local application installation", "Linux and Windows qualification (deferred)"] };
 const phase = async (name, action) => {
@@ -38,7 +43,7 @@ try {
     requireValue(attempt === "1" && /^[1-9]\d*$/.test(runId) && /^[a-f0-9]{40}$/.test(sha), "source/run/attempt mismatch");
     before = source(root, sha);
     writeReport(reports, "source-before.json", before);
-    writeReport(reports, "source-inputs.json", ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".github/workflows/entropybot-macos-qualification.yml", ...readdirSync(join(root, "scripts/macos-qualification")).map(name => "scripts/macos-qualification/" + name)].map(name => identity(join(root, name))));
+    writeReport(reports, "source-inputs.json", ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", workflowFile, ...readdirSync(join(root, "scripts/macos-qualification")).map(name => "scripts/macos-qualification/" + name)].map(name => identity(join(root, name))));
     const selected = catalog.node.selectedMembers["node-v24.22.2-darwin-arm64/bin/node"];
     const observed = identity(process.execPath);
     writeReport(reports, "node-tool.json", { version: process.version, platform: process.platform, arch: process.arch, uname, observed,
@@ -80,9 +85,9 @@ try {
     if (installed) {
       await phase("workflow-contract", async () => {
         const { parse } = createRequire(import.meta.url)("yaml");
-        workflowContract(parse(readFileSync(join(root, ".github/workflows/entropybot-macos-qualification.yml"), "utf8")));
+        (windowMode ? windowWorkflowContract : workflowContract)(parse(readFileSync(join(root, workflowFile), "utf8")));
       });
-      await phase("electron-provision-and-start", async () => {
+      const electronReady = await phase("electron-provision-and-start", async () => {
         const electron = realpathSync(join(root, "node_modules/electron"));
         const requireElectron = createRequire(join(electron, "install.js"));
         const selected = [catalog.packages.find(item => item.name === "electron"), ...["@electron/get", "@electron-internal/extract-zip"].map(name => catalog.packages.find(item => item.name === name))];
@@ -133,18 +138,25 @@ try {
         dependencyBefore = inventory(join(root, "node_modules"));
         writeReport(reports, "dependencies-before.json", dependencyBefore);
       });
-      await phase("actual-http-normal-operation", async () => {
-        await run("http-smoke", process.execPath, [...gateBootstrapArgs(capability), "scripts/macos-qualification/http-smoke.mjs", reports], 150000);
-      });
-      await phase("normal-failure-cancel-suites", async () => {
-        const config = join(home, "qualification.config.mjs");
-        const original = pathToFileURL(join(root, "vite.config.ts")).href;
-        const strict = pathToFileURL(join(root, "scripts/full-gate/strict-config.mjs")).href;
-        writeFileSync(config, `import base from ${JSON.stringify(original)}; import {strictConfig} from ${JSON.stringify(strict)}; const config=strictConfig(base); export default {...config,cacheDir:${JSON.stringify(join(home, "vite-cache"))},test:{...config.test,retry:0,fileParallelism:false,maxWorkers:1}};\n`, { flag: "wx", mode: 0o600 });
-        await run("lifecycle-suites", process.execPath, [...gateBootstrapArgs(capability), "node_modules/vitest/vitest.mjs", "run", ...SUITES, "--config", config, "--configLoader", "native", gateVitestWorkerArg(capability), "--reporter=json", "--outputFile=" + join(reports, "lifecycle-results.json")], 300000);
-        checkSuiteReport(JSON.parse(readFileSync(join(reports, "lifecycle-results.json"), "utf8")));
-      });
-      await applicationSuites({ root, reports, binding: { sourceSha: sha, runId, attempt }, before, phase });
+      if (windowMode) {
+        await phase("source-application-window", async () => {
+          requireValue(electronReady && dependencyBefore, "window requires provisioned Electron and dependency baseline");
+          await applicationWindow({ root, reports, home, env, capability, pnpm });
+        });
+      } else {
+        await phase("actual-http-normal-operation", async () => {
+          await run("http-smoke", process.execPath, [...gateBootstrapArgs(capability), "scripts/macos-qualification/http-smoke.mjs", reports], 150000);
+        });
+        await phase("normal-failure-cancel-suites", async () => {
+          const config = join(home, "qualification.config.mjs");
+          const original = pathToFileURL(join(root, "vite.config.ts")).href;
+          const strict = pathToFileURL(join(root, "scripts/full-gate/strict-config.mjs")).href;
+          writeFileSync(config, `import base from ${JSON.stringify(original)}; import {strictConfig} from ${JSON.stringify(strict)}; const config=strictConfig(base); export default {...config,cacheDir:${JSON.stringify(join(home, "vite-cache"))},test:{...config.test,retry:0,fileParallelism:false,maxWorkers:1}};\n`, { flag: "wx", mode: 0o600 });
+          await run("lifecycle-suites", process.execPath, [...gateBootstrapArgs(capability), "node_modules/vitest/vitest.mjs", "run", ...SUITES, "--config", config, "--configLoader", "native", gateVitestWorkerArg(capability), "--reporter=json", "--outputFile=" + join(reports, "lifecycle-results.json")], 300000);
+          checkSuiteReport(JSON.parse(readFileSync(join(reports, "lifecycle-results.json"), "utf8")));
+        });
+        await applicationSuites({ root, reports, binding: { sourceSha: sha, runId, attempt }, before, phase });
+      }
       await phase("leases-dependencies-source", async () => {
         writeReport(reports, "leases.json", { verified: assertGateLeases(capability), completeCleanup: false });
         const after = inventory(join(root, "node_modules"));

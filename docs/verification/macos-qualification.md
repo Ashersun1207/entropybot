@@ -1,5 +1,9 @@
 # macOS first: hosted arm64 qualification contract
 
+The separate [source application window diagnostic](macos-window-readiness.md)
+adds an opt-in hosted job for the real main window, built UI and server health.
+Its source implementation is not evidence of a hosted execution or installed app.
+
 This diagnostic implements the user's decision to finish macOS first and freeze
 further verifier/framework expansion until actual isolated install, tools and
 lifecycle evidence exists. Source implementation and local contract tests do

@@ -422,6 +422,11 @@
 - 修复使 Darwin inventory 显式执行 /bin/ps，保持 sealed PATH，不改 fake 引擎、签名/安装边界、MAC、startTime、terminal unknown 或 stale 零 probe。回归 `scripts/full-gate-group-history.node-test.mjs` 新增实际 sealed PATH 活进程控制及两个脱敏诊断用例；复现、红例和修复后组合均绑定源码/依赖。首版单项红例把 audit 也放在 sealed 子进程，另触发找不到 git，已保留；修正为父进程做 audit 后仍独立复现 null 身份拒绝，再改生产读取器。
 - audit 失败必须保留有界原因。新 registryFailures 仅保存固定阶段/错误码、hash 和认证后允许的身份字段/缺失字段，拒绝未知字段、任意错误文案及 capability secret；枚举认证失败只有固定码。缺失 startTime、拒绝认证或 terminal unknown 仍阻断，completeCleanup:false 与 F2 总阻断保持。真实 hosted 修复效果只能由新源码、新 attempt 1 证明，旧失败 artifact 不覆盖。细节见 [macOS 合同](../verification/macos-qualification.md)。
 
+## macOS：真实主窗口与预览截图的资格边界
+
+- 安装、Electron `--version` 和全应用测试通过仍未覆盖真实主窗口。`scripts/verify-window-frame.ts` 是预览脚本，`smoke-app-frames.mjs` 是内嵌页面隔离测试；不能把它们的截图或 DOM 文案追认为实际主窗口已绘制。新增窗口诊断复用源服务夹具、boot identity、PNG decoder、命令监督和资源审计，完整导入真实 main；须同时等主窗口 ready-to-show/did-finish-load、匹配 owned PID/static/capabilities 的 HTTP200 和可见文本区域像素变化。范围与余项见 [窗口诊断](../verification/macos-window-readiness.md)，首次 hosted 执行仍待独立审查后由主控发起。
+- 首次公开 API 单测 18 通过/1 失败是夹具临时目录使用 macOS `/var` 别名而非规范路径，触发正确的外部 dist 链接拒绝。修复仅 canonicalize 自有夹具根；保留缺失 dist/JS 入口、错误 health/端口、窗口从未就绪和非空纯色 PNG 的负例。未在本机 build/启动 Electron，不把单测成功视为平台证据；first-JavaScript/PGP、完整回收、签名安装和 F2 仍未关闭。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。
