@@ -3,12 +3,15 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { environment } from "./contract.mjs";
 import { parse } from "yaml";
 import { encodePng } from "../testing/png.ts";
 import { windowWorkflowContract } from "./window-workflow-contract.mjs";
 import { windowCommands, requireWindowDist, requireWindowHealth, requireDrawnRegion, WINDOW_ORIGIN } from "./window-contract.mjs";
-import { observeApplicationWindow } from "./window-observer.mjs";
+import { observeApplicationWindow, windowPaths, assertWindowPaths } from "./window-observer.mjs";
 import { applicationWindow } from "./window.mjs";
 import { createGateCapability } from "../testing/verification-lifecycle.ts";
 
@@ -29,10 +32,56 @@ for (const [name, mutate] of [
 test("public commands build source and launch real main wrapper with mock Keychain and owned profile", () => {
   const commands = windowCommands("/owned/source", "/owned/pnpm.cjs", "/private/tmp/mq-unit", ["--import", "/owned/bootstrap.mjs"]);
   assert.deepEqual(commands.build, [process.execPath, "/owned/pnpm.cjs", "build"]);
-  assert.deepEqual(commands.electron, ["/owned/source/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron", "--user-data-dir=/private/tmp/mq-unit/window-profile", "--use-mock-keychain", "/owned/source/scripts/macos-qualification/window-entry.mjs"]);
+  assert.deepEqual(commands.electron, ["/owned/source/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron", "--user-data-dir=/private/tmp/mq-unit/window-app-data/openmausbot", "--use-mock-keychain", "/owned/source/scripts/macos-qualification/window-entry.mjs"]);
   assert.ok(commands.worker.includes("/owned/source/scripts/macos-qualification/window.mjs"));
   assert.equal(JSON.stringify(commands).includes("cloudflared"), false);
 });
+function isolationChild(mode, check) {
+  const home = realpathSync(mkdtempSync("/private/tmp/mwi-"));
+  try {
+    const fixture = fileURLToPath(new URL("../testing/macos-window-isolation-child.mjs", import.meta.url));
+    const argv = [fixture, home, mode];
+    const env = environment(home, dirname(process.execPath));
+    const result = spawnSync(process.execPath, argv, { env, encoding: "utf8", timeout: 10000 });
+    if (process.env.MAC_CATALOG_EVIDENCE) writeFileSync(join(process.env.MAC_CATALOG_EVIDENCE, `window-isolation-${mode}.json`), JSON.stringify({ argv: [process.execPath, ...argv], env, status: result.status, signal: result.signal, stdout: result.stdout, stderr: result.stderr }, null, 2), { flag: "wx" });
+    assert.equal(result.signal, null, result.stderr);
+    assert.equal(result.error, undefined);
+    const report = JSON.parse(result.stdout.trim());
+    check(report, result.status, home);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+}
+test("real entry survives main's actual userData override inside owned app/session/log paths", () => {
+  isolationChild("owned-profile", (report, status, home) => {
+    assert.equal(status, 0);
+    assert.match(report.override.statement, /app\.getPath\("appData"\)/);
+    assert.match(report.override.sourceSha256, /^[a-f0-9]{64}$/);
+    assert.equal(report.assignments.filter(a => a.name === "userData").length, 2);
+    assert.deepEqual(report.observation.pathsBeforeImport, windowPaths(home));
+    assert.deepEqual(report.observation.effectivePaths, windowPaths(home));
+    assertWindowPaths({ getPath: name => report.observation.effectivePaths[name] }, home);
+    assert.equal(report.observation.updaterNetworkDisabled, true);
+  });
+});
+for (const mode of ["escaped-profile", "escaped-session"]) test(`real entry refuses ${mode} after actual main profile override`, () => {
+  isolationChild(mode, (report, status) => {
+    assert.equal(status, 1);
+    assert.ok(report.override.statement);
+    assert.equal(report.observation, null);
+  });
+});
+test("diagnostic unpackaged updater schedules no network checks beyond 15 seconds and an hour or explicit IPC", () => {
+  isolationChild("updater-diagnostic", (report, status) => {
+    assert.equal(status, 0); assert.equal(report.firstCheckCalls, 0); assert.deepEqual(report.calls, []);
+    assert.equal(report.state.status, "idle");
+  });
+});
+for (const mode of ["updater-normal", "updater-packaged"]) test(`real manual updater keeps ${mode} behavior with intercepted fetch controls`, () => {
+  isolationChild(mode, (report, status) => {
+    assert.equal(status, 0); assert.equal(report.firstCheckCalls, 1); assert.ok(report.calls.length >= 2);
+    assert.ok(report.calls.every(url => url === "https://api.github.com/repos/Ashersun1207/entropybot/releases/latest"));
+  });
+});
+
 test("window refuses missing or unbuilt dist through public precondition", () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "mw-dist-")));
   try {

@@ -1,5 +1,5 @@
-// macOS auto-update requires a signed app, so this runs only when packaged. electron-updater is vendored
-// because the packaged app ships no node_modules.
+// macOS automatic updates require a signed packaged app; manual release checks also run in development.
+// electron-updater is vendored because the packaged app ships no node_modules.
 import { app, clipboard, ipcMain, shell } from "electron";
 import { RELEASES_URL, UPDATE_MODE } from "./update-policy.mjs";
 
@@ -17,8 +17,13 @@ function newerThan(latest, current) {
   return false;
 }
 
+function windowDiagnostic() {
+  return !app.isPackaged && process.env.OMB_MACOS_WINDOW_DIAGNOSTIC === "1";
+}
+
 /** Manual distribution: report a newer release, never download or install it. */
 function manualCheck() {
+  if (windowDiagnostic()) return Promise.resolve();
   if (manualPending) return manualPending;
   setState({ status: "checking", version: undefined, message: undefined, retryable: true });
   manualPending = (async () => {
@@ -196,6 +201,11 @@ export function attachUpdaterWindow(mainWindow) {
 
 /** `signals` (quietSignals): what tells a quiet moment; without them a downloaded update installs only on Restart or quit. */
 export function startUpdater(signals = null) {
+  if (windowDiagnostic()) {
+    updaterCoordinator = null;
+    setState({ status: "idle" });
+    return;
+  }
   if (UPDATE_MODE === "manual") {
     updaterCoordinator = null;
     setState({ status: "idle" });

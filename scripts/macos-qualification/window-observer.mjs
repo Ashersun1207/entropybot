@@ -1,3 +1,37 @@
+import assert from "node:assert/strict";
+import { lstatSync, mkdirSync, realpathSync } from "node:fs";
+import { join } from "node:path";
+
+export function windowPaths(home) {
+  const appData = join(home, "window-app-data");
+  return { home, appData, userData: join(appData, "openmausbot"), sessionData: join(home, "window-session"),
+    logs: join(home, "window-logs"), temp: join(home, "tmp"), crashDumps: join(home, "window-crashes") };
+}
+export function assertWindowPaths(app, home) {
+  assert.equal(realpathSync(home), home, "window HOME must be canonical");
+  assert.equal(lstatSync(home).uid, process.getuid(), "window HOME must be owned");
+  const expected = windowPaths(home);
+  const effective = Object.fromEntries(Object.keys(expected).map(name => [name, app.getPath(name)]));
+  assert.deepEqual(effective, expected, "effective Electron paths escaped the owned HOME");
+  for (const path of Object.values(effective)) {
+    const stat = lstatSync(path);
+    assert.ok(stat.isDirectory() && !stat.isSymbolicLink() && stat.uid === process.getuid(), "window path must be an owned directory");
+    assert.equal(realpathSync(path), path, "window path must be canonical");
+  }
+  return effective;
+}
+export function configureWindowPaths(app, home) {
+  assert.equal(app.isPackaged, false, "window diagnostic requires the source application");
+  assert.equal(realpathSync(home), home, "window HOME must be canonical");
+  assert.equal(lstatSync(home).uid, process.getuid(), "window HOME must be owned");
+  for (const [name, path] of Object.entries(windowPaths(home))) {
+    mkdirSync(path, { recursive: true, mode: 0o700 });
+    assert.equal(realpathSync(path), path, "window path must be canonical");
+    app.setPath(name, path);
+  }
+  return assertWindowPaths(app, home);
+}
+
 export const WINDOW_TIMEOUT_MS = 90000;
 
 export const TEXT_REGION_SCRIPT = `(async () => {

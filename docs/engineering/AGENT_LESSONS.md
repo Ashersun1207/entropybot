@@ -428,6 +428,12 @@
 - 首次公开 API 单测 18 通过/1 失败是夹具临时目录使用 macOS `/var` 别名而非规范路径，触发正确的外部 dist 链接拒绝。修复仅 canonicalize 自有夹具根；保留缺失 dist/JS 入口、错误 health/端口、窗口从未就绪和非空纯色 PNG 的负例。未在本机 build/启动 Electron，不把单测成功视为平台证据；first-JavaScript/PGP、完整回收、签名安装和 F2 仍未关闭。
 - 首次冻结候选 Node 94 项通过，但文档守卫 7 通过/1 失败：新增验证说明只有间接链接，守卫要求 README 直接可达。补直接入口，不降低守卫。同轮完整依赖哈希只变动 `.vite/vitest` 的 results.json，所选执行入口未变；作者配置现显式将 Vitest results cache 放在自有证据目录，保留原差异，不回写共享缓存或把旧回执改称完全未变。
 
+### macOS 窗口诊断复审：有效路径与手动更新网络
+
+- 独立复审 ses_e1fb1c641ffeeBhf4rYx4K2qIx 对 1012fb8206 退回两项 P2：真实 main 会用 appData/openmausbot 覆盖 wrapper 的 userData，CLI 参数与 HOME 不能证明最终 profile 隔离；manual updater 分支先于 dev guard，15 秒和每小时均可发 GitHub 请求。两者都不是主控仅空白修复引入，原 Node94 通过未覆盖这些生产消费者。
+- 修复在诊断 wrapper 导入 main 前设置 appData 及与 main 一致的 userData，并将 sessionData/logs/temp/crashDumps 一并放入规范自有 HOME；导入后、窗口验收前及父进程读报告时验证有效路径、realpath 与目录 owner，只保留路径字符串。新增 unpackaged-only 的 OMB_MACOS_WINDOW_DIAGNOSTIC=1 updater guard，同时阻止定时调度与显式 manualCheck；普通 dev、packaged 行为保留，不改 UPDATE_MODE/main、观察时长或资源审计边界。
+- 回归仍从 window.unit.mjs 进入：实际 Node child 导入真实 wrapper，在真实 main import 路径仅执行从 main 读取的 profile override（其他 native startup 截止），验证两次赋值和外逃 profile/session 拒绝；真实 updater ESM 用 Electron stub、mock timers 与截获 fetch 跨过 15 秒和一小时，诊断零请求，普通 dev/flagged packaged 对照仍请求。全 Electron/平台效果只能由复审后的 hosted attempt 1 证明；本地未 build/启动 Electron/联网/接触 Keychain，completeQualification/completeCleanup 仍 false。修复身份与最终计数以本条所属提交及外部回执为准。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

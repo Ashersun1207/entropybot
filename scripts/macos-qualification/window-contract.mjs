@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { pollServerIdentity } from "../../electron/server-boot-probe.mjs";
 import { decodePng } from "../testing/png.ts";
 import { requireValue } from "./contract.mjs";
+import { windowPaths } from "./window-observer.mjs";
 
 export const WINDOW_PORT = 8799;
 export const WINDOW_ORIGIN = `http://127.0.0.1:${WINDOW_PORT}`;
@@ -12,7 +13,7 @@ export function windowCommands(root, pnpm, home, capabilityArgs) {
     build: [process.execPath, pnpm, "build"],
     worker: [process.execPath, ...capabilityArgs, join(root, "scripts/macos-qualification/window.mjs"), "--worker"],
     electron: [join(root, "node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"),
-      `--user-data-dir=${join(home, "window-profile")}`, "--use-mock-keychain", join(root, "scripts/macos-qualification/window-entry.mjs")],
+      `--user-data-dir=${windowPaths(home).userData}`, "--use-mock-keychain", join(root, "scripts/macos-qualification/window-entry.mjs")],
   };
 }
 export function requireWindowDist(root) {

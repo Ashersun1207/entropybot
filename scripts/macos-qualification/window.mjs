@@ -5,6 +5,7 @@ import { launchVerificationServer } from "../control-omb.ts";
 import { consumeGateCapability, gateBootstrapArgs } from "../testing/verification-lifecycle.ts";
 import { identity, inventory, recordCommand, requireValue, writeReport } from "./contract.mjs";
 import { windowCommands, requireWindowDist, requireWindowHealth, requireDrawnRegion, WINDOW_ORIGIN } from "./window-contract.mjs";
+import { assertWindowPaths } from "./window-observer.mjs";
 
 export async function applicationWindow({ root, reports, home, env, capability, pnpm, record = recordCommand }) {
   const commands = windowCommands(root, pnpm, home, gateBootstrapArgs(capability));
@@ -36,6 +37,9 @@ export async function windowWorker(reports) {
       env: { ...process.env, ELECTRON_START_URL: WINDOW_ORIGIN, OMB_DATA_DIR: fixture.info.dataDir }, timeoutMs: 125000, capability });
     const observation = JSON.parse(readFileSync(join(home, "window-observation.json"), "utf8"));
     requireValue(observation.readyToShow === true && observation.didFinishLoad === true && observation.location === `${WINDOW_ORIGIN}/` && observation.platform === "darwin" && observation.bridge === "function", "application window readiness incomplete");
+    requireValue(observation.updaterNetworkDisabled === true, "window updater isolation missing");
+    assertWindowPaths({ getPath: name => observation.effectivePaths?.[name] }, home);
+    assertWindowPaths({ getPath: name => observation.pathsBeforeImport?.[name] }, home);
     const pixels = requireDrawnRegion(readFileSync(join(home, "window-region.png")));
     const healthAfter = await requireWindowHealth({ pid: fixture.child.pid });
     const executableAfter = identity(argv[0]);

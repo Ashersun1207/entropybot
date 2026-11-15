@@ -37,6 +37,24 @@ server; production BrowserWindow, preload, renderer, navigation and shutdown
 code execute unchanged. This qualifies the source application path, not the
 packaged app's embedded utilityProcess server or installed application.
 
+The wrapper sets canonical owned home, appData, userData, sessionData, logs, temp
+and crashDumps directories before importing main. Its userData and CLI profile
+are `HOME/window-app-data/openmausbot`: main's existing appData/openmausbot
+assignment therefore resolves to the same owned profile. Exact effective paths,
+canonical resolution and directory ownership are asserted after main import,
+again before accepting a window, and by the parent when reading the report.
+Only the before-import and effective path strings are retained, never their
+contents. This keeps application/session/log writes within the audited HOME.
+
+The wrapper also sets `OMB_MACOS_WINDOW_DIAGNOSTIC=1` before importing main.
+There was no existing updater network-disable option: manual mode schedules its
+15-second and hourly checks before the ordinary unpackaged-app guard. The new
+updater guard suppresses scheduling and explicit manual checks only when this
+flag is exactly 1 AND the app is unpackaged. Packaged apps ignore the flag, and
+ordinary unpackaged manual-update behavior is unchanged. It neither changes
+UPDATE_MODE nor shortens the readiness observation. The accepted report also
+requires the diagnostic updater guard to remain enabled.
+
 The actual assertions are:
 
 - Only the BrowserWindow with the real `electron/preload.cjs` qualifies. Both
@@ -87,6 +105,19 @@ missing architecture/build mode, ignored failure and artifact/secret exposure.
 The first exploratory unit run was 18 pass/1 fail because its temporary root
 used macOS's `/var` alias while the production precondition requires canonical
 paths. The fixture now canonicalizes its owned root; the precondition remains.
+The independent review of candidate 1012fb8206 then found that main overrode the
+CLI/profile setting and manual updater checks could outlive 15 seconds. These
+were implementation isolation gaps, unrelated to the controller's whitespace
+fix. New Node-child regressions import the actual diagnostic entry with native
+Electron stubbed and main's real profile-override statement executed at the
+real main import path. They verify two userData assignments, all effective
+owned paths, and refusal of escaped profile/session paths. The rest of main's
+native startup is intercepted locally; this is not full Electron execution.
+Separate children import the real ESM updater graph with only Electron
+stubbed, mock timers past 15 seconds and one hour, and intercept every fetch.
+The diagnostic case makes zero fetches including explicit update IPC, while
+ordinary unpackaged and flagged packaged controls retain manual checks. The
+existing manual/automatic updater suites also remain regression entry points.
 Formal source-bound final counts and command hashes are in the controller's
 external evidence handoff, not inferred from this document.
 
@@ -94,8 +125,9 @@ external evidence handoff, not inferred from this document.
 trust, Node PGP, complete resource containment, formal F2 producer/trust approval,
 packaged embedded-server startup, Apple signing/notarization, installation,
 upgrade/migration and release acceptance remain unqualified. Linux/Windows remain
-deferred. No policy, trust, reviewer, asset approval, dependency or production
-application source is changed by this diagnostic. The maintenance/security review
+deferred. No policy, trust, reviewer, asset approval, dependency, main or preload
+source changes. The updater's only change is the unpackaged diagnostic guard
+described above. The maintenance/security review
 covers the added workflow, constructed command environment, full-entry import,
 synthetic data ownership, bounded observation and artifact selection; independent
 review and the first real hosted execution remain outstanding.
