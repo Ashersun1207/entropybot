@@ -20,6 +20,7 @@ import {
   diagnosticsFileName,
   formatDesktopCrashRecord,
   installDesktopCrashListeners,
+  notifyMainWindowDiagnostic,
   readSafeLogTail,
 } from "./diagnostics.mjs";
 import { persistWorkspaceCredentialMigration, withWorkspaceCredential, workspaceCredentialEnv } from "./workspace-credentials.mjs";
@@ -2007,7 +2008,9 @@ function createWindow({ deferNavigation = false } = {}) {
         ...(app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`],
     },
   });
-  mainWindow = win; hiddenStart = false; chromeRail.attach(win);
+  mainWindow = win;
+  notifyMainWindowDiagnostic(app, win);
+  hiddenStart = false; chromeRail.attach(win);
   win.on("show", () => desktopTray?.windowShown(win));
   win.on("focus", () => { if (cloudAccount?.checkoutPending()) void cloudAccount.refresh().catch(() => {}); });
   win.on("close", (event) => {

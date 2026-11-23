@@ -16,6 +16,7 @@ import { windowCommands, requireWindowDist, requireWindowHealth, requireDrawnReg
 import { observeApplicationWindow, windowPaths, assertWindowPaths } from "./window-observer.mjs";
 import { applicationWindow, runWindowElectron } from "./window.mjs";
 import { createGateCapability } from "../testing/verification-lifecycle.ts";
+import { MAIN_WINDOW_DIAGNOSTIC_EVENT, notifyMainWindowDiagnostic } from "../../electron/diagnostics.mjs";
 
 const workflow = parse(readFileSync(new URL("../../.github/workflows/entropybot-macos-window.yml", import.meta.url), "utf8"));
 test("window workflow retains isolated installer and build/window mode on exact branch", () => windowWorkflowContract(workflow));
@@ -263,18 +264,34 @@ test("public health probe exercises identity polling and expected fixed URL/stat
   let now = 0;
   await assert.rejects(requireWindowHealth({ pid: 1234, fetchImpl: async () => { throw new Error("wrong port"); }, now: () => now, sleep: async ms => { now += ms; } }), /identity/);
 });
-function fakeWindow(preload = "/owned/electron/preload.cjs") {
+function fakeWindow() {
   const win = new EventEmitter(); win.webContents = new EventEmitter();
-  win.webContents.getLastWebPreferences = () => ({ preload });
   return win;
 }
+function announceMainWindow(app, win) {
+  notifyMainWindowDiagnostic(app, win, { OMB_MACOS_WINDOW_DIAGNOSTIC: "1" });
+}
+test("only unpackaged diagnostic startup announces the application main window", () => {
+  const app = new EventEmitter();
+  const win = fakeWindow();
+  const announced = [];
+  app.on(MAIN_WINDOW_DIAGNOSTIC_EVENT, window => announced.push(window));
+  app.isPackaged = true;
+  announceMainWindow(app, win);
+  app.isPackaged = false;
+  notifyMainWindowDiagnostic(app, win, {});
+  assert.deepEqual(announced, []);
+  announceMainWindow(app, win);
+  assert.deepEqual(announced, [win]);
+});
 test("real observer requires main-window ready-to-show AND did-finish-load before frame check", async () => {
   for (const order of [["ready", "load"], ["load", "ready"]]) {
     const app = new EventEmitter(); let checked = 0;
     const observed = observeApplicationWindow(app, { timeoutMs: 100, onWindow: async () => { checked++; return { pixels: "checked" }; } });
-    const splash = fakeWindow("/owned/startup-preload.cjs");
+    const splash = fakeWindow();
     app.emit("browser-window-created", {}, splash); splash.emit("ready-to-show"); splash.webContents.emit("did-finish-load");
     const win = fakeWindow(); app.emit("browser-window-created", {}, win);
+    announceMainWindow(app, win);
     const emit = event => event === "ready" ? win.emit("ready-to-show") : win.webContents.emit("did-finish-load");
     emit(order[0]); await Promise.resolve(); assert.equal(checked, 0);
     emit(order[1]); const result = await observed;
@@ -296,8 +313,9 @@ for (const [name, windowsCreated, mainWindowSelected, readyToShow, didFinishLoad
     checks++;
     return new Promise(() => {});
   } });
-  const win = fakeWindow(mainWindowSelected ? undefined : "/owned/PRIVATE_AUX_PRELOAD");
+  const win = fakeWindow();
   for (let index = 0; index < windowsCreated; index++) app.emit("browser-window-created", {}, win);
+  if (mainWindowSelected) announceMainWindow(app, win);
   if (readyToShow || !mainWindowSelected) win.emit("ready-to-show");
   if (didFinishLoad || !mainWindowSelected) win.webContents.emit("did-finish-load");
   const frameCheckStarted = readyToShow && didFinishLoad;
@@ -305,6 +323,7 @@ for (const [name, windowsCreated, mainWindowSelected, readyToShow, didFinishLoad
     `application window never became ready (windowsCreated=${windowsCreated} mainWindowSelected=${mainWindowSelected} readyToShow=${readyToShow} didFinishLoad=${didFinishLoad} frameCheckStarted=${frameCheckStarted})`,
   });
   assert.equal(app.listenerCount("browser-window-created"), 0);
+  assert.equal(app.listenerCount(MAIN_WINDOW_DIAGNOSTIC_EVENT), 0);
   win.emit("ready-to-show"); win.webContents.emit("did-finish-load");
   await Promise.resolve();
   assert.equal(checks, Number(frameCheckStarted));
@@ -312,10 +331,12 @@ for (const [name, windowsCreated, mainWindowSelected, readyToShow, didFinishLoad
 test("public observer propagates frame failure and renderer crash", async () => {
   const app = new EventEmitter();
   const observed = observeApplicationWindow(app, { timeoutMs: 100, onWindow: () => { throw new Error("blank frame"); } });
-  const win = fakeWindow(); app.emit("browser-window-created", {}, win); win.emit("ready-to-show"); win.webContents.emit("did-finish-load");
+  const win = fakeWindow(); app.emit("browser-window-created", {}, win);
+  announceMainWindow(app, win); win.emit("ready-to-show"); win.webContents.emit("did-finish-load");
   await assert.rejects(observed, /blank frame/);
   const crashed = observeApplicationWindow(app, { timeoutMs: 100, onWindow: () => ({}) });
-  const other = fakeWindow(); app.emit("browser-window-created", {}, other); other.webContents.emit("render-process-gone");
+  const other = fakeWindow(); app.emit("browser-window-created", {}, other);
+  announceMainWindow(app, other); other.webContents.emit("render-process-gone");
   await assert.rejects(crashed, /renderer exited/);
 });
 test("L19: nonempty PNG of a blank text region fails; actual pixel variation passes", () => {

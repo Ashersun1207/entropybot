@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { lstatSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+import { MAIN_WINDOW_DIAGNOSTIC_EVENT } from "../../electron/diagnostics.mjs";
 
 export function windowPaths(home) {
   const appData = join(home, "window-app-data");
@@ -75,12 +76,13 @@ export function observeApplicationWindow(app, { onWindow, timeoutMs = WINDOW_TIM
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      app.removeListener("browser-window-created", created);
+      app.removeListener("browser-window-created", countWindow);
+      app.removeListener(MAIN_WINDOW_DIAGNOSTIC_EVENT, selectMainWindow);
       if (error) reject(error); else resolve(value);
     }
-    function created(_event, win) {
-      windowsCreated++;
-      if (selected || !win.webContents.getLastWebPreferences().preload?.endsWith("/electron/preload.cjs")) return;
+    function countWindow() { windowsCreated++; }
+    function selectMainWindow(win) {
+      if (selected) return;
       selected = true;
       const check = () => {
         if (settled || !ready || !loaded || checking) return;
@@ -94,6 +96,7 @@ export function observeApplicationWindow(app, { onWindow, timeoutMs = WINDOW_TIM
         if (main && code !== -3) finish(new Error("application main frame failed to load"));
       });
     }
-    app.on("browser-window-created", created);
+    app.on("browser-window-created", countWindow);
+    app.on(MAIN_WINDOW_DIAGNOSTIC_EVENT, selectMainWindow);
   });
 }

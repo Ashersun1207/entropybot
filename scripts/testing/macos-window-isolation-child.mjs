@@ -39,8 +39,13 @@ const loader = registerHooks({
     const matches = original.split("\n").filter(line => line.startsWith('app.setPath("userData",'));
     assert.equal(matches.length, 1, "real main profile override must be unambiguous");
     override = { sourceSha256: createHash("sha256").update(original).digest("hex"), statement: matches[0] };
-    // Only the real profile override executes locally; native startup and every main dependency stay intercepted.
-    return { format: "module", shortCircuit: true, source: `import {app} from "electron"; import path from "node:path";\n${matches[0]}\nglobalThis.__windowIsolation.mainOverrideApplied();` };
+    const notify = original.split("\n").filter(line => line.trim() === "notifyMainWindowDiagnostic(app, win);");
+    assert.equal(notify.length, 1, "real main window diagnostic call must be unambiguous");
+    const diagnostics = new URL("../../electron/diagnostics.mjs", import.meta.url).href;
+    return { format: "module", shortCircuit: true, source: `import {app} from "electron"; import path from "node:path";
+import { notifyMainWindowDiagnostic } from ${JSON.stringify(diagnostics)};
+${matches[0]}
+globalThis.__windowIsolation.mainOverrideApplied(win => { ${notify[0]} });` };
   },
 });
 try {
@@ -63,17 +68,19 @@ try {
   } else {
     const timeoutMode = mode === "window-load-without-ready";
     if (timeoutMode) mock.timers.enable({ apis: ["setTimeout"] });
-    globalThis.__windowIsolation.mainOverrideApplied = () => {
+    globalThis.__windowIsolation.mainOverrideApplied = notifyMainWindow => {
       if (mode === "escaped-profile") paths.set("userData", "/synthetic-external/openmausbot");
       if (mode === "escaped-session") paths.set("sessionData", "/synthetic-external/session");
       setImmediate(() => {
         const win = new EventEmitter();
         win.webContents = new EventEmitter();
-        win.webContents.getLastWebPreferences = () => ({ preload: new URL("../../electron/preload.cjs", import.meta.url).pathname });
+        // Electron 43.7.9's SaveLastPreferences omits the separately stored preload path.
+        win.webContents.getLastWebPreferences = () => ({ sandbox: true, contextIsolation: true });
         win.show = () => {};
         win.webContents.executeJavaScript = async () => ({ location: "http://127.0.0.1:8799/", platform: "darwin", bridge: "function", region: { x: 0, y: 0, width: 80, height: 20 } });
         win.webContents.capturePage = async () => ({ isEmpty: () => false, toPNG: () => Buffer.from("synthetic crop; no native drawing evidence") });
         app.emit("browser-window-created", {}, win);
+        notifyMainWindow(win);
         win.webContents.emit("did-finish-load");
         if (timeoutMode) mock.timers.tick(WINDOW_TIMEOUT_MS);
         else win.emit("ready-to-show");

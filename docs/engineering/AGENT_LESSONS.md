@@ -4,9 +4,9 @@
 
 ## macOS 窗口超时阶段
 
-- Hosted run `43758427529` 的应用窗口观察超时只说明未达到完整验收条件。`missing-or-rejected` 日志库存同时涵盖文件不存在和读取拒绝，单凭该值无法定位采集路径。
+- Hosted run `43758427529` 的超时只说明未达到完整验收条件。`missing-or-rejected` 同时涵盖文件不存在和读取拒绝。Run `45226145032` 记录两次窗口创建、零主窗口选中。Electron 43.7.9 的 `SaveLastPreferences` 省略 `preload`，旧观察器依赖这个字段，原合成夹具却回传了它。夹具按真实字段形状重现失败。仅在未打包的诊断启动中，由主窗口创建入口发送进程内标记，原加载和像素验收继续适用。
 - `scripts/macos-qualification/window.unit.mjs` 分别覆盖未观察到窗口、仅辅助窗口、主窗口无就绪事件、两个就绪事件各自缺失、帧检查仍在等待。记录的是观察器收到的事件。`frameCheckStarted=true` 仍需另有帧检查结果才能证明渲染。
-- 窗口入口回归使用合成 Electron 事件推进实际诊断超时，再通过现有父进程采集和产物检查验证状态字段。日志仅新增计数与布尔值。真实窗口仍由 hosted 验收。
+- 窗口入口回归使用合成 Electron 事件推进实际诊断超时，再通过现有父进程采集和产物检查验证状态字段。日志仅新增计数与布尔值。真实窗口仍由 hosted 验收。`electron/diagnostics.test.mjs` 使用 Vitest；它在 Node runner 中会在装载时失败，验证该文件应使用 `node node_modules/vitest/vitest.mjs run --no-cache electron/diagnostics.test.mjs`。
 
 ## macOS durable history 容量：累计启动数与 Chrome registry 预算分开
 

@@ -2,6 +2,14 @@
 import fs from "node:fs";
 import path from "node:path";
 
+export const MAIN_WINDOW_DIAGNOSTIC_EVENT = "entropybot:macos-diagnostic-main-window";
+
+export function notifyMainWindowDiagnostic(app, window, env = process.env) {
+  if (!app.isPackaged && env.OMB_MACOS_WINDOW_DIAGNOSTIC === "1") {
+    app.emit(MAIN_WINDOW_DIAGNOSTIC_EVENT, window);
+  }
+}
+
 // Mirrors WORKSPACE_CREDENTIAL_ENV in server/credential-env.ts; a test asserts the two lists never drift apart.
 export const CREDENTIAL_ENV_NAMES = [
   "OMB_MEMORY_EMBEDDING_KEY",
