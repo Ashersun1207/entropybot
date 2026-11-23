@@ -2,6 +2,12 @@
 
 适用 Entropybot 开发、审查、验收和上游集成。任务开始先读，针对本次改动选取相关条目；发现新失败模式后更新相应回归和本文。这里记录证据与经验，不把潜在风险直接称为已确认的恶意代码。
 
+## macOS 窗口超时阶段
+
+- Hosted run `43758427529` 的应用窗口观察超时只说明未达到完整验收条件。`missing-or-rejected` 日志库存同时涵盖文件不存在和读取拒绝，单凭该值无法定位采集路径。
+- `scripts/macos-qualification/window.unit.mjs` 分别覆盖未观察到窗口、仅辅助窗口、主窗口无就绪事件、两个就绪事件各自缺失、帧检查仍在等待。记录的是观察器收到的事件。`frameCheckStarted=true` 仍需另有帧检查结果才能证明渲染。
+- 窗口入口回归使用合成 Electron 事件推进实际诊断超时，再通过现有父进程采集和产物检查验证状态字段。日志仅新增计数与布尔值。真实窗口仍由 hosted 验收。
+
 ## macOS durable history 容量：累计启动数与 Chrome registry 预算分开
 
 - 主控65-record公开API探针确认64上限会拒绝合法累计history；main shard两worker、多文件fixture server/restart与CLI各追加持久记录，不能用并发worker数推导文件容量。run43067442325的01–09为history-inventory-rejected、10为59且clear；拒绝分片原artifact无精确库存，不能补造实际最大值或漏进程结论。本轮按真实启动结构保守选择1,024，不宣称本地整shard测量。

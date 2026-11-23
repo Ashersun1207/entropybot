@@ -5,6 +5,7 @@ import { registerHooks } from "node:module";
 import { join } from "node:path";
 import { mock } from "node:test";
 import { createHash } from "node:crypto";
+import { WINDOW_TIMEOUT_MS } from "../macos-qualification/window-observer.mjs";
 
 const [home, mode] = process.argv.slice(2);
 const entry = new URL("../macos-qualification/window-entry.mjs", import.meta.url).href;
@@ -60,6 +61,8 @@ try {
     console.log(JSON.stringify({ mode, firstCheckCalls, calls, state: handlers.get("update:get-state")({}) }));
     mock.timers.reset(); mock.restoreAll();
   } else {
+    const timeoutMode = mode === "window-load-without-ready";
+    if (timeoutMode) mock.timers.enable({ apis: ["setTimeout"] });
     globalThis.__windowIsolation.mainOverrideApplied = () => {
       if (mode === "escaped-profile") paths.set("userData", "/synthetic-external/openmausbot");
       if (mode === "escaped-session") paths.set("sessionData", "/synthetic-external/session");
@@ -71,7 +74,9 @@ try {
         win.webContents.executeJavaScript = async () => ({ location: "http://127.0.0.1:8799/", platform: "darwin", bridge: "function", region: { x: 0, y: 0, width: 80, height: 20 } });
         win.webContents.capturePage = async () => ({ isEmpty: () => false, toPNG: () => Buffer.from("synthetic crop; no native drawing evidence") });
         app.emit("browser-window-created", {}, win);
-        win.emit("ready-to-show"); win.webContents.emit("did-finish-load");
+        win.webContents.emit("did-finish-load");
+        if (timeoutMode) mock.timers.tick(WINDOW_TIMEOUT_MS);
+        else win.emit("ready-to-show");
       });
     };
     try { await import(entry); }

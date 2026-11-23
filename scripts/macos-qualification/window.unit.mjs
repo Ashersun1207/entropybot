@@ -209,6 +209,26 @@ for (const code of ["EEXIST", "ENOSPC"]) test(`public failure path preserves com
   }
 });
 
+test("window entry timeout reaches the retained diagnostic report through the parent command", async () => {
+  const home = realpathSync(mkdtempSync("/private/tmp/mwf-"));
+  const reports = join(home, "reports"); mkdirSync(reports);
+  const quarantine = join(home, "quarantine"); mkdirSync(quarantine);
+  const capability = createGateCapability(home);
+  try {
+    const fixture = fileURLToPath(new URL("../testing/macos-window-isolation-child.mjs", import.meta.url));
+    await assert.rejects(runWindowElectron({ home, reports, name: "window-stage-fixture", executable: process.execPath,
+      argv: [fixture, home, "window-load-without-ready"], cwd: fileURLToPath(new URL("../../", import.meta.url)),
+      env: environment(home, dirname(process.execPath)), timeoutMs: 10000, capability }), /command failed/);
+    const command = JSON.parse(readFileSync(join(reports, "window-stage-fixture.json")));
+    assert.equal(command.outcome.exitCode, 1);
+    const metadata = JSON.parse(readFileSync(join(reports, "window-failure-diagnostics.json")));
+    const text = readFileSync(join(reports, metadata.fileName), "utf8");
+    assert.match(text, /stage=window-observation/);
+    assert.match(text, /windowsCreated=1 mainWindowSelected=true readyToShow=false didFinishLoad=true frameCheckStarted=false/);
+    assert.ok(sealReports(reports, quarantine, capability.secret).some(row => row.name === metadata.fileName));
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
 test("failure collector rejects linked logs and binary contents, bounds crash entry count, and reports missing files", () => {
   const home = realpathSync(mkdtempSync("/private/tmp/mwf-"));
   try {
@@ -262,16 +282,32 @@ test("real observer requires main-window ready-to-show AND did-finish-load befor
     assert.equal(app.listenerCount("browser-window-created"), 0);
   }
 });
-for (const missing of ["ready", "load", "window"]) test(`public observer rejects missing ${missing} within bound`, async () => {
-  const app = new EventEmitter(); let checked = false;
-  const observed = observeApplicationWindow(app, { timeoutMs: 10, onWindow: () => { checked = true; } });
-  const win = fakeWindow();
-  if (missing !== "window") app.emit("browser-window-created", {}, win);
-  if (missing !== "ready") win.emit("ready-to-show");
-  if (missing !== "load") win.webContents.emit("did-finish-load");
-  await assert.rejects(observed, /never became ready/); assert.equal(checked, false);
+for (const [name, windowsCreated, mainWindowSelected, readyToShow, didFinishLoad] of [
+  ["no windows", 0, false, false, false],
+  ["only auxiliary windows", 2, false, false, false],
+  ["main window without events", 1, true, false, false],
+  ["main window loaded but not ready to show", 1, true, false, true],
+  ["main window ready to show but not loaded", 1, true, true, false],
+  ["frame check still pending", 1, true, true, true],
+]) test(`public observer reports timeout stages for ${name}`, async () => {
+  const app = new EventEmitter();
+  let checks = 0;
+  const observed = observeApplicationWindow(app, { timeoutMs: 10, onWindow: () => {
+    checks++;
+    return new Promise(() => {});
+  } });
+  const win = fakeWindow(mainWindowSelected ? undefined : "/owned/PRIVATE_AUX_PRELOAD");
+  for (let index = 0; index < windowsCreated; index++) app.emit("browser-window-created", {}, win);
+  if (readyToShow || !mainWindowSelected) win.emit("ready-to-show");
+  if (didFinishLoad || !mainWindowSelected) win.webContents.emit("did-finish-load");
+  const frameCheckStarted = readyToShow && didFinishLoad;
+  await assert.rejects(observed, { message:
+    `application window never became ready (windowsCreated=${windowsCreated} mainWindowSelected=${mainWindowSelected} readyToShow=${readyToShow} didFinishLoad=${didFinishLoad} frameCheckStarted=${frameCheckStarted})`,
+  });
+  assert.equal(app.listenerCount("browser-window-created"), 0);
   win.emit("ready-to-show"); win.webContents.emit("did-finish-load");
-  await Promise.resolve(); assert.equal(checked, false);
+  await Promise.resolve();
+  assert.equal(checks, Number(frameCheckStarted));
 });
 test("public observer propagates frame failure and renderer crash", async () => {
   const app = new EventEmitter();

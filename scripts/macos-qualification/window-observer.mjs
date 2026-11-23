@@ -59,8 +59,18 @@ export const TEXT_REGION_SCRIPT = `(async () => {
 
 export function observeApplicationWindow(app, { onWindow, timeoutMs = WINDOW_TIMEOUT_MS }) {
   return new Promise((resolve, reject) => {
-    let selected = false, settled = false;
-    const timer = setTimeout(() => finish(new Error("application window never became ready")), timeoutMs);
+    let windowsCreated = 0;
+    let selected = false, ready = false, loaded = false, checking = false, settled = false;
+    const timer = setTimeout(() => {
+      const stages = [
+        `windowsCreated=${windowsCreated}`,
+        `mainWindowSelected=${selected}`,
+        `readyToShow=${ready}`,
+        `didFinishLoad=${loaded}`,
+        `frameCheckStarted=${checking}`,
+      ];
+      finish(new Error(`application window never became ready (${stages.join(" ")})`));
+    }, timeoutMs);
     function finish(error, value) {
       if (settled) return;
       settled = true;
@@ -69,9 +79,9 @@ export function observeApplicationWindow(app, { onWindow, timeoutMs = WINDOW_TIM
       if (error) reject(error); else resolve(value);
     }
     function created(_event, win) {
+      windowsCreated++;
       if (selected || !win.webContents.getLastWebPreferences().preload?.endsWith("/electron/preload.cjs")) return;
       selected = true;
-      let ready = false, loaded = false, checking = false;
       const check = () => {
         if (settled || !ready || !loaded || checking) return;
         checking = true;
