@@ -73,7 +73,8 @@ describe("sidebar footer places", () => {
 
   it("keeps only Apps on Simple mode's rail: Automations and Team map are in its account menu", () => {
     const html = renderToStaticMarkup(createElement(() => SidebarFooterNav({ density: "icons", rail: true })));
-    expect(html).toContain('aria-label="Apps" title="Apps"');
+    expect(html).toContain('aria-label="Apps"');
+    expect(html).toMatch(/data-sidebar-apps-hint=""[^>]*><span[^>]*>Apps<\/span>/);
     expect(html).toContain('data-tour="tools"');
     expect(html).not.toContain('data-sidebar-nav="automations"');
     expect(html).not.toContain('data-sidebar-nav="team-map"');
@@ -238,6 +239,8 @@ describe("Apps beside the profile", () => {
     const html = renderToStaticMarkup(createElement(Capture));
     expect(html).toMatch(/data-tour="nav-apps" data-sidebar-nav="apps"/);
     expect(html).toContain('aria-label="Apps"');
+    expect(html).toMatch(/data-sidebar-apps-hint=""[^>]*><span[^>]*>Apps<\/span>/);
+    expect(render("icons").html).toMatch(/data-sidebar-apps-hint=""[^>]*><span[^>]*>Apps<\/span>/);
     (tree.props.onClick as () => void)();
     expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "togglePlugins", open: true });
   });

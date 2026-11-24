@@ -9,6 +9,10 @@
 - 处理顺序：先让钥匙串授权生效（health 200）→ `tccutil reset Accessibility ai.entropybot.desktop` 与 `tccutil reset ScreenCapture ai.entropybot.desktop`（只清这两项隐私授权，不影响钥匙串）→ 完全退出并重启应用，让它以新 CDHash 重新注册 → 用户在系统设置重新勾选正确路径的 `Entropybot.app` → 以最新 `server.log` 的 `computer control: embedded` 为准，不读旧日志、不无依据反复 reset。
 - 旧路径/旧构建残留（如 `/Applications/Entropybot-brandfix-failed-*.app`）会占旧授权条目，替换后应删除，避免 TCC 按旧 code requirement 冲突。判断依据：最新 `server.log` 的 computer control 行 + `log show --predicate 'process == "tccd"'` 里的 `Failed to match existing code requirement`。
 
+## 侧栏图标提示
+
+- 排查图标提示时，对照现用包和回退包的实际 renderer。原生 `title` 存在只说明页面有标签，不能证明 macOS 当时绘制了提示。采用应用内标签后，隔离验收检查指针从按钮移入标签、Escape 关闭、键盘聚焦与原按钮动作，静态标识断言不能替代这些交互。
+
 ## 桌面手动检查更新
 
 - 检查失败、发现新版和安装失败分别验收。手动 `available` 由「更新」设置提供发布页入口，不能落入失败横幅。真实检查先看固定来源的 HTTP 状态和版本，当前成功不证明截图当时的故障原因。

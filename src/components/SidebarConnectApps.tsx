@@ -1,5 +1,5 @@
 import { Puzzle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
@@ -77,9 +77,8 @@ export function SidebarConnectApps({ circle = false }: { circle?: boolean }) {
       data-sidebar-nav="apps"
       aria-pressed={state.pluginsOpen}
       aria-label={circle ? label : undefined}
-      title={circle ? label : undefined}
       onClick={() => dispatch({ type: "togglePlugins", open: true })}
-      className={circle ? SIMPLE_TOP_BUTTON : cn("group/apps flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full pl-4 pr-3 text-[14px] font-medium leading-5 text-ink", ELEVATED_CONTROL, ELEVATED_HOVER)}
+      className={circle ? cn(SIMPLE_TOP_BUTTON, "group/apps-hint relative") : cn("group/apps flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full pl-4 pr-3 text-[14px] font-medium leading-5 text-ink", ELEVATED_CONTROL, ELEVATED_HOVER)}
     >
       {circle ? <Puzzle size={18} strokeWidth={1.5} aria-hidden="true" /> : <>
         <span className="min-w-0 truncate">{label}</span>
@@ -88,6 +87,46 @@ export function SidebarConnectApps({ circle = false }: { circle?: boolean }) {
             className={cn(index > 0 && "-ms-1.5", faces.length > 1 && FAN[index === 0 ? 0 : index === faces.length - 1 ? 2 : 1], "motion-safe:transition-transform motion-safe:duration-150")} />)}
         </span>
       </>}
+      {circle && !state.pluginsOpen && <SidebarAppsHint label={label} />}
     </button>
+  );
+}
+
+export function SidebarAppsHint({ label }: { label: string }) {
+  const hint = useRef<HTMLSpanElement>(null);
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    const labelElement = hint.current;
+    const button = labelElement?.parentElement;
+    if (!labelElement || !button) return;
+    const reset = () => {
+      if (!button.matches(":hover, :focus-visible")) setDismissed(false);
+    };
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || getComputedStyle(labelElement).visibility !== "visible") return;
+      event.stopPropagation();
+      setDismissed(true);
+    };
+    button.addEventListener("pointerleave", reset);
+    button.addEventListener("blur", reset);
+    window.addEventListener("keydown", dismiss, true);
+    return () => {
+      button.removeEventListener("pointerleave", reset);
+      button.removeEventListener("blur", reset);
+      window.removeEventListener("keydown", dismiss, true);
+    };
+  }, []);
+  return (
+    <span
+      ref={hint}
+      aria-hidden="true"
+      data-sidebar-apps-hint=""
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={(event) => event.stopPropagation()}
+      className={cn("invisible absolute start-full top-1/2 z-20 -translate-y-1/2 ps-2",
+        !dismissed && "group-hover/apps-hint:visible group-focus-visible/apps-hint:visible")}
+    >
+      <span className="block whitespace-nowrap rounded-md border border-hairline bg-menu px-2 py-1 text-[12px] font-medium leading-4 text-ink shadow-md">{label}</span>
+    </span>
   );
 }

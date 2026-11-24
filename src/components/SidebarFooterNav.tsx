@@ -11,6 +11,7 @@ import { useWebPanels } from "@/lib/web-panel-preferences";
 import { useSidebarToolsLayout, type SidebarDensity } from "@/lib/sidebar-preferences";
 import { useStore } from "@/state/store";
 
+import { SidebarAppsHint } from "./SidebarConnectApps";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { UpdateIndicator } from "./UpdateIndicator";
 
@@ -36,6 +37,7 @@ function NavRow({
   tourId?: string;
   onClick: () => void;
 }) {
+  const appsHint = id === "apps" && iconsOnly;
   return (
     <button
       type="button"
@@ -43,16 +45,18 @@ function NavRow({
       data-sidebar-nav={id}
       onClick={onClick}
       aria-label={iconsOnly ? label : undefined}
-      title={iconsOnly ? label : undefined}
+      title={iconsOnly && !appsHint ? label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
         "relative flex items-center rounded-xl transition-colors",
+        appsHint && "group/apps-hint",
         rail ? "size-9 shrink-0 justify-center" : iconsOnly ? "mx-auto size-[46px] shrink-0 justify-center" : "w-full min-h-9 gap-3 px-3 py-1.5 text-left",
         active ? "bg-raised text-ink" : "text-ink hover:bg-raised/50",
       )}
     >
       {icon(active)}
       {!iconsOnly && <span className="flex-1 truncate text-[14px] font-medium leading-5">{label}</span>}
+      {appsHint && !active && <SidebarAppsHint label={label} />}
       {attention && (
         <span
           data-testid="routines-attention"
@@ -73,14 +77,14 @@ export function SidebarAppsButton() {
       data-sidebar-nav="apps"
       onClick={() => dispatch({ type: "togglePlugins", open: true })}
       aria-label={label}
-      title={label}
       aria-pressed={state.pluginsOpen}
       className={cn(
-        "flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors",
+        "group/apps-hint relative flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors",
         state.pluginsOpen ? "bg-raised text-accent" : "text-ink-secondary hover:bg-raised/50 hover:text-ink",
       )}
     >
-      <Puzzle size={18} />
+      <Puzzle size={18} aria-hidden="true" />
+      {!state.pluginsOpen && <SidebarAppsHint label={label} />}
     </button>
   );
 }

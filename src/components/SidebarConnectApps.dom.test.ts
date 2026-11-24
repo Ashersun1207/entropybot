@@ -21,7 +21,7 @@ async function pill(services: Record<string, { connected: boolean }>, circle = f
   await act(async () => { root.render(createElement(SidebarConnectApps, { circle })); });
   await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
   const button = document.querySelector<HTMLButtonElement>('[data-sidebar-nav="apps"]')!;
-  const seen = { label: circle ? button.getAttribute("aria-label") : button.firstElementChild!.textContent, faces: [...button.querySelectorAll("[data-app-face]")].map((face) => face.getAttribute("data-app-face")) };
+  const seen = { label: circle ? button.getAttribute("aria-label") : button.firstElementChild!.textContent, faces: [...button.querySelectorAll("[data-app-face]")].map((face) => face.getAttribute("data-app-face")), hint: button.querySelector("[data-sidebar-apps-hint]")?.textContent };
   act(() => root.unmount());
   document.body.innerHTML = "";
   return seen;
@@ -31,5 +31,6 @@ it("asks to connect apps until one is connected, then is simply the way into App
   expect(await pill({})).toEqual({ label: "Connect apps", faces: ["gmail", "slack", "notion"] });
   expect(await pill({ github: { connected: false } }), "an app that is only listed is not connected").toEqual({ label: "Connect apps", faces: ["gmail", "slack", "notion"] });
   expect(await pill({ github: { connected: true } })).toEqual({ label: "Apps", faces: ["github", "gmail", "slack"] });
-  expect((await pill({ github: { connected: true } }, true)).label, "and on the collapsed rail").toBe("Apps");
+  expect(await pill({}, true)).toEqual({ label: "Connect apps", faces: [], hint: "Connect apps" });
+  expect(await pill({ github: { connected: true } }, true), "the collapsed rail keeps the same label in the visible hint and accessible name").toEqual({ label: "Apps", faces: [], hint: "Apps" });
 });
