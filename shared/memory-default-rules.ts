@@ -1,0 +1,1 @@
+export const MEMORY_DEFAULT_RULES_MAX_BYTES = 4_000;

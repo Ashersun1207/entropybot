@@ -75,6 +75,20 @@ describe("computerPrompt", () => {
 });
 
 describe("buildSystemPrompt", () => {
+  it("adds bounded Markdown to the stable prompt as default rules", () => {
+    const rules = `## Replies\n- ${"规".repeat(1_329)}`;
+    const build = (defaultRules: string | null) => buildSystemPrompt("Identity", "", [], undefined, { defaultRules });
+    expect(Buffer.byteLength(rules)).toBe(4_000);
+    const built = build(rules);
+    const section = built.sections.find(({ id }) => id === "default-rules");
+    expect(section?.text).toContain(rules);
+    expect(built.stable).toContain(rules);
+    expect(built.volatile).toBe("");
+    for (const invalid of [null, "", " \n\t", `${rules}🙂`]) {
+      expect(build(invalid).sections.map(({ id }) => id)).not.toContain("default-rules");
+    }
+  });
+
   it("keeps shared context stable and omits an empty user profile", () => {
     for (const profile of [undefined, {}, { aboutMe: " \n" }]) {
       expect(userProfileSystemPrompt(profile)).toBe("");

@@ -123,3 +123,40 @@ describe("searching Settings for a key", () => {
     expect(host.querySelector("[data-settings-key-result]")).toBeNull();
   });
 });
+
+it.each([false, true])("opens Memory and saves the Markdown editor through config (Advanced: %s)", async (advanced) => {
+  fx.advanced = advanced;
+  fx.section = "memory";
+  fx.config = { ...fx.config, memory: { defaultRules: "- Existing rule" } };
+  fx.api.mockReset();
+  fx.api.mockRejectedValueOnce(new Error("temporary failure"));
+  const updated = "## 回复\n- 先给结论";
+  fx.api.mockResolvedValueOnce({ ...fx.config, memory: { defaultRules: updated } });
+  flushSync(() => root.render(createElement(SettingsModal)));
+
+  const label = [...host.querySelectorAll("label")].find((item) => item.textContent === "Default rules");
+  const area = label?.control as HTMLTextAreaElement;
+  expect(area.value).toBe("- Existing rule");
+  const save = () => area.form!.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const edit = (text: string) => flushSync(() => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(area, text);
+    area.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  edit("规".repeat(1_334));
+  expect(area.getAttribute("aria-invalid")).toBe("true");
+  expect(save().disabled).toBe(true);
+  expect(area.form!.textContent).toContain("4002 / 4000 bytes");
+  expect(fx.api).not.toHaveBeenCalled();
+
+  edit(updated);
+  const status = () => area.form!.querySelector('[role="status"]')?.textContent;
+  flushSync(() => save().click());
+  await vi.waitFor(() => expect(status()).toContain("Could not save"));
+  expect(area.value).toBe(updated);
+  flushSync(() => save().click());
+  await vi.waitFor(() => expect(status()).toBe("Saved"));
+  const patch = { method: "PATCH", body: JSON.stringify({ memory: { defaultRules: updated } }), timeoutMs: 10_000 };
+  expect(fx.api).toHaveBeenCalledTimes(2);
+  expect(fx.api).toHaveBeenLastCalledWith("/api/config", patch);
+  expect(save().disabled).toBe(true);
+});

@@ -56,6 +56,19 @@ describe("what a row records", () => {
     expect(auditValues(rows[1]!.before!)).toEqual({ "decisions.retentionDays": null, "features.browser": true });
   });
 
+  it("records changed default rules as a digest without keeping the Markdown in the audit log", () => {
+    const before = { memory: { defaultRules: "- Old instructions", tidyHour: 7 } };
+    const after = { memory: { defaultRules: "- New instructions", tidyHour: 8 } };
+    const [row] = configChangeRows(before, after);
+    expect(row?.changed).toEqual(["memory.defaultRules", "memory.tidyHour"]);
+    const oldValues = auditValues(row!.before!);
+    const newValues = auditValues(row!.after!);
+    const digest = { length: 18, sha256: expect.stringMatching(/^[a-f0-9]{12}$/) };
+    expect(oldValues).toEqual({ "memory.defaultRules": digest, "memory.tidyHour": 7 });
+    expect(newValues).toEqual({ "memory.defaultRules": digest, "memory.tidyHour": 8 });
+    expect(oldValues["memory.defaultRules"]).not.toEqual(newValues["memory.defaultRules"]);
+  });
+
   it("files people, budgets and MCP servers under their own heading, headers and env hidden", () => {
     const rows = configChangeRows(
       { signIn: { admins: ["boss@example.test"], members: [] }, budgets: { monthlyUsd: 100 } },

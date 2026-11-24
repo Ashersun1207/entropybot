@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { normalizeImageGenerationUrl, type ImageGenerationConfig } from "../shared/image-generation.ts";
 import { botAvatarUrlSchema } from "../shared/bot-avatar.ts";
+import { MEMORY_DEFAULT_RULES_MAX_BYTES } from "../shared/memory-default-rules.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { migrateLegacyDataDir } from "./data-dir-migration.ts";
 import { defaultBotThreads, MAX_CONCURRENT_BOT_THREADS } from "./bot-thread-limits.ts";
@@ -32,6 +33,7 @@ import { roomContextSettings } from "./room-context-settings.ts";
 import { MAX_LOCAL_VM_IDLE_TIMEOUT_MINUTES, MAX_LOCAL_VM_MAX_INSTANCES, MIN_LOCAL_VM_IDLE_TIMEOUT_MINUTES, MIN_LOCAL_VM_MAX_INSTANCES } from "./local-vm-settings.ts";
 export * from "./local-vm-settings.ts";
 const optionalText = z.string().optional();
+const defaultRulesSchema = z.string().refine((text) => Buffer.byteLength(text) <= MEMORY_DEFAULT_RULES_MAX_BYTES, `Default rules must be at most ${MEMORY_DEFAULT_RULES_MAX_BYTES} UTF-8 bytes`).nullish();
 const SSH_ALIAS = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 const LEGACY_BROWSER_PROFILE_ID = /^[A-Za-z0-9_-]{1,40}$/;
 const BROWSER_PROFILE_ID = /^[a-z0-9_-]{1,40}$/;
@@ -426,8 +428,9 @@ const appConfigSchema = z.object({
     compactAt: z.number().positive().max(10_000_000).optional(),
     autoCompact: z.boolean().optional(),
   }).extend(roomContextSettings).extend(replaySettings).optional(),
-  /** Memory upkeep timing, for bots with Memory upkeep switched on. */
+  /** Standing instructions shared by all bots and timing for bots with memory upkeep on. */
   memory: z.object({
+    defaultRules: defaultRulesSchema,
     /** Quiet time after a turn before its facts are captured (ms). */
     captureQuietMs: z.number().int().min(1_000).max(24 * 60 * 60_000).optional(),
     /** Local hour (0-23) after which the nightly tidy-up runs. */
@@ -449,6 +452,7 @@ const appConfigSchema = z.object({
 });
 const storedAppConfigSchema = appConfigSchema.extend(helperStoredShape).extend({
   browserProfiles: storedBrowserProfilesSchema.optional(),
+  memory: appConfigSchema.shape.memory.unwrap().extend({ defaultRules: defaultRulesSchema.catch(undefined) }).optional(),
   /** Loose like mcpServers: a bad provider key is dropped later, never the whole file. */
   opencodeGo: z.object({
     apiKey: optionalText,
@@ -512,7 +516,7 @@ export interface AppConfig extends HelperConfig {
   mcp?: { callTimeoutMinutes?: number };
   threads?: { maxConcurrentPerBot: number; eventLogMaxBytes?: number; eventLogRetentionDays?: number };
   context?: { rebuildBytes?: number; compactAt?: number; autoCompact?: boolean; roomCompactAt?: number; roomSessions?: boolean; replayToolHistory?: boolean };
-  memory?: { captureQuietMs?: number; tidyHour?: number };
+  memory?: { defaultRules?: string | null; captureQuietMs?: number; tidyHour?: number };
   localVm?: { mode?: "shared" | "per-bot" | "pool"; maxInstances?: number; idleTimeoutMinutes?: number; preserveInstalledApps?: boolean };
   features?: { skillAuthoring?: boolean; skillReview?: boolean; skillReviewSteps?: number; showToolCalls?: boolean; browser?: boolean; sharedComputers?: boolean; claudeUserMcp?: boolean; claudeUserSkills?: boolean; llmThreadTitles?: boolean; smartSetupChoices?: boolean; autoRecall?: boolean; skillsLibrary?: boolean; shareLearnedSkills?: "off" | "ask" | "auto"; roomMemoryCapture?: boolean; parallelRoomJobs?: boolean; chiefEscalations?: boolean; acpPlanLines?: boolean; agentsToolBridge?: boolean; savedSteps?: boolean };
   onboarding?: { completedAt?: string; version?: number; reelSeen?: boolean; hintsSeen?: string[]; firstTurnAt?: string };

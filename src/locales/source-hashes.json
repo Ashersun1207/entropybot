@@ -31037,7 +31037,9 @@
       "collection.previewBound": "feb0c829d4929b12447f9dab75c1fc40bd25a8a6d82004d7fdb2ceb153e562d5",
       "routines.manual.blocked": "6430e5d2e4b9fee4f548b1c1a2c8a6dcb5a91378b9a5ba1a4eb25362a942d23d",
       "routines.manual.changed": "2ac73bd75d66ad7c3c570515e52703e6a3d9da09b2695d6360212523bc18173b",
-      "routines.manual.coordination": "f4b49cce2a579514d2d44891d92e85c55fce23d6578d6aae37111e862e304336"
+      "routines.manual.coordination": "f4b49cce2a579514d2d44891d92e85c55fce23d6578d6aae37111e862e304336",
+      "settings.memory.defaultRules": "c2299ee7ec1cfb3435c704bf9c337d058674ed3d311421d93e9f56d784908d5e",
+      "settings.memory.defaultRulesHelp": "2311ab1933ba0244f235858a6253fa84d0a3e95ce886cab9bcb3b054cef1398b"
     },
     "zh": {
       "highlevel.unavailable": "87b8ac7f7610e6dd69f520bc59058fd92f307b9f4bcf804075f25d08bcaa7533",
@@ -38479,7 +38481,11 @@
       "routines.manual.changed": "2ac73bd75d66ad7c3c570515e52703e6a3d9da09b2695d6360212523bc18173b",
       "native.startup.opening": "c259b83fa93ed914d87d597418e9f664c96f482a460ffb36345c84d46e90dc58",
       "routines.manual.coordination": "f4b49cce2a579514d2d44891d92e85c55fce23d6578d6aae37111e862e304336",
-      "routines.editor.goalRunsOnCloud": "904e6dd7127c0f567f576620e923e9026fa5faded41e017b3d4ec3b14cb92ec5"
+      "routines.editor.goalRunsOnCloud": "904e6dd7127c0f567f576620e923e9026fa5faded41e017b3d4ec3b14cb92ec5",
+      "botIdentity.soul.bytes": "d145667248f09a59d1338a0b223f438031551a6975b2b37c7652647949f2da0a",
+      "botIdentity.soul.bytesOver": "cc0606348c74cb818f0063bdb6a969f41a2322601765c0c88163d508aa1ec82e",
+      "settings.memory.defaultRules": "c2299ee7ec1cfb3435c704bf9c337d058674ed3d311421d93e9f56d784908d5e",
+      "settings.memory.defaultRulesHelp": "2311ab1933ba0244f235858a6253fa84d0a3e95ce886cab9bcb3b054cef1398b"
     },
     "zh-tw": {
       "voice.gemini.keyPlaceholder": "8c87ba2043a4a89d63c90cae8a6dafd5cbd193652e923b97988e381a74773e10",
@@ -43175,7 +43181,12 @@
       "botApi.call.failed": "4e2453a8afcbaf0c007d44709f809bcfb55ecb09b9921cad7e57132421679dd1",
       "botApi.starter": "550019f9666c3811cacb4e5a9e5d64fb3cfabfe06c5efbc8dc704158248afcb6",
       "botApi.password": "19b0c4c1d2b3cb2c8d7518edb4bb3f58976bf6af45462ad225cc55418d4c13ec",
-      "botApi.cantTake": "cafb65a3ade729ca3503e8e4c6054209ebe8913f16ca7fad8d609926d57ab136"
+      "botApi.cantTake": "cafb65a3ade729ca3503e8e4c6054209ebe8913f16ca7fad8d609926d57ab136",
+      "settings.section.memory": "c3963aedaac6c83c04cf8fb997b479c61e66b3caeecfadd2f2d4bd5b0aef1778",
+      "settings.memory.defaultRules": "c2299ee7ec1cfb3435c704bf9c337d058674ed3d311421d93e9f56d784908d5e",
+      "settings.memory.defaultRulesHelp": "2311ab1933ba0244f235858a6253fa84d0a3e95ce886cab9bcb3b054cef1398b",
+      "botIdentity.soul.bytes": "d145667248f09a59d1338a0b223f438031551a6975b2b37c7652647949f2da0a",
+      "botIdentity.soul.bytesOver": "cc0606348c74cb818f0063bdb6a969f41a2322601765c0c88163d508aa1ec82e"
     },
     "uk": {
       "voice.gemini.keyPlaceholder": "8c87ba2043a4a89d63c90cae8a6dafd5cbd193652e923b97988e381a74773e10",

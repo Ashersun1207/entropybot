@@ -48,6 +48,7 @@ export interface ConfigStatus {
   box: SavedKey & { included?: boolean };
   vps: { configured: boolean; sshAlias: string };
   rooms: { turnTimeoutMinutes: number };
+  memory?: { defaultRules: string };
   /** Per-call ceiling (minutes) for a bot's MCP tools. Absent from servers
    * older than the setting; read it with mcpCallTimeoutMinutes(). */
   mcp?: { callTimeoutMinutes: number };

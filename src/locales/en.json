@@ -9488,5 +9488,7 @@
   "serverError.voice.fishTranscribeConnection": "Couldn't reach Fish Audio to hear you — check your connection.",
   "server.botApi.engineRefusal": "This thread came in through the Bot API, and this bot's AI can't work in it. Start a new conversation.",
   "server.botApi.confinedWhy": "This call came in through the Bot API, so it can only answer from what this bot already knows.",
-  "settings.section.memory": "Memory"
+  "settings.section.memory": "Memory",
+  "settings.memory.defaultRules": "Default rules",
+  "settings.memory.defaultRulesHelp": "Write in Markdown to set how all bots work and reply. For example, ask them to lead with the conclusion or get approval before sending an email."
 }

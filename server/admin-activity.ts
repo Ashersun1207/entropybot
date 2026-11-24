@@ -147,6 +147,10 @@ function scrub(value: unknown, depth: number, hideAll: boolean): unknown {
 export function auditValues(values: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [path, value] of Object.entries(values)) {
+    if (path === "memory.defaultRules" && typeof value === "string" && value !== "") {
+      out[path] = textDigest(value);
+      continue;
+    }
     const segments = path.split(".");
     const last = segments.at(-1) ?? path;
     const opaque = segments.slice(0, -1).some((segment) => OPAQUE_MAP.test(segment));

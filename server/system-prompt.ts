@@ -6,6 +6,7 @@ import { teammateAvailabilityPrompt, type RosterMember } from "./peer-roster.ts"
 import type { ConnectorToolGrant } from "../shared/wire.ts";
 import { loginLabel, type LoginPlace } from "../shared/logins.ts";
 import { isConversational, type ReplyStyle } from "../shared/reply-style.ts";
+import { MEMORY_DEFAULT_RULES_MAX_BYTES } from "../shared/memory-default-rules.ts";
 import { REPLY_HABITS_PROMPT } from "./reply-habits.ts";
 
 export type PromptPart = { id: string; label: string; text: string };
@@ -58,12 +59,17 @@ export function botPersona(bot: { name: string; title?: string; description?: st
     .join(" ");
 }
 
+function defaultRulesPrompt(rules?: string | null): string {
+  if (!rules || Buffer.byteLength(rules) > MEMORY_DEFAULT_RULES_MAX_BYTES || !rules.trim()) return "";
+  return `\n\n## Default rules\nUse these workspace-wide rules for workflow and replies, including any extra confirmation steps. They take precedence over generic workflow and reply defaults. Follow all safety, permission and approval requirements.\n\n${rules}\n\n`;
+}
+
 export function buildSystemPrompt(
   persona: string,
   soul: string,
   parts: PromptPart[],
   agents?: { env?: Record<string, string | undefined> },
-  opts?: { replyStyle?: ReplyStyle },
+  opts?: { replyStyle?: ReplyStyle; defaultRules?: string | null },
 ): { text: string; sections: PromptSection[]; stable: string; volatile: string } {
   const ordered: PromptPart[] = [
     { id: "persona", label: "Identity", text: persona },
@@ -71,6 +77,7 @@ export function buildSystemPrompt(
     // Right after the soul: on a direct turn, ahead of every section that names a tool.
     { id: "tool-bridge", label: "Tool search", text: agentsToolBridged(agents) ? AGENTS_TOOL_BRIDGE_PROMPT : "" },
     { id: "reply-style", label: "Reply style", text: replyStylePrompt(opts?.replyStyle) },
+    { id: "default-rules", label: "Default rules", text: defaultRulesPrompt(opts?.defaultRules) },
     ...parts,
     { id: "reply-habits", label: "How to reply", text: REPLY_HABITS_PROMPT },
   ];

@@ -9488,5 +9488,7 @@
   "serverError.voice.fishTranscribeConnection": "Não foi possível conectar ao Fish Audio para ouvir você. Confira sua conexão.",
   "server.botApi.engineRefusal": "Esta conversa veio pela API do bot, e a IA deste bot não pode trabalhar nela. Inicie uma nova conversa.",
   "server.botApi.confinedWhy": "Esta chamada veio pela API do bot, então ele só pode responder com o que já sabe.",
-  "settings.section.memory": "Memória"
+  "settings.section.memory": "Memória",
+  "settings.memory.defaultRules": "Regras padrão",
+  "settings.memory.defaultRulesHelp": "Use Markdown para definir como todos os bots trabalham e respondem. Por exemplo, peça que comecem pela conclusão ou solicitem sua aprovação antes de enviar um e-mail."
 }

@@ -460,6 +460,11 @@
 - 最小修复给 fallback writeReport 单独加 try/catch；不论 capture 或 status 写失败，控制流均到原 throw error，保留命令主失败。公开 API 回归仍启动真实自有 Node child exit1；一例真实预置两文件造成 EEXIST，一例仅在两个目标输出拦截 ENOSPC，不填满磁盘或注入真实用户数据。两例都断言两个输出写入失败被实际触发、表面错误仍为原命令失败而非文件错误、原 command receipt 的 exit/stdio-close/group 观察完整，且 EEXIST 的旧内容不覆盖。
 - 11路径/8KiB尾部/行界限/128KiB报告/crash计数16、canary排除和quarantine保持不变，不增加日志、sandbox/GPU flag 或启动语义修复。真实 hosted 根因仍未知，独立复审后由主控集成完整链并发 NEW exact-SHA attempt1，不 rerun43747320501。修复身份/最终冻结计数见本条所属提交及外部回执，完整资格/回收仍 false。
 
+## 记忆默认规则的保存与回合验证
+
+- `memory.defaultRules` 通过全局配置 PATCH 保存，配置事件也须保留该字段。隔离回归覆盖 UTF-8 上限、重启读取、清空和已有机器人同一会话的后续回合。默认规则属于系统提示的稳定部分，About me、事实记忆与本地召回的断言各自在实际入口保留。回归入口为 `server/memory-default-rules.e2e.test.ts`、`server/system-prompt.test.ts` 和 `src/components/SettingsModal.keys.dom.test.ts`。
+- 首轮群聊夹具把异步接受消息的状态写成 200，实际返回 202，导致提示断言尚未执行。按现有协议校验 202 后等待假引擎收到本次消息，再读取其系统提示。真实模型的规则遵循由后续模型验收覆盖。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

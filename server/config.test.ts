@@ -75,6 +75,16 @@ describe("configuration boundaries", () => {
     expect(reloaded({ profile })).toEqual([]);
     expect(() => parseConfigPatch({ profile: { aboutMe: "x".repeat(24_001) } })).toThrow();
   });
+  it("drops an invalid stored rules field while keeping the rest of the configuration", () => {
+    for (const defaultRules of ["规".repeat(1_334), { instructions: "invalid Markdown field" }]) {
+      const memory = { defaultRules, captureQuietMs: 30_000, tidyHour: 9 };
+      expect(() => parseConfigPatch({ memory })).toThrow("memory.defaultRules");
+      const stored = parseStoredConfig({ memory, profile: { aboutMe: "Fixture profile" } });
+      expect(stored.memory?.defaultRules).toBeUndefined();
+      expect(stored.memory).toMatchObject({ captureQuietMs: 30_000, tidyHour: 9 });
+      expect(stored.profile?.aboutMe).toBe("Fixture profile");
+    }
+  });
   it("keeps the profile photo to a stored attachment picture, never an outside address or SVG", () => {
     const avatarUrl = "/api/attachments/5f0c2b1e-8a43-4c1d-9e7a-2b6f1d3c4e5a.webp";
     expect(parseConfigPatch({ profile: { avatarUrl } })).toEqual({ profile: { avatarUrl } });

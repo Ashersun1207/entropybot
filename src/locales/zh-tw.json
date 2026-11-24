@@ -4692,5 +4692,10 @@
   "botApi.call.failed": "機器人無法回答",
   "botApi.starter": "Bot API 包含在更高的方案中。",
   "botApi.password": "金鑰就像密碼:持有它的人可以讀取此機器人能讀取的內容。",
-  "botApi.cantTake": "此機器人的 AI 無法接收 Bot API 呼叫。請選擇其他 AI 來使用。"
+  "botApi.cantTake": "此機器人的 AI 無法接收 Bot API 呼叫。請選擇其他 AI 來使用。",
+  "settings.section.memory": "記憶",
+  "settings.memory.defaultRules": "預設規則",
+  "settings.memory.defaultRulesHelp": "使用 Markdown 設定所有機器人的工作和回覆方式。例如，先給結論，或在寄送電子郵件前取得核准。",
+  "botIdentity.soul.bytes": "{bytes} / {limit} 位元組",
+  "botIdentity.soul.bytesOver": "{bytes} / {limit} 位元組，超出儲存上限"
 }

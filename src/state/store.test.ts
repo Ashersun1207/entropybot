@@ -2562,6 +2562,13 @@ describe("live config frames", () => {
     localVm: { mode: "shared", maxInstances: 1 },
   };
 
+  it("keeps default rules and clears them on the next config frame", () => {
+    const memory = { defaultRules: "- Lead with the conclusion." };
+    expect(configStatusFromFrame({ ...baseFrame, memory }).memory).toEqual(memory);
+    expect(configStatusFromFrame({ ...baseFrame, memory: { defaultRules: "" } }).memory?.defaultRules).toBe("");
+    expect(configStatusFromFrame(baseFrame).memory).toBeUndefined();
+  });
+
   it("keeps automatic recovery and its backup through live config refreshes", () => {
     const automaticRecovery = { enabled: true, backup: { instanceId: "backup", model: "fixture-model" } };
     expect(configStatusFromFrame({ ...baseFrame, automaticRecovery }).automaticRecovery).toEqual(automaticRecovery);
