@@ -98,20 +98,23 @@ describe("the header's right side", () => {
     }
   });
 
-  it("keeps the phone browser's model and computer in the header row and puts a full context warning beneath it", () => {
+  it("keeps phone browser controls in reach in a busy side chat with a context warning", () => {
     fixture.phone = true;
+    fixture.showThreads = false;
     try {
-      const tasks = bot.tasks?.map((task) => ({ ...task, usage: { input: 0, output: 0, costUsd: null, turns: 1, context: { tokens: 95, window: 100 } } }));
-      const { markup } = header({ ...bot, tasks });
+      const tasks = bot.tasks?.map((task) => ({ ...task, busy: true, usage: { input: 0, output: 0, costUsd: null, turns: 1, context: { tokens: 95, window: 100 } } }));
+      const { markup, controls } = header({ ...bot, mainThreadId: "main", tasks });
       const start = markup.indexOf("data-chathead-controls");
       const warning = markup.indexOf('data-testid="context-warning"');
       expect(start).toBeGreaterThan(-1);
       expect(warning).toBeGreaterThan(start);
-      expect(markup.slice(start, warning)).toMatch(/data-test-model-control[\s\S]*data-tour="computer"[\s\S]*<\/div><\/div><div class="mt-1 flex flex-wrap/);
+      expect(markup.slice(start, warning)).toMatch(/data-test-model-control[\s\S]*data-tour="computer"[\s\S]*<\/div><\/div><div class="mt-1 flex flex-wrap[^>]*>[\s\S]*data-chathead-back/);
+      expect(controls).toContain('title="Stop this turn"');
       expect(fixture.model).toMatchObject({ iconOnly: true });
       expect(markup.slice(warning)).toContain("Compact now");
     } finally {
       fixture.phone = false;
+      fixture.showThreads = true;
     }
   });
 

@@ -995,6 +995,12 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   const resultsThreadId = routineExecution?.resultsThreadId ?? routineExecution?.sourceThreadId;
   const canOpenResults = resultsThreadId && [...state.bots, ...state.groups].some((owner) => owner.threadId === resultsThreadId || owner.tasks?.some((task) => task.threadId === resultsThreadId));
   const callChip = <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />;
+  const backToMain = (advanced || remoteClient) && awayFromMainThread(profile, showThreads) && (
+    <button type="button" data-chathead-back onClick={() => openBot(dispatch, profile, false)}
+      className="shrink-0 whitespace-nowrap rounded-full bg-raised px-2.5 py-0.5 text-[12px] font-medium text-ink-secondary hover:bg-raised-hover hover:text-ink">
+      {t("chat.backToMainThread")}
+    </button>
+  );
 
   return (
     <ThreadLinkContext value={threadLink}>
@@ -1075,16 +1081,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
           )}
           {!phone && !simpleHead && <ChatHeadRole bot={bot} />}<span role="status" className="sr-only" data-chathead-status>{bot.busy ? t("sidebar.preview.working") : ""}</span>{!simpleHead && privateChat && <TeamPrivateHeader />}{!simpleHead && ownHelper && <TeamOwnHelperHeader />}{!simpleHead && sharedChat && team && <TeamSharedHeader team={team} onlyPeopleAdded={bot.onlyPeopleAdded} />}
           {!simpleHead && !bot.busy && bot.waitingForTeammates && <span className="truncate text-[12px] text-ink-secondary" role="status">{t("chat.teammatesWorking")}</span>}
-          {(advanced || remoteClient) && awayFromMainThread(profile, showThreads) && (
-            <button
-              type="button"
-              data-chathead-back
-              onClick={() => openBot(dispatch, profile, false)}
-              className="shrink-0 whitespace-nowrap rounded-full bg-raised px-2.5 py-0.5 text-[12px] font-medium text-ink-secondary hover:bg-raised-hover hover:text-ink"
-            >
-              {t("chat.backToMainThread")}
-            </button>
-          )}
+          {!browserPhone && backToMain}
         </div>
         <div
           data-chathead-controls
@@ -1123,6 +1120,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
         </div>
         </div>
         {browserPhone && <div className="mt-1 flex flex-wrap items-center gap-2 empty:hidden">
+          {backToMain}
           <ThreadContextWarning bot={bot} messages={messages} />
           <UsageAlert engine={bot.modelSelection?.instanceId} />
           {callChip}
