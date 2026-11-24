@@ -1,12 +1,15 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Window } from "happy-dom";
+import { Resvg } from "@resvg/resvg-js";
 import { describe, expect, it } from "vitest";
 
 const root = new URL("../../", import.meta.url);
 const html = readFileSync(new URL("index.html", root), "utf8");
 const window = new Window({ settings: { disableJavaScriptEvaluation: true, disableJavaScriptFileLoading: true, disableCSSFileLoading: true } });
 const head = new window.DOMParser().parseFromString(html, "text/html").head;
+const homeScreenArt = readFileSync(new URL("public/home-screen-icon.svg", root));
+const renderedHomeIcon = (size: number) => new Resvg(homeScreenArt, { fitTo: { mode: "width", value: size } }).render().asPng();
 
 describe("phone web app installation assets", () => {
   it("links a standalone manifest whose start URL never includes pairing credentials", () => {
@@ -31,6 +34,7 @@ describe("phone web app installation assets", () => {
       const png = readFileSync(new URL(`public${icon.src}`, root));
       expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
       expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([size, size]);
+      expect(png.equals(renderedHomeIcon(size))).toBe(true);
     }
   });
 
@@ -45,6 +49,7 @@ describe("phone web app installation assets", () => {
     expect(href).toBeDefined();
     const png = readFileSync(new URL(`public${href}`, root));
     expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([180, 180]);
+    expect(png.equals(renderedHomeIcon(180))).toBe(true);
     const viewport = head.querySelector('meta[name="viewport"]')?.getAttribute("content");
     expect(viewport).toContain("viewport-fit=cover");
     expect(viewport).not.toMatch(/user-scalable=no|maximum-scale=1/);
