@@ -127,16 +127,26 @@ describe("searching Settings for a key", () => {
 it.each([false, true])("opens Memory and saves the Markdown editor through config (Advanced: %s)", async (advanced) => {
   fx.advanced = advanced;
   fx.section = "memory";
-  fx.config = { ...fx.config, memory: { defaultRules: "- Existing rule" } };
-  fx.api.mockReset();
-  fx.api.mockRejectedValueOnce(new Error("temporary failure"));
+  const { loadConfig } = await import("../../server/config");
+  fx.config = { ...fx.config, memory: loadConfig().memory, profile: { aboutMe: "My time zone is UTC" } };
   const updated = "## 回复\n- 先给结论";
-  fx.api.mockResolvedValueOnce({ ...fx.config, memory: { defaultRules: updated } });
+  const patchConfig = vi.fn().mockRejectedValueOnce(new Error("temporary failure"))
+    .mockResolvedValueOnce({ ...fx.config, memory: { defaultRules: updated } })
+    .mockResolvedValueOnce({ ...fx.config, memory: { defaultRules: "" } });
+  fx.api.mockReset();
+  fx.api.mockImplementation((path, init) => path === "/api/profile/learned" ? Promise.resolve({ learned: [] }) : patchConfig(path, init));
   flushSync(() => root.render(createElement(SettingsModal)));
 
   const label = [...host.querySelectorAll("label")].find((item) => item.textContent === "Default rules");
   const area = label?.control as HTMLTextAreaElement;
-  expect(area.value).toBe("- Existing rule");
+  const aboutMe = host.querySelector<HTMLTextAreaElement>("#profile-about-me");
+  expect(host.textContent).toContain("The default rules below guide how every bot works and replies.");
+  expect(host.textContent).toContain("Open a bot’s settings to give it rules that replace the defaults.");
+  expect(host.textContent).toContain("Each bot keeps long-term facts in its own memory files");
+  expect(host.textContent).toContain("Every bot can read your preferences here");
+  expect(aboutMe?.value).toBe("My time zone is UTC");
+  expect([...host.querySelectorAll("textarea")]).toEqual([area, aboutMe]);
+  expect(area.value).toContain("- 先给结论，再展开细节。");
   const save = () => area.form!.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const edit = (text: string) => flushSync(() => {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(area, text);
@@ -146,7 +156,7 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   expect(area.getAttribute("aria-invalid")).toBe("true");
   expect(save().disabled).toBe(true);
   expect(area.form!.textContent).toContain("4002 / 4000 bytes");
-  expect(fx.api).not.toHaveBeenCalled();
+  expect(patchConfig).not.toHaveBeenCalled();
 
   edit(updated);
   const status = () => area.form!.querySelector('[role="status"]')?.textContent;
@@ -156,7 +166,15 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   flushSync(() => save().click());
   await vi.waitFor(() => expect(status()).toBe("Saved"));
   const patch = { method: "PATCH", body: JSON.stringify({ memory: { defaultRules: updated } }), timeoutMs: 10_000 };
-  expect(fx.api).toHaveBeenCalledTimes(2);
-  expect(fx.api).toHaveBeenLastCalledWith("/api/config", patch);
+  expect(patchConfig).toHaveBeenCalledTimes(2);
+  expect(patchConfig).toHaveBeenLastCalledWith("/api/config", patch);
   expect(save().disabled).toBe(true);
+
+  edit("");
+  flushSync(() => save().click());
+  await vi.waitFor(() => expect(status()).toBe("Saved"));
+  expect(patchConfig).toHaveBeenLastCalledWith("/api/config", { ...patch, body: JSON.stringify({ memory: { defaultRules: "" } }) });
+  flushSync(() => root.render(null));
+  flushSync(() => root.render(createElement(SettingsModal)));
+  expect(host.querySelector<HTMLTextAreaElement>("form textarea")?.value).toBe("");
 });

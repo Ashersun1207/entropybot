@@ -1,5 +1,11 @@
 # 维护审查记录
 
+## 2026-11-25 记忆设置页与首次配置
+
+- 基线 `354507e4e`。全局「记忆」页复用默认规则编辑器和「关于我」组件，增加全局规则、机器人覆盖和长期事实文件的说明。翻译覆盖 en、zh、zh-tw、pt-br。
+- 首次读取和首次保存都以配置文件缺失为预置条件。已有配置可能用空串或删除字段表示清空，升级时按已有内容读取。配置事件继续使用保存前的原始配置。权限、检索、模型、依赖及安装脚本均沿用基线。
+- `SettingsModal.keys.dom.test.ts` 的两种设置布局与 `config.test.ts` 在基线共复现 3 个失败。回归覆盖「关于我」回显、首次可见示例、编辑重试、UTF-8 预算和清空后重新打开。`memory-default-rules.e2e.test.ts` 通过隔离配置接口清空并重启回读。交付回执由主控保存，独立复审待主控执行。
+
 ## 2026-11-10：M1 journal undo R1 持久元数据一致性
 
 - 独立复审对75fcbfaf2为NEEDS-CHANGES，暂停集成。根因是readMemoryJournal的宽松可读shape被当作完整可信运行时contract，afterHash检查遗漏kind/before/beforeHash相互关系，restore的空串fallback放大缺数据影响。先在原提交产品字节上以合成NDJSON＋实际reader/revert/HTTP复现并保留原基线/206证据，再限定修改memory-journal.ts与既有tests/docs；memory-store.ts及其mutation gate不变。

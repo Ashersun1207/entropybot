@@ -15,6 +15,7 @@ import { cacheUntilConfigChanges,
   isValidSshAlias,
   loadBrowserProfileIdAliases,
   loadConfig,
+  onConfigSaved,
   localVmIdleTimeoutMinutes,
   localVmMaxInstances,
   localVmMode,
@@ -1529,6 +1530,36 @@ describe("credential env preference", () => {
     expect(cfg.opencodeGo).toEqual({ apiKey: "env-ocg" });
     expect(cfg.tts).toEqual({ key: "env-tts", fishKey: "env-fish", voice: "narrator" });
     expect(cfg.imageGen).toEqual({ key: "env-image" });
+  });
+
+  it("seeds the first config with editable memory rules and preserves a saved empty string", () => {
+    const example = loadConfig().memory?.defaultRules;
+    expect(example?.split("\n")).toEqual([
+      "- 先给结论，再展开细节。",
+      "- 不确定时先问清楚，不要猜。",
+      "- 发邮件、发布内容或更改配置前，先征得我的同意。",
+    ]);
+    const changed = vi.fn();
+    const unsubscribe = onConfigSaved(changed);
+    try {
+      saveConfig({ memory: { tidyHour: 9 } });
+      expect(changed).toHaveBeenCalledWith({}, expect.objectContaining({ memory: { defaultRules: example, tidyHour: 9 } }));
+    } finally {
+      unsubscribe();
+    }
+    const disk = () => JSON.parse(readFileSync(join(DATA_DIR, "config.json"), "utf8"));
+    expect(disk().memory).toEqual({ defaultRules: example, tidyHour: 9 });
+    saveConfig({ memory: { defaultRules: "" } });
+    saveConfig({ profile: { aboutMe: "Fixture preference" } });
+    expect(disk().memory).toEqual({ defaultRules: "", tidyHour: 9 });
+    expect(loadConfig().memory?.defaultRules).toBe("");
+  });
+
+  it("preserves existing configs with no rules when another setting is saved", () => {
+    writeFileSync(join(DATA_DIR, "config.json"), JSON.stringify({ memory: { tidyHour: 7 } }));
+    expect(loadConfig().memory).toEqual({ tidyHour: 7 });
+    saveConfig({ profile: { aboutMe: "Fixture preference" } });
+    expect(loadConfig().memory).toEqual({ tidyHour: 7 });
   });
 
   it("uses a preset voice only when the person has not chosen one or another provider", () => {

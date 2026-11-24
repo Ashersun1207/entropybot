@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { MEMORY_DEFAULT_RULES_MAX_BYTES } from "../../shared/memory-default-rules";
 import { t } from "@/lib/i18n";
 import { api, useStore, type Bot, type BotAnnouncement, type ConfigStatus } from "@/state/store";
+import { AboutMeSettings } from "./AboutMeSettings";
 import { AdminOnly } from "./AdminOnly";
 import { Card } from "./SettingsPrimitives";
 
@@ -14,8 +15,20 @@ export function MemorySettings() {
     dispatch({ type: "configStatus", config });
   };
   return (
-    <RulesEditor confirmed={state.config?.memory?.defaultRules ?? ""} disabled={state.config === null}
-      label={t("settings.memory.defaultRules")} help={t("settings.memory.defaultRulesHelp")} onSave={save} />
+    <>
+      <Card title={t("settings.memory.overview")}>
+        <ul className="list-disc space-y-1 pl-5 text-[13px] leading-relaxed text-ink-secondary">
+          <li>{t("settings.memory.globalRulesHelp")}</li>
+          <li>{t("settings.memory.botRulesHelp")}</li>
+          <li>{t("settings.memory.filesHelp")}</li>
+        </ul>
+      </Card>
+      <RulesEditor confirmed={state.config?.memory?.defaultRules ?? ""} disabled={state.config === null}
+        label={t("settings.memory.defaultRules")} help={t("settings.memory.defaultRulesHelp")} onSave={save} />
+      <Card subtitle={t("settings.memory.sharedPreferences")}>
+        <AboutMeSettings />
+      </Card>
+    </>
   );
 }
 

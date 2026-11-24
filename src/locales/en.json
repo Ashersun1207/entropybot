@@ -9492,5 +9492,10 @@
   "settings.memory.defaultRules": "Default rules",
   "memory.rules": "Rules",
   "memory.rulesHelp": "Write Markdown rules for this bot. They replace the workspace default rules. Clear the field and save to use the defaults again.",
-  "settings.memory.defaultRulesHelp": "Write in Markdown to set the default way bots work and reply. For example, ask them to lead with the conclusion or get approval before sending an email."
+  "settings.memory.overview": "Rules and memory files",
+  "settings.memory.globalRulesHelp": "The default rules below guide how every bot works and replies.",
+  "settings.memory.botRulesHelp": "Open a bot’s settings to give it rules that replace the defaults. You’ll find them under Memory.",
+  "settings.memory.filesHelp": "Each bot keeps long-term facts in its own memory files (MEMORY.md and topic files under memory/).",
+  "settings.memory.sharedPreferences": "Every bot can read your preferences here, including your time zone, what to call you, and how you like answers written.",
+  "settings.memory.defaultRulesHelp": "Write rules in Markdown. Clear the field and save to remove the global rules."
 }
