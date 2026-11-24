@@ -103,7 +103,7 @@ describe("the header's right side", () => {
     fixture.showThreads = false;
     try {
       const tasks = bot.tasks?.map((task) => ({ ...task, busy: true, usage: { input: 0, output: 0, costUsd: null, turns: 1, context: { tokens: 95, window: 100 } } }));
-      const { markup, controls } = header({ ...bot, mainThreadId: "main", tasks });
+      const { markup, controls } = header({ ...bot, mainThreadId: "main", tasks: [...(tasks ?? []), { threadId: "main", title: "Main", createdAt: 0, busy: false, activity: "idle" }] });
       const start = markup.indexOf("data-chathead-controls");
       const warning = markup.indexOf('data-testid="context-warning"');
       expect(start).toBeGreaterThan(-1);
