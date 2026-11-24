@@ -4,6 +4,7 @@ import { t } from "@/lib/i18n";
 import { api, useStore, type Bot, type BotAnnouncement, type ConfigStatus } from "@/state/store";
 import { AboutMeSettings } from "./AboutMeSettings";
 import { AdminOnly } from "./AdminOnly";
+import { CopyButton } from "./MessageActions";
 import { Card } from "./SettingsPrimitives";
 
 export function MemorySettings() {
@@ -16,11 +17,12 @@ export function MemorySettings() {
   };
   return (
     <div className="@container/memory">
-      <div className="grid min-w-0 items-start gap-4 @min-[760px]/memory:grid-cols-2 @min-[760px]/memory:grid-rows-[auto_1fr]">
+      <div className="grid min-w-0 items-start gap-4 @min-[760px]/memory:grid-cols-2 @min-[760px]/memory:grid-rows-[auto_auto_1fr]">
         <RulesEditor confirmed={state.config?.memory?.defaultRules ?? ""} disabled={state.config === null}
           label={t("settings.memory.defaultRules")} help={t("settings.memory.defaultRulesHelp")}
           example={t("settings.memory.ruleExample")} rows={4} onSave={save} />
-        <div className="min-w-0 @min-[760px]/memory:col-start-2 @min-[760px]/memory:row-start-1 @min-[760px]/memory:row-span-2">
+        <MemoryEditingGuide />
+        <div className="min-w-0 @min-[760px]/memory:col-start-2 @min-[760px]/memory:row-start-1 @min-[760px]/memory:row-span-3">
           <MemoryRulesGuide />
         </div>
         <Card>
@@ -31,8 +33,38 @@ export function MemorySettings() {
   );
 }
 
+function memoryLocation() {
+  return { library: t("botPanel.tab.library"), memory: t("botPanel.memoryRow") };
+}
+
+function MemoryEditingGuide() {
+  const examples = [t("settings.memory.chatRememberExample"), t("settings.memory.chatCorrectExample"), t("settings.memory.chatPreferenceExample")];
+  return (
+    <Card title={t("settings.memory.editGuide")}>
+      <div data-memory-edit-guide className="space-y-3 text-[13px] leading-relaxed">
+        <div>
+          <h3 className="font-medium text-ink">{t("settings.memory.editDirect")}</h3>
+          <p className="text-ink-secondary">{t("settings.memory.editDirectHelp", memoryLocation())}</p>
+        </div>
+        <div>
+          <h3 className="font-medium text-ink">{t("settings.memory.editByChat")}</h3>
+          <p className="text-ink-secondary">{t("settings.memory.editByChatHelp")}</p>
+          <ul className="mt-2 grid gap-1.5">
+            {examples.map((text) => (
+              <li key={text} className="group flex items-start justify-between gap-2 rounded-md bg-inset px-2.5 py-1.5 text-ink">
+                <span className="min-w-0 select-text">{text}</span>
+                <CopyButton text={text} className="shrink-0 opacity-100" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function MemoryRulesGuide() {
-  const botMemory = { library: t("botPanel.tab.library"), memory: t("botPanel.memoryRow") };
+  const botMemory = memoryLocation();
   const entries = [
     { title: t("settings.memory.botRules"), detail: t("settings.memory.botRulesHelp", botMemory) },
     { title: t("botSettings.simple.instructions"), file: "SOUL.md", detail: t("settings.memory.soulHelp", { instructions: t("botSettings.simple.instructions") }) },
@@ -53,6 +85,14 @@ function MemoryRulesGuide() {
           </div>
         ))}
       </dl>
+      <div data-memory-edit-notes className="mt-4 border-t border-hairline/50 pt-3 text-[13px] leading-relaxed">
+        <h3 className="font-medium text-ink">{t("settings.memory.editNotes")}</h3>
+        <ul className="mt-1 list-disc space-y-1 ps-4 text-ink-secondary">
+          <li>{t("settings.memory.verifyEdit", botMemory)}</li>
+          <li>{t("settings.memory.ruleEditScope")}</li>
+          <li>{t("settings.memory.keepSecretsOut")}</li>
+        </ul>
+      </div>
     </Card>
   );
 }

@@ -144,6 +144,15 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   for (const text of ["Library → What it remembers → Rules", "replace the entire global set", "SOUL.md", "MEMORY.md", "memory/", "AGENTS.md", "Settings → General"]) {
     expect(guide).toContain(text);
   }
+  const editingGuide = host.querySelector("[data-memory-edit-guide]");
+  const editingNotes = host.querySelector("[data-memory-edit-notes]");
+  for (const text of ["Edit it yourself", "one-on-one chat", "the 25th to the 28th", "to About me"]) {
+    expect(editingGuide?.textContent).toContain(text);
+  }
+  expect(editingGuide?.querySelectorAll("button")).toHaveLength(3);
+  for (const text of ["check both", "tool permissions", "API keys"]) {
+    expect(editingNotes?.textContent).toContain(text);
+  }
   expect(aboutMe?.value).toBe("My time zone is UTC");
   expect([...host.querySelectorAll("textarea")]).toEqual([editor(), aboutMe]);
   expect(editor().value).toBe("");

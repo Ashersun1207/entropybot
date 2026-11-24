@@ -4709,6 +4709,18 @@
   "settings.memory.useExample": "填入範例",
   "settings.memory.projectRules": "專案文件規則",
   "settings.memory.projectRulesHelp": "例如程式碼儲存庫中的驗收、測試和交接約定，寫在對應專案內。由支援該文件的執行引擎在專案內讀取，作用範圍為該專案。",
+  "settings.memory.editGuide": "如何修改",
+  "settings.memory.editDirect": "自行編輯",
+  "settings.memory.editDirectHelp": "在本頁編輯全域規則和「關於我」。若要編輯個別機器人的規則或管理筆記，請開啟它的資料，前往「{library} → {memory}」。",
+  "settings.memory.editByChat": "請機器人幫你記住",
+  "settings.memory.editByChatHelp": "與已啟用記憶的機器人一對一聊天時，可以這麼說。更正時請寫出舊值和新值。",
+  "settings.memory.chatRememberExample": "請記住：星河專案的月報每月 25 日提交。",
+  "settings.memory.chatCorrectExample": "請把星河專案的月報截止日從每月 25 日改為 28 日。",
+  "settings.memory.chatPreferenceExample": "請把「提醒時間統一用台北時間」記到「關於我」，讓其他機器人也能讀到。",
+  "settings.memory.editNotes": "注意事項",
+  "settings.memory.verifyEdit": "機器人回覆後，請到「{library} → {memory}」或「關於我」確認實際儲存的內容。如果兩處都有舊值，請分別確認。",
+  "settings.memory.ruleEditScope": "若要變更規則，請編輯對應的規則欄位並儲存。對話中的記憶筆記、規則和工具權限各自設定。",
+  "settings.memory.keepSecretsOut": "密碼、驗證碼和 API 金鑰請留在各自的安全設定中。",
   "botIdentity.soul.bytes": "{bytes} / {limit} 位元組",
   "botIdentity.soul.bytesOver": "{bytes} / {limit} 位元組，超出儲存上限"
 }

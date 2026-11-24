@@ -9503,5 +9503,17 @@
   "settings.memory.ruleExample": "- Comece os informes de progresso com o resultado e depois liste os próximos passos.",
   "settings.memory.useExample": "Inserir exemplo",
   "settings.memory.projectRules": "Regras documentadas do projeto",
-  "settings.memory.projectRulesHelp": "Mantenha no projeto as instruções de teste, aceitação e transferência de trabalho do repositório. Os mecanismos que oferecem suporte a esse arquivo o leem no contexto desse projeto."
+  "settings.memory.projectRulesHelp": "Mantenha no projeto as instruções de teste, aceitação e transferência de trabalho do repositório. Os mecanismos que oferecem suporte a esse arquivo o leem no contexto desse projeto.",
+  "settings.memory.editGuide": "Como fazer alterações",
+  "settings.memory.editDirect": "Edite por conta própria",
+  "settings.memory.editDirectHelp": "Edite as regras globais e Sobre mim nesta página. Para alterar regras de um bot ou gerenciar suas notas, abra o perfil dele e selecione {library} → {memory}.",
+  "settings.memory.editByChat": "Peça ao bot para lembrar",
+  "settings.memory.editByChatHelp": "Use os exemplos numa conversa individual com um bot cuja memória esteja ativada. Para corrigir algo, informe o valor antigo e o novo.",
+  "settings.memory.chatRememberExample": "Lembre-se de que o relatório mensal do projeto Orion vence no dia 25.",
+  "settings.memory.chatCorrectExample": "Mude o prazo do relatório mensal do projeto Orion do dia 25 para o dia 28.",
+  "settings.memory.chatPreferenceExample": "Salve ‘Use o horário de Brasília nos lembretes’ em Sobre mim para que meus outros bots possam ler.",
+  "settings.memory.editNotes": "O que considerar",
+  "settings.memory.verifyEdit": "Depois da resposta do bot, confira o que foi salvo em {library} → {memory} ou Sobre mim. Se o valor antigo aparecia nos dois lugares, confira ambos.",
+  "settings.memory.ruleEditScope": "Para alterar uma regra, edite o campo correspondente e salve. Notas, regras e permissões de ferramentas têm configurações próprias.",
+  "settings.memory.keepSecretsOut": "Guarde senhas, códigos de verificação e chaves de API nas configurações de segurança correspondentes."
 }

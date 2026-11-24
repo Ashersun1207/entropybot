@@ -9503,5 +9503,17 @@
   "settings.memory.ruleExample": "- Start progress updates with the outcome, then list the next steps.",
   "settings.memory.useExample": "Insert example",
   "settings.memory.projectRules": "Project document rules",
-  "settings.memory.projectRulesHelp": "Keep repository-specific testing, acceptance, and handoff instructions in the project. Engines that support this file read it in that project’s scope."
+  "settings.memory.projectRulesHelp": "Keep repository-specific testing, acceptance, and handoff instructions in the project. Engines that support this file read it in that project’s scope.",
+  "settings.memory.editGuide": "How to make changes",
+  "settings.memory.editDirect": "Edit it yourself",
+  "settings.memory.editDirectHelp": "Edit global rules and About me on this page. To change one bot’s rules or manage its notes, open its profile and choose {library} → {memory}.",
+  "settings.memory.editByChat": "Ask a bot to remember",
+  "settings.memory.editByChatHelp": "Try these in a one-on-one chat with a bot that has memory enabled. For a correction, give both the old and the new value.",
+  "settings.memory.chatRememberExample": "Please remember that the Orion project’s monthly report is due on the 25th.",
+  "settings.memory.chatCorrectExample": "Change the Orion project’s monthly report deadline from the 25th to the 28th.",
+  "settings.memory.chatPreferenceExample": "Save ‘Use Eastern Time for reminders’ to About me so my other bots can read it.",
+  "settings.memory.editNotes": "Things to keep in mind",
+  "settings.memory.verifyEdit": "After the bot replies, check what was saved under {library} → {memory} or About me. If the old value was in both places, check both.",
+  "settings.memory.ruleEditScope": "To change a rule, edit the relevant rules field and save. Notes, rules, and tool permissions each have their own settings.",
+  "settings.memory.keepSecretsOut": "Keep passwords, verification codes, and API keys in their secure settings."
 }
