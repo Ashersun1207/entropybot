@@ -19,7 +19,10 @@ export function MemorySettings() {
       <Card title={t("settings.memory.overview")}>
         <ul className="list-disc space-y-1 pl-5 text-[13px] leading-relaxed text-ink-secondary">
           <li>{t("settings.memory.globalRulesHelp")}</li>
-          <li>{t("settings.memory.botRulesHelp")}</li>
+          <li>{t("settings.memory.botRulesHelp", {
+            library: t("botPanel.tab.library"),
+            memory: t("botPanel.memoryRow"),
+          })}</li>
           <li>{t("settings.memory.filesHelp")}</li>
         </ul>
       </Card>

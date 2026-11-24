@@ -141,8 +141,8 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   const area = label?.control as HTMLTextAreaElement;
   const aboutMe = host.querySelector<HTMLTextAreaElement>("#profile-about-me");
   expect(host.textContent).toContain("The default rules below guide how every bot works and replies.");
-  expect(host.textContent).toContain("Open a bot’s settings to give it rules that replace the defaults.");
-  expect(host.textContent).toContain("Each bot keeps long-term facts in its own memory files");
+  expect(host.textContent).toContain("Library → What it remembers");
+  expect(host.textContent).toContain("You can also view the bot’s remembered notes there.");
   expect(host.textContent).toContain("Every bot can read your preferences here");
   expect(aboutMe?.value).toBe("My time zone is UTC");
   expect([...host.querySelectorAll("textarea")]).toEqual([area, aboutMe]);

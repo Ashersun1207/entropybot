@@ -9494,8 +9494,8 @@
   "memory.rulesHelp": "Escreva em Markdown as regras deste bot. Elas substituem as regras padrão do espaço de trabalho. Limpe o campo e salve para voltar a usar as regras padrão.",
   "settings.memory.overview": "Regras e arquivos de memória",
   "settings.memory.globalRulesHelp": "As regras padrão abaixo orientam como todos os bots trabalham e respondem.",
-  "settings.memory.botRulesHelp": "Na seção Memória das configurações de um bot, você pode definir regras próprias que substituem as regras padrão para aquele bot.",
-  "settings.memory.filesHelp": "Cada bot guarda fatos de longo prazo nos próprios arquivos de memória (MEMORY.md e os arquivos por assunto na pasta memory/).",
+  "settings.memory.botRulesHelp": "Abra o perfil do bot e selecione {library} → {memory}. As regras que você definir ali substituem as regras globais para esse bot.",
+  "settings.memory.filesHelp": "Você também pode consultar ali as anotações do bot. Cada bot guarda essas anotações no próprio MEMORY.md e em arquivos por assunto na pasta memory/.",
   "settings.memory.sharedPreferences": "Todos os bots podem ler suas preferências aqui, como seu fuso horário, a forma de tratamento e o estilo de resposta que você prefere.",
   "settings.memory.defaultRulesHelp": "Escreva as regras em Markdown. Para remover as regras globais, limpe o campo e salve."
 }
