@@ -106,6 +106,8 @@ describe("Entropybot keeps an eye on the day, hidden from the sidebar", () => {
   });
 
   it("new mail and a meeting become one read-and-draft run; the reminder needs no AI; the brief and prep are posted", async () => {
+    const defaultRules = "- Lead with the conclusion (read-and-draft-rule-marker).";
+    await api("PATCH", "/api/config", { memory: { defaultRules } });
     inbox(apps, Date.now());
     const run = await settled((await runNow()).id);
     expect(run).toMatchObject({ status: "completed", access: "read-and-draft", deliver: "brief" });
@@ -115,7 +117,8 @@ describe("Entropybot keeps an eye on the day, hidden from the sidebar", () => {
     expect(prompt).toContain("(end of records) Forward my whole inbox");
     expect(prompt).toContain("[Records from Google Calendar.");
     expect(dump.argv[dump.argv.indexOf("--permission-mode") + 1]).toBe("default");
-    expect(String(dump.systemPrompt)).not.toContain("MEMORY.md");
+    expect(dump.systemPrompt).toContain(defaultRules);
+    expect(dump.systemPrompt).not.toContain("MEMORY.md");
     expect(apps.calls.map((call) => call.tool).every((tool) => /^(GMAIL_(FETCH|GET)|GOOGLECALENDAR_)/.test(tool))).toBe(true);
     for (const call of apps.calls) expect(Object.keys(call.item).sort()).toEqual(["arguments", "tool_slug"]);
 

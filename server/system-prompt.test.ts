@@ -5,6 +5,7 @@ import { BUILT_IN_BROWSER_SYSTEM_PROMPT } from "./browser-engine.ts";
 import {
   longCommandsPrompt,
   buildSystemPrompt,
+  defaultRulesPart,
   CONVERSATIONAL_STYLE_PROMPT,
   CLOUD_HOME_PLACE,
   cloudHomePrompt,
@@ -77,7 +78,7 @@ describe("computerPrompt", () => {
 describe("buildSystemPrompt", () => {
   it("adds bounded Markdown to the stable prompt as default rules", () => {
     const rules = `## Replies\n- ${"规".repeat(1_329)}`;
-    const build = (defaultRules: string | null) => buildSystemPrompt("Identity", "", [], undefined, { defaultRules });
+    const build = (defaultRules: string | null) => buildSystemPrompt("Identity", "", [defaultRulesPart(defaultRules)]);
     expect(Buffer.byteLength(rules)).toBe(4_000);
     const built = build(rules);
     const section = built.sections.find(({ id }) => id === "default-rules");

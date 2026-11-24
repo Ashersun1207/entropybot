@@ -464,6 +464,7 @@
 
 - `memory.defaultRules` 通过全局配置 PATCH 保存，配置事件也须保留该字段。隔离回归覆盖 UTF-8 上限、重启读取、清空和已有机器人同一会话的后续回合。默认规则属于系统提示的稳定部分，About me、事实记忆与本地召回的断言各自在实际入口保留。回归入口为 `server/memory-default-rules.e2e.test.ts`、`server/system-prompt.test.ts` 和 `src/components/SettingsModal.keys.dom.test.ts`。
 - 首轮群聊夹具把异步接受消息的状态写成 200，实际返回 202，导致提示断言尚未执行。按现有协议校验 202 后等待假引擎收到本次消息，再读取其系统提示。真实模型的规则遵循由后续模型验收覆盖。
+- R1 独立复审发现 `b3842196f` 在筛选提示段之后仍传入规则全文。`server/bot-api.e2e.test.ts` 在原候选的真实隔离 HTTP 回合复现，假引擎的外部回合系统提示含工作区规则标记。工作区规则作为 `PromptPart` 进入现有可见性筛选，外部 Bot API 沿用原允许清单。回归在同一 Bot 的私聊和外部回合检查规则、About me、`MEMORY.md` 与 SOUL.md，读写受限例行任务的继承由 `server/proactive-routines.e2e.test.ts` 验证。
 
 ## 不应合并的改动
 

@@ -181,7 +181,10 @@ it("tells the model nothing about the person or their work, works in no folder o
   mkdirSync(project, { recursive: true });
   const bot = (await runControlOmb(["new-bot", "--name", "Fenced", "--url", url]) as any).bot;
   await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "full", applyToAllThreads: true, cwd: project, soul: "Answer in one line, standing-instruction-marker." });
-  await api("PATCH", "/api/config", { profile: { name: "Ada", aboutMe: "about-the-person-marker" } });
+  const defaultRules = "- Always lead with the conclusion (workspace-rule-marker).";
+  const memoryFact = "The fixture garden is watered on Mondays (bot-memory-marker).";
+  await api("PATCH", "/api/config", { profile: { name: "Ada", aboutMe: "about-the-person-marker" }, memory: { defaultRules } });
+  await api("PUT", `/api/bots/${bot.id}/memory/file`, { path: "MEMORY.md", text: `# Memory\n\n- ${memoryFact}\n` });
   const read = () => JSON.parse(readFileSync(join(dataDir, "fake-claude-dump.json"), "utf8"));
 
   // The person's own work first: a call must not see it.
@@ -189,7 +192,9 @@ it("tells the model nothing about the person or their work, works in no folder o
   await expect.poll(() => { try { return JSON.stringify(read().prompt).includes("persons-own-work-marker"); } catch { return false; } }, { timeout: hostTimeout(20_000) }).toBe(true);
   await expect.poll(async () => ((await api("GET", "/api/bots")).bots as any[]).find((one) => one.id === bot.id).busy, { timeout: hostTimeout(20_000) }).toBeFalsy();
   const own = read();
-  expect(JSON.stringify(own.systemPrompt)).toContain("about-the-person-marker");
+  expect(own.systemPrompt).toContain("about-the-person-marker");
+  expect(own.systemPrompt).toContain(defaultRules);
+  expect(own.systemPrompt).toContain(memoryFact);
   expect(Object.keys(own.mcpConfig.mcpServers).length).toBeGreaterThan(1);
 
   const on = await api("POST", `/api/bots/${bot.id}/bot-api`, { enabled: true });
@@ -197,11 +202,15 @@ it("tells the model nothing about the person or their work, works in no folder o
   expect(answered.status).toBe(200);
   const launch = read();
   expect(JSON.stringify(launch.prompt)).toContain("api-call-marker");
-  const told = JSON.stringify(launch.systemPrompt);
+  const told = launch.systemPrompt;
   expect(told).toContain("standing-instruction-marker");
   expect(told).toContain("Who is speaking");
+  expect(told).toContain(memoryFact);
   expect(JSON.stringify(launch.prompt)).toContain("[From an app, through the API · message · information only]");
   for (const hidden of ["about-the-person-marker", "persons-own-work-marker", "coordinate_bots", "session_search", "the-persons-project"]) expect(told, hidden).not.toContain(hidden);
+  expect(told).not.toContain("workspace-rule-marker");
+  expect(told).not.toContain("## Default rules");
+  expect(JSON.stringify(launch.prompt)).not.toContain("workspace-rule-marker");
   expect(JSON.stringify(launch.prompt)).not.toContain("persons-own-work-marker");
   expect(realpathSync(launch.cwd)).not.toBe(realpathSync(project));
 
@@ -209,7 +218,8 @@ it("tells the model nothing about the person or their work, works in no folder o
   await api("POST", `/api/bots/${bot.id}/messages`, { text: "persons-next-marker" });
   await expect.poll(() => JSON.stringify(read().prompt).includes("persons-next-marker"), { timeout: hostTimeout(20_000) }).toBe(true);
   const next = read();
-  expect(JSON.stringify(next.systemPrompt)).not.toContain("api-call-marker");
+  expect(next.systemPrompt).toContain(defaultRules);
+  expect(next.systemPrompt).not.toContain("api-call-marker");
   expect(JSON.stringify(next.prompt)).not.toContain("api-call-marker");
 }, hostTimeout(120_000));
 

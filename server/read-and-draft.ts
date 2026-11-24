@@ -21,9 +21,9 @@ type Adapter = Pick<ProviderAdapter, "respondToRequest" | "interruptTurn">;
 type Say = (message: { role: "bot"; kind: "activity"; tool: { name: string; ok: boolean } }) => unknown;
 type Bot = { id: string; name: string; modelSelection: { instanceId: string } };
 
-/** The system prompt a read-and-draft run keeps: who the person is, where its files are, its connected apps and what a
+/** A read-and-draft run keeps workspace rules, who the person is, where its files are, its connected apps and what a
  * routine run is. No memory, recent work, team notes, skills or tool guides: less to leak, and a smaller turn. */
-export const READ_AND_DRAFT_PARTS: ReadonlySet<string> = new Set(["user-profile", "files", "composio", "routine-execution", "automation-reply", "webhook"]);
+export const READ_AND_DRAFT_PARTS: ReadonlySet<string> = new Set(["default-rules", "user-profile", "files", "composio", "routine-execution", "automation-reply", "webhook"]);
 /** The integrations a read-and-draft run keeps: Entropybot's own tools (fenced by route), the connected apps (fenced
  * by call) and the engine's hooks. */
 export const READ_AND_DRAFT_TOOLS: ReadonlySet<string> = new Set(["agents", "composio", "hooks"]);

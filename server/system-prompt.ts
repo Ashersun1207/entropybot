@@ -59,9 +59,11 @@ export function botPersona(bot: { name: string; title?: string; description?: st
     .join(" ");
 }
 
-function defaultRulesPrompt(rules?: string | null): string {
-  if (!rules || Buffer.byteLength(rules) > MEMORY_DEFAULT_RULES_MAX_BYTES || !rules.trim()) return "";
-  return `\n\n## Default rules\nUse these workspace-wide rules for workflow and replies, including any extra confirmation steps. They take precedence over generic workflow and reply defaults. Follow all safety, permission and approval requirements.\n\n${rules}\n\n`;
+export function defaultRulesPart(rules?: string | null): PromptPart {
+  const text = rules && Buffer.byteLength(rules) <= MEMORY_DEFAULT_RULES_MAX_BYTES && rules.trim()
+    ? `\n\n## Default rules\nUse these workspace-wide rules for workflow and replies, including any extra confirmation steps. They take precedence over generic workflow and reply defaults. Follow all safety, permission and approval requirements.\n\n${rules}\n\n`
+    : "";
+  return { id: "default-rules", label: "Default rules", text };
 }
 
 export function buildSystemPrompt(
@@ -69,7 +71,7 @@ export function buildSystemPrompt(
   soul: string,
   parts: PromptPart[],
   agents?: { env?: Record<string, string | undefined> },
-  opts?: { replyStyle?: ReplyStyle; defaultRules?: string | null },
+  opts?: { replyStyle?: ReplyStyle },
 ): { text: string; sections: PromptSection[]; stable: string; volatile: string } {
   const ordered: PromptPart[] = [
     { id: "persona", label: "Identity", text: persona },
@@ -77,7 +79,6 @@ export function buildSystemPrompt(
     // Right after the soul: on a direct turn, ahead of every section that names a tool.
     { id: "tool-bridge", label: "Tool search", text: agentsToolBridged(agents) ? AGENTS_TOOL_BRIDGE_PROMPT : "" },
     { id: "reply-style", label: "Reply style", text: replyStylePrompt(opts?.replyStyle) },
-    { id: "default-rules", label: "Default rules", text: defaultRulesPrompt(opts?.defaultRules) },
     ...parts,
     { id: "reply-habits", label: "How to reply", text: REPLY_HABITS_PROMPT },
   ];
