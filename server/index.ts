@@ -4649,7 +4649,7 @@ function settleTrackedRequest(threadId: string, incoming: ReadonlySet<string> = 
 
 interface SseClient {
   res: ServerResponse;
-  admin: boolean;
+  adminFrame(kind: string): boolean;
   /** On a Team Cloud, who the stream is for: its config frames carry that person's own profile. */
   person?: SessionRecord;
   screens: boolean;
@@ -4772,7 +4772,7 @@ function broadcast(payload: Record<string, unknown>, options: { adminOnly?: bool
     if (!wants(client, kind) || !teamOwners.reaches(client.ask, payload) || !streamFor(client, options.person)) continue;
     // Admin-only frames (clientFrame null) never reach members, and a member never falls back to the admin frame.
     const out = CLOUD_TEAM && kind === "config" && clientFrame !== null ? teamConfigFrame(client, seq, payload)
-      : memberFrame(client, seq, payload, client.admin ? frame : clientFrame, ownGroups);
+      : memberFrame(client, seq, payload, client.adminFrame(kind) ? frame : clientFrame, ownGroups);
     if (out === null) continue;
     if (deliverSseFrame(client, kind, out) === "disconnected") client.close();
   }
@@ -4780,7 +4780,7 @@ function broadcast(payload: Record<string, unknown>, options: { adminOnly?: bool
 
 /** A Team Cloud's config frame is each person's own: it carries their profile as "you". */
 function teamConfigFrame(client: SseClient, seq: number, payload: Record<string, unknown>): string {
-  const own = configForAccess(payload as ReturnType<typeof configStatus>, client.admin, client.person);
+  const own = configForAccess(payload as ReturnType<typeof configStatus>, client.adminFrame("config"), client.person);
   return `id: ${STREAM_ID}:${seq}\ndata: ${JSON.stringify({ ...own, seq })}\n\n`;
 }
 
@@ -12782,7 +12782,8 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     const hidden = subject && !subjectVisible(subject, visible) ? notFoundFor(subject) : hiddenThreadRefusal(req, path, url.searchParams, visible, (botId) => store.bot(botId)?.threadId);
     if (hidden) return json(res, 404, { error: hidden }); const refused = botAccess.accessRefusal(req, auth, method, path, visible); if (refused) return json(res, 403, refused);
     // Every bot a member is sent (on a Team Cloud an admin's too) comes narrowed to what they may see once the request is done (memberBot).
-    if (viewer.kind === "member" || visible.filtersThreads) onJsonBody(res, (body) => memberBody(body, visibleTo(viewer)));
+    const adminBotSettings = auth.scopes.includes("admin") && (auth.kind !== "loopback" || req.headers["x-entropybot-companion"] !== "1");
+    if (!adminBotSettings || visible.filtersThreads) onJsonBody(res, (body) => memberBody(body, visibleTo(viewer), adminBotSettings));
     beginAdminAudit(req, res, method, path, auth);
 
     if (method === "POST" && path === "/api/workspace-backup/restore" && teamComputers.list().some(computer => computer.section !== null)) {
@@ -14884,7 +14885,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       const visibleNow = visibleTo(viewer);
       const client: SseClient = {
         res,
-        admin: auth.scopes.includes("admin"),
+        adminFrame: (kind) => kind === "bot" ? adminBotSettings : auth.scopes.includes("admin"),
         screens: url.searchParams.get("screens") !== "off",
         backpressured: false,
         viewer, ask: teamOwners.viewer(auth),
@@ -14933,8 +14934,8 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           const frame = CLOUD_TEAM && buffered.kind === "config" && buffered.clientFrame !== null && buffered.payload
             ? teamConfigFrame(client, buffered.seq, buffered.payload)
             : buffered.payload
-              ? memberFrame(client, buffered.seq, buffered.payload, client.admin ? buffered.frame : buffered.clientFrame)
-              : client.admin
+              ? memberFrame(client, buffered.seq, buffered.payload, client.adminFrame(buffered.kind) ? buffered.frame : buffered.clientFrame)
+              : client.adminFrame(buffered.kind)
                 ? buffered.frame
                 : buffered.clientFrame;
           if (frame) res.write(frame);

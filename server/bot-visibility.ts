@@ -469,8 +469,12 @@ export function memberGroup<T extends object>(group: T): T {
   return rest as T;
 }
 
-export function memberBody(body: unknown, visible: VisibleSet): unknown {
+export function memberBody(body: unknown, visible: VisibleSet, adminBotSettings = !visible.member): unknown {
   if (!body || typeof body !== "object" || Array.isArray(body)) return body;
+  const projectBot = (bot: object) => {
+    const shown = memberBot(bot, visible);
+    return adminBotSettings || visible.member ? shown : withoutAdminSettings(shown);
+  };
   const narrow = (value: unknown, depth: number): unknown => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return value;
     const record = value as Record<string, unknown>;
@@ -479,9 +483,9 @@ export function memberBody(body: unknown, visible: VisibleSet): unknown {
       // A member who can see every bot and room, and an admin, are sent the rooms as they are; bots still narrow.
       if ((visible.everything || !visible.member) && (key === "group" || key === "groups")) continue;
       let next = child;
-      if (key === "bot" && child && typeof child === "object" && !Array.isArray(child)) next = memberBot(child, visible);
+      if (key === "bot" && child && typeof child === "object" && !Array.isArray(child)) next = projectBot(child);
       else if (key === "bots" && Array.isArray(child)) {
-        const shown = child.map((bot) => (bot && typeof bot === "object" ? memberBot(bot as object, visible) : bot));
+        const shown = child.map((bot) => (bot && typeof bot === "object" ? projectBot(bot) : bot));
         if (shown.some((bot, index) => bot !== child[index])) next = shown;
       } else if (key === "group" && child && typeof child === "object" && !Array.isArray(child)) next = memberGroup(child);
       else if (key === "groups" && Array.isArray(child)) {

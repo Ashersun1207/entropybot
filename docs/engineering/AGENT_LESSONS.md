@@ -467,6 +467,7 @@
 - R1 独立复审发现 `b3842196f` 在筛选提示段之后仍传入规则全文。`server/bot-api.e2e.test.ts` 在原候选的真实隔离 HTTP 回合复现，假引擎的外部回合系统提示含工作区规则标记。工作区规则作为 `PromptPart` 进入现有可见性筛选，外部 Bot API 沿用原允许清单。回归在同一 Bot 的私聊和外部回合检查规则、About me、`MEMORY.md` 与 SOUL.md，读写受限例行任务的继承由 `server/proactive-routines.e2e.test.ts` 验证。
 
 - 单个 Bot 的 `defaultRules` 保存在 Bot 记录上。外部回合按提示段过滤后，配对客户端仍可能通过 Bot 列表和实时帧读到覆盖原文。隔离 HTTP 与成员投影用例在初版得到 2 失败，修复在原有成员投影中移除该字段，管理员保留回显。回归入口为 `server/memory-default-rules.e2e.test.ts`、`server/bot-visibility.test.ts` 和 `server/bot-api.e2e.test.ts`。
+- `55894266c` 的成员投影回归只覆盖普通 client session。R1 独立复审指出桌面 Companion 使用带 admin scope 的 loopback，service loopback 虽仅有 client scope，列表也走全可见 Bot 投影。隔离用例在该候选得到 4 失败、20 通过。按读取身份选择 Bot 字段与 SSE 的实时/回放版本，同时在 Companion 的 JSON/SSE 序列化出口过滤私有规则。回归 `server/bot-rules-visibility.e2e.test.ts` 使用真实代理和合成桌面凭据，对照管理员原文、手机上游和下游、service 列表与既有订阅拒绝；`companion/test/wire.test.ts` 单独验证上游返回完整字段时的设备输出。
 - 渲染器 Vitest 只收集 `src/**/*.test.ts`。首轮组合列出 8 个文件却只运行 7 个，新增编辑器的 `.test.tsx` 文件被漏收。改用 `.test.ts` 并从最终报告核对 `BotRulesSettings.dom.test.ts` 的执行结果；该用例覆盖保存失败重试、多字节预算、切换 Bot 和清空后的回显。
 
 ## 不应合并的改动

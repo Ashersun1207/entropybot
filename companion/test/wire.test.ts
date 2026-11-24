@@ -5,11 +5,13 @@ import { describe, expect, it } from "vitest";
 import { createSseScrubber, isJson, MAX_SSE_EVENT_BYTES, scrub } from "../src/wire.ts";
 
 describe("scrub", () => {
-  it("removes resumeCursors wherever it is nested", () => {
+  it("removes private rules, server aliases and nested resume cursors from the bot list", () => {
     const bot = {
       id: "b1",
       name: "Rio",
       resumeCursors: { ghost: "session-abc" },
+      defaultRules: "private bot rules",
+      vpsAlias: "private-host",
       mainThreadId: "t2",
       tasks: [
         { threadId: "t1", title: "One", resumeCursors: { ghost: "session-def" } },
@@ -130,8 +132,8 @@ describe("createSseScrubber", () => {
     expect(data).toEqual({ kind: "bot", bot: { id: "b1" } });
   });
 
-  it("strips per-bot alias tags from a bot frame but never the id: line", () => {
-    const frame = 'id: abc123:7\ndata: {"kind":"bot","bot":{"id":"b1","vpsAlias":"alpha-vps","vpsAliases":["alpha-vps"],"computers":[{"name":"n1","vpsAlias":"alpha-vps"}]}}\n\n';
+  it("strips private rules and alias tags from a bot frame while preserving its event id", () => {
+    const frame = 'id: abc123:7\ndata: {"kind":"bot","bot":{"id":"b1","defaultRules":"private bot rules","vpsAlias":"alpha-vps","vpsAliases":["alpha-vps"],"computers":[{"name":"n1","vpsAlias":"alpha-vps"}]}}\n\n';
     const out = createSseScrubber()(frame);
 
     expect(out).toContain("id: abc123:7\n");

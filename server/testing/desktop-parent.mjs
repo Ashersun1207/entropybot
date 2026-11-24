@@ -7,6 +7,8 @@
 import { readFileSync, unwatchFile, watchFile } from "node:fs";
 
 const token = process.env.OMB_TEST_DESKTOP_OWNER_TOKEN;
+const companionToken = process.env.OMB_TEST_COMPANION_TOKEN;
+delete process.env.OMB_TEST_COMPANION_TOKEN;
 const pages = process.env.OMB_TEST_DESKTOP_PAGES_ACCESS;
 const cuaFile = process.env.OMB_TEST_DESKTOP_CUA_CONNECTION;
 delete process.env.OMB_TEST_DESKTOP_OWNER_TOKEN;
@@ -35,7 +37,7 @@ if (token || cuaFile) {
       on(event, listener) {
         if (event !== "message") return;
         listeners.push(listener);
-        if (token) queueMicrotask(() => listener({ data: { type: "entropybot:desktop-mutation-token", token } }));
+        if (token) queueMicrotask(() => listener({ data: { type: "entropybot:desktop-mutation-token", token, companionToken } }));
         if (pages) queueMicrotask(() => listener({ data: { type: "entropybot:included-pages", access: JSON.parse(pages) } }));
         if (cuaFile) queueMicrotask(() => listener({ data: cuaGrant() }));
       },
