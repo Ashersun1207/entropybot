@@ -3,6 +3,7 @@ import vm from "node:vm";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setLocale } from "@/lib/i18n";
 import type { UpdaterState } from "@/lib/updater";
 
 const fixture = vi.hoisted(() => ({ state: { status: "idle" } as UpdaterState }));
@@ -11,7 +12,10 @@ vi.mock("@/lib/updater", async (original) => ({ ...(await original<typeof import
 vi.mock("../lib/brand", () => ({ brand: () => ({ name: "Entropybot" }), productName: () => "Entropybot" }));
 import { UpdateBanner } from "./UpdateBanner";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  setLocale("en");
+  vi.unstubAllGlobals();
+});
 function render(state: UpdaterState, window: object = { ogb: { updater: {} } }, sidebarIndicator = false) {
   fixture.state = state;
   vi.stubGlobal("window", window);
@@ -79,6 +83,18 @@ describe("UpdateBanner", () => {
     expect(html).toContain("Quit the app completely.");
     expect(html).toContain("disabled=\"\"");
     expect(html).not.toContain("Try again");
+  });
+
+  it("leaves a newer release on the manual update surface without a failure toast", () => {
+    expect(render({ status: "available", mode: "manual", version: "0.3.0" })).toBe("");
+  });
+
+  it("labels a failed manual check in Chinese and offers retry", () => {
+    setLocale("zh-CN");
+    const html = render({ status: "error", mode: "manual", retryable: true });
+    expect(html).toContain("检查更新失败");
+    expect(html).toContain("无法检查更新——请重试。");
+    expect(html).toContain("重试</button>");
   });
 
   it("shows a preparation failure with a recovery action", () => {

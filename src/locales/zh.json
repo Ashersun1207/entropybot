@@ -2257,6 +2257,7 @@
   "sidebar.update.howOther": "由运行该服务器的人使用以下命令更新：{command}",
   "sidebar.update.howOtherRestart": "由运行该服务器的人使用以下命令更新：{command}，然后重启它",
   "sidebar.update.checkFailed": "无法检查更新——请重试。",
+  "update.banner.checkFailed": "检查更新失败",
   "sidebar.update.reloadPage": "重新加载以获得 v{version}",
   "sidebar.update.pageVersion": "此页面仍在运行 v{version}",
   "sidebar.phone.checking": "正在检查设备状态",

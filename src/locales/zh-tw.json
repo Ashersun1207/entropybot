@@ -1366,6 +1366,7 @@
   "sidebar.update.howOther": "由執行該伺服器的人使用以下指令更新：{command}",
   "sidebar.update.howOtherRestart": "由執行該伺服器的人使用以下指令更新：{command}，然後重新啟動它",
   "sidebar.update.checkFailed": "無法檢查更新 — 請再試一次",
+  "update.banner.checkFailed": "檢查更新失敗",
   "sidebar.phone.checking": "正在檢查裝置狀態",
   "sidebar.phone.unavailable": "無法取得裝置狀態",
   "sidebar.phone.off": "遠端存取已停用",

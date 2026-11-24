@@ -9,6 +9,11 @@
 - 处理顺序：先让钥匙串授权生效（health 200）→ `tccutil reset Accessibility ai.entropybot.desktop` 与 `tccutil reset ScreenCapture ai.entropybot.desktop`（只清这两项隐私授权，不影响钥匙串）→ 完全退出并重启应用，让它以新 CDHash 重新注册 → 用户在系统设置重新勾选正确路径的 `Entropybot.app` → 以最新 `server.log` 的 `computer control: embedded` 为准，不读旧日志、不无依据反复 reset。
 - 旧路径/旧构建残留（如 `/Applications/Entropybot-brandfix-failed-*.app`）会占旧授权条目，替换后应删除，避免 TCC 按旧 code requirement 冲突。判断依据：最新 `server.log` 的 computer control 行 + `log show --predicate 'process == "tccd"'` 里的 `Failed to match existing code requirement`。
 
+## 桌面手动检查更新
+
+- 检查失败、发现新版和安装失败分别验收。手动 `available` 由「更新」设置提供发布页入口，不能落入失败横幅。真实检查先看固定来源的 HTTP 状态和版本，当前成功不证明截图当时的故障原因。
+- 代理与重试用隔离 Electron 会话验证。改变会话代理后关闭既有连接，明确禁用本地响应缓存，否则再次检查可能读到上一轮成功结果。回归入口为 `electron/entropybot-updater.test.mjs`、`src/components/UpdateBanner.test.ts` 与 `scripts/macos-qualification/window.unit.mjs`。日志只记录固定原因或 HTTP 状态码。
+
 ## macOS 窗口超时阶段
 
 - Hosted run `43758427529` 的超时只说明未达到完整验收条件。`missing-or-rejected` 同时涵盖文件不存在和读取拒绝。Run `45226145032` 记录两次窗口创建、零主窗口选中。Electron 43.7.9 的 `SaveLastPreferences` 省略 `preload`，旧观察器依赖这个字段，原合成夹具却回传了它。夹具按真实字段形状重现失败。仅在未打包的诊断启动中，由主窗口创建入口发送进程内标记，原加载和像素验收继续适用。

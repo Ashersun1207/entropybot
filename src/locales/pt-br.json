@@ -8372,6 +8372,7 @@
   "update.banner.ready": "Atualização pronta: {app} {version}",
   "update.banner.finishInTerminal": "Conclua em um terminal",
   "update.banner.failed": "Não foi possível atualizar",
+  "update.banner.checkFailed": "Falha na verificação de atualizações",
   "update.banner.copyCommand": "Copie o comando de instalação e abra um terminal.",
   "update.banner.restartToFinish": "Reinicie para concluir a atualização.",
   "update.banner.copying": "Copiando o comando…",

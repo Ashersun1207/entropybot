@@ -8372,6 +8372,7 @@
   "update.banner.ready": "{app} {version} is ready",
   "update.banner.finishInTerminal": "Finish in a terminal",
   "update.banner.failed": "Update failed",
+  "update.banner.checkFailed": "Update check failed",
   "update.banner.copyCommand": "Copy the install command and open a terminal.",
   "update.banner.restartToFinish": "Restart to finish updating.",
   "update.banner.copying": "Copying the command…",

@@ -12,7 +12,8 @@ const fixture = vi.hoisted(() => ({
 }));
 vi.mock("electron", () => ({
   app: { isPackaged: true, getVersion: () => "0.2.0", getPath: () => { throw new Error("must not access app files"); }, relaunch: fixture.install, quit: fixture.install },
-  clipboard: {}, ipcMain: { handle: (name: string, handler: (event: object) => any) => fixture.handlers.set(name, handler) }, shell: { openExternal: fixture.open },
+  clipboard: {}, ipcMain: { handle: (name: string, handler: (event: object) => any) => fixture.handlers.set(name, handler) },
+  net: { fetch: (...args: Parameters<typeof fetch>) => fetch(...args) }, shell: { openExternal: fixture.open },
 }));
 vi.mock("node:module", async (original) => {
   const actual = await original<typeof import("node:module")>();

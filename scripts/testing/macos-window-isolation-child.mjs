@@ -26,7 +26,7 @@ app.quit = () => { exitCode = 0; app.emit("will-quit"); finished(); };
 app.exit = code => { exitCode = code; app.emit("will-quit"); finished(); };
 const handlers = new Map();
 globalThis.__windowIsolation = { app, ipcMain: { handle: (name, handler) => handlers.set(name, handler) }, shell: { openExternal: () => assert.fail("unexpected external link") } };
-const electron = `const f=globalThis.__windowIsolation; export const app=f.app, ipcMain=f.ipcMain, shell=f.shell, clipboard={};`;
+const electron = `const f=globalThis.__windowIsolation; export const app=f.app, ipcMain=f.ipcMain, shell=f.shell, clipboard={}, net={fetch: (...args) => fetch(...args)};`;
 let override;
 const loader = registerHooks({
   resolve(specifier, context, next) {

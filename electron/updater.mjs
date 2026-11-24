@@ -1,6 +1,6 @@
 // macOS automatic updates require a signed packaged app; manual release checks also run in development.
 // electron-updater is vendored because the packaged app ships no node_modules.
-import { app, clipboard, ipcMain, shell } from "electron";
+import { app, clipboard, ipcMain, net, shell } from "electron";
 import { RELEASES_URL, UPDATE_MODE } from "./update-policy.mjs";
 
 const LATEST_RELEASE_URL = "https://api.github.com/repos/Ashersun1207/entropybot/releases/latest";
@@ -27,18 +27,31 @@ function manualCheck() {
   if (manualPending) return manualPending;
   setState({ status: "checking", version: undefined, message: undefined, retryable: true });
   manualPending = (async () => {
+    const signal = AbortSignal.timeout(8_000);
+    let failure = "network request failed";
     try {
-      const response = await fetch(LATEST_RELEASE_URL, {
+      // Electron's default session honors the system proxy.
+      const response = await net.fetch(LATEST_RELEASE_URL, {
         headers: { accept: "application/vnd.github+json", "user-agent": "entropybot-update-check" },
-        signal: AbortSignal.timeout(8_000),
+        credentials: "omit",
+        cache: "no-store",
+        signal,
       });
-      if (!response.ok) throw new Error("release_check_failed");
-      const body = await response.json();
-      if (typeof body?.tag_name !== "string") throw new Error("invalid_release_tag");
+      if (!response.ok) {
+        failure = Number.isInteger(response.status) ? `HTTP ${response.status}` : "HTTP request failed";
+        throw new Error(failure);
+      }
+      const body = await response.json().catch(error => {
+        if (error instanceof SyntaxError) failure = "invalid release metadata";
+        throw error;
+      });
+      failure = "invalid release metadata";
+      if (typeof body?.tag_name !== "string") throw new Error(failure);
       const latest = body.tag_name.trim().replace(/^entropybot-/, "").replace(/^v/, "");
-      if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(latest)) throw new Error("invalid_release_tag");
+      if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(latest)) throw new Error(failure);
       setState({ status: newerThan(latest, app.getVersion()) ? "available" : "idle", version: latest });
     } catch {
+      updaterLogger().warn("Release check failed:", signal.aborted ? "timed out" : failure);
       setState({ status: "error", message: "Couldn't check for updates. Try again.", retryable: true });
     }
   })().finally(() => { manualPending = null; });
@@ -114,10 +127,10 @@ function view() {
 }
 
 function updaterLogger() {
-  const directory = app.getPath("logs");
-  const file = join(directory, "updater.log");
   const write = (level, values) => {
     try {
+      const directory = app.getPath("logs");
+      const file = join(directory, "updater.log");
       mkdirSync(directory, { recursive: true, mode: 0o700 });
       const message = values
         .map((value) => (value instanceof Error ? value.stack ?? value.message : String(value)))

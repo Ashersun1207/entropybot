@@ -52,6 +52,7 @@ export function UpdateBanner({ sidebarIndicator = false }: UpdateBannerProps) {
     return <UpdatedLine version={s.updated} onSeen={() => void window.ogb?.updater?.seen?.().catch(() => {})} />;
   }
   if (!s || s.status === "idle" || s.status === "checking" || s.status === "downloading" || s.status === "preparing") return null;
+  if (s.mode === "manual" && s.status === "available") return null;
   if (sidebarIndicator && (s.status === "downloaded" || s.status === "installing")) return null;
   const key = `${s.status}:${s.version ?? ""}`;
   if (dismissed === key) return null;
@@ -70,7 +71,7 @@ export function UpdateBanner({ sidebarIndicator = false }: UpdateBannerProps) {
           : t("settings.updates.restarting")
         : s.status === "handed-off"
           ? t("update.banner.finishInTerminal")
-          : t("update.banner.failed");
+          : t(s.mode === "manual" ? "update.banner.checkFailed" : "update.banner.failed");
   const subtitle =
     s.status === "downloaded"
       ? handoff

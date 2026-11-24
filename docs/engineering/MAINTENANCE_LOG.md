@@ -1,5 +1,11 @@
 # 维护审查记录
 
+## 2026-11-25 桌面检查更新的网络与提示
+
+- 本机 0.2.6 的 ASAR 更新模块和 `354507e4e` 一致。原始失败未保存具体原因，现场复查 GitHub `entropybot-v0.2.3` 返回 HTTP 200，安装版较新。源候选以 Electron 默认会话使用系统代理，手动查询有原来的 8 秒截止，不发送网站凭证，并跳过 Chromium 本地缓存。维持同一 GitHub 来源、手动打开发布页及现有 IPC 授权。
+- 手动检查错误现在使用独立的本地化标题。复审发现成功取得新版也会落入失败横幅，新增 `manual + available` 红绿回归，沿用「更新」设置和发布页。失败日志仅保留固定原因与 HTTP 状态码，测试区分超时、连接、正文中断、HTTP 和无效发布元数据，禁止写入异常原文。
+- Electron 43.7.9 隔离探针先通过系统代理读取公开版本，再用只作用于隔离会话的本地代理拒绝 CONNECT。观察到候选请求、失败状态和脱敏日志。恢复系统代理后通过同一个更新检查入口回到无可用更新。构建和安装状态见外层交付记录。
+
 ## 2026-11-10：M1 journal undo R1 持久元数据一致性
 
 - 独立复审对75fcbfaf2为NEEDS-CHANGES，暂停集成。根因是readMemoryJournal的宽松可读shape被当作完整可信运行时contract，afterHash检查遗漏kind/before/beforeHash相互关系，restore的空串fallback放大缺数据影响。先在原提交产品字节上以合成NDJSON＋实际reader/revert/HTTP复现并保留原基线/206证据，再限定修改memory-journal.ts与既有tests/docs；memory-store.ts及其mutation gate不变。
