@@ -313,6 +313,11 @@ describe("live frames for a member", () => {
 
     // The live frame every member shares, and an untouched frame kept as the same object for the shared bytes.
     expect(memberFramePayload({ kind: "bot", bot })).toEqual({ kind: "bot", bot: { id: "pub", cloudBackend: "vps" } });
+    const rules = { id: "pub", defaultRules: "private rule marker" };
+    expect(memberBot(rules, open)).toEqual({ id: "pub" });
+    expect(memberBot(rules, narrowed)).toEqual({ id: "pub" });
+    expect(memberBot(rules, admin)).toBe(rules);
+    expect(memberFramePayload({ kind: "bot", bot: rules })).toEqual({ kind: "bot", bot: { id: "pub" } });
     const plain = { kind: "bot", bot: { id: "pub" } };
     expect(memberFramePayload(plain)).toBe(plain);
     const config = { kind: "config", vpsAlias: "not a bot" };

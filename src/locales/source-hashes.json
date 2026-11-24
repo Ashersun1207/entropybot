@@ -31039,7 +31039,9 @@
       "routines.manual.changed": "2ac73bd75d66ad7c3c570515e52703e6a3d9da09b2695d6360212523bc18173b",
       "routines.manual.coordination": "f4b49cce2a579514d2d44891d92e85c55fce23d6578d6aae37111e862e304336",
       "settings.memory.defaultRules": "c2299ee7ec1cfb3435c704bf9c337d058674ed3d311421d93e9f56d784908d5e",
-      "settings.memory.defaultRulesHelp": "2311ab1933ba0244f235858a6253fa84d0a3e95ce886cab9bcb3b054cef1398b"
+      "settings.memory.defaultRulesHelp": "11d9ba959dea7ede9e401768c7b6a90f3e0411b7679c23ebb09d903927444a0c",
+      "memory.rules": "4228aeb07c410ffc9d15b458bf7c2bf8d9dfa7af632f2c339e69f8cb54654da3",
+      "memory.rulesHelp": "44e052d03d138be4d2709fd436f701f21ce1ca6cc9fd7b913fa418b2a28b5b50"
     },
     "zh": {
       "highlevel.unavailable": "87b8ac7f7610e6dd69f520bc59058fd92f307b9f4bcf804075f25d08bcaa7533",
@@ -38485,7 +38487,9 @@
       "botIdentity.soul.bytes": "d145667248f09a59d1338a0b223f438031551a6975b2b37c7652647949f2da0a",
       "botIdentity.soul.bytesOver": "cc0606348c74cb818f0063bdb6a969f41a2322601765c0c88163d508aa1ec82e",
       "settings.memory.defaultRules": "c2299ee7ec1cfb3435c704bf9c337d058674ed3d311421d93e9f56d784908d5e",
-      "settings.memory.defaultRulesHelp": "2311ab1933ba0244f235858a6253fa84d0a3e95ce886cab9bcb3b054cef1398b"
+      "settings.memory.defaultRulesHelp": "11d9ba959dea7ede9e401768c7b6a90f3e0411b7679c23ebb09d903927444a0c",
+      "memory.rules": "4228aeb07c410ffc9d15b458bf7c2bf8d9dfa7af632f2c339e69f8cb54654da3",
+      "memory.rulesHelp": "44e052d03d138be4d2709fd436f701f21ce1ca6cc9fd7b913fa418b2a28b5b50"
     },
     "zh-tw": {
       "voice.gemini.keyPlaceholder": "8c87ba2043a4a89d63c90cae8a6dafd5cbd193652e923b97988e381a74773e10",
@@ -43184,9 +43188,11 @@
       "botApi.cantTake": "cafb65a3ade729ca3503e8e4c6054209ebe8913f16ca7fad8d609926d57ab136",
       "settings.section.memory": "c3963aedaac6c83c04cf8fb997b479c61e66b3caeecfadd2f2d4bd5b0aef1778",
       "settings.memory.defaultRules": "c2299ee7ec1cfb3435c704bf9c337d058674ed3d311421d93e9f56d784908d5e",
-      "settings.memory.defaultRulesHelp": "2311ab1933ba0244f235858a6253fa84d0a3e95ce886cab9bcb3b054cef1398b",
+      "settings.memory.defaultRulesHelp": "11d9ba959dea7ede9e401768c7b6a90f3e0411b7679c23ebb09d903927444a0c",
       "botIdentity.soul.bytes": "d145667248f09a59d1338a0b223f438031551a6975b2b37c7652647949f2da0a",
-      "botIdentity.soul.bytesOver": "cc0606348c74cb818f0063bdb6a969f41a2322601765c0c88163d508aa1ec82e"
+      "botIdentity.soul.bytesOver": "cc0606348c74cb818f0063bdb6a969f41a2322601765c0c88163d508aa1ec82e",
+      "memory.rules": "4228aeb07c410ffc9d15b458bf7c2bf8d9dfa7af632f2c339e69f8cb54654da3",
+      "memory.rulesHelp": "44e052d03d138be4d2709fd436f701f21ce1ca6cc9fd7b913fa418b2a28b5b50"
     },
     "uk": {
       "voice.gemini.keyPlaceholder": "8c87ba2043a4a89d63c90cae8a6dafd5cbd193652e923b97988e381a74773e10",

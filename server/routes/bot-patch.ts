@@ -21,6 +21,7 @@ import type { createApprovalModeSupport } from "../harness-capabilities.ts";
 import type { ProviderRegistry } from "../harness/registry.ts";
 import type { hostedModelPolicy } from "../hosted-models.ts";
 import { MAX_MCP_SERVERS, mcpServerNameError } from "../mcp-registry.ts";
+import { botDefaultRulesSchema } from "../memory-default-rules.ts";
 import type { MemoryUpkeep } from "../memory-upkeep.ts";
 import { phoneAppsFor } from "../phones/access.ts";
 import { profileSnapshot } from "../profile-revision.ts";
@@ -327,6 +328,11 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
           }
         }
         patch.mcpServers = requestedMcpServers;
+      }
+      if (body.defaultRules !== undefined) {
+        const rules = botDefaultRulesSchema.safeParse(body.defaultRules);
+        if (!rules.success) return json(res, 400, { error: `defaultRules: ${rules.error.issues[0].message}` });
+        patch.defaultRules = rules.data;
       }
       if (body.memoryUpkeep !== undefined) {
         if (typeof body.memoryUpkeep !== "boolean") return json(res, 400, { error: "memoryUpkeep must be true or false" });

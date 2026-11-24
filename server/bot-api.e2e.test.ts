@@ -221,6 +221,21 @@ it("tells the model nothing about the person or their work, works in no folder o
   expect(next.systemPrompt).toContain(defaultRules);
   expect(next.systemPrompt).not.toContain("api-call-marker");
   expect(JSON.stringify(next.prompt)).not.toContain("api-call-marker");
+
+  const botRules = "- Use the private bot-rule-marker.";
+  await api("PATCH", `/api/bots/${bot.id}`, { defaultRules: botRules });
+  const again = await call(on.url, on.key, { message: "second-api-call-marker" });
+  expect(again.status).toBe(200);
+  const external = read();
+  expect(JSON.stringify(external.prompt)).toContain("second-api-call-marker");
+  for (const text of [botRules, defaultRules]) {
+    expect(external.systemPrompt).not.toContain(text);
+    expect(JSON.stringify(external.prompt)).not.toContain(text);
+  }
+  await api("POST", `/api/bots/${bot.id}/messages`, { text: "private-overridden-turn-marker" });
+  await expect.poll(() => JSON.stringify(read().prompt), { timeout: hostTimeout(20_000) }).toContain("private-overridden-turn-marker");
+  expect(read().systemPrompt).toContain(botRules);
+  expect(read().systemPrompt).not.toContain(defaultRules);
 }, hostTimeout(120_000));
 
 it("a failed call reports to no Chief, whose turn has tools, while a person's own failed turn still does", async () => {

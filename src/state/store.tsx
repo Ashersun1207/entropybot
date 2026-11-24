@@ -311,6 +311,7 @@ export interface Bot extends DefaultBotFields, Pick<WireBot, "mascotFaceColor" |
   replyStyle?: import("../../shared/wire").WireBot["replyStyle"];
   voice?: string;
   voiceNotes?: boolean; xResearch?: boolean;
+  defaultRules?: string;
   memoryEnabled?: boolean;
   pinned?: boolean;
   hidden?: boolean;
@@ -1201,7 +1202,7 @@ export function reducer(state: AppState, action: Action): AppState {
       if ((switchedThread || (before.awaitingThreadSnapshot && action.bot.threadId === before.threadId)) &&
           Array.isArray(action.bot.messages)) {
         // The slim deletion broadcast can beat the full snapshot; later duplicate snapshots must not overwrite newer messages.
-        return reducer(switching, { type: "taskSwitched", bot: { ...before, ...action.bot, computer: action.bot.computer, section: action.bot.section, toolScope: action.bot.toolScope, managedSections: action.bot.managedSections, messages: action.bot.messages, browserProfile: action.bot.browserProfile, vpsAlias: action.bot.vpsAlias, phoneApps: action.bot.phoneApps, onlyPeopleAdded: action.bot.onlyPeopleAdded } });
+        return reducer(switching, { type: "taskSwitched", bot: { ...before, ...action.bot, defaultRules: action.bot.defaultRules, computer: action.bot.computer, section: action.bot.section, toolScope: action.bot.toolScope, managedSections: action.bot.managedSections, messages: action.bot.messages, browserProfile: action.bot.browserProfile, vpsAlias: action.bot.vpsAlias, phoneApps: action.bot.phoneApps, onlyPeopleAdded: action.bot.onlyPeopleAdded } });
       }
       const patched = updateBot(switching, action.bot.id, (b) => ({
         ...b,
@@ -1212,6 +1213,7 @@ export function reducer(state: AppState, action: Action): AppState {
         // Complete frames omit cleared optional fields; copy them so the spread cannot keep stale values.
         browserProfile: action.bot.browserProfile,
         computer: action.bot.computer,
+        defaultRules: action.bot.defaultRules,
         toolScope: action.bot.toolScope,
         section: action.bot.section, managedSections: action.bot.managedSections,
         vpsAlias: action.bot.vpsAlias, phoneApps: action.bot.phoneApps, onlyPeopleAdded: action.bot.onlyPeopleAdded,
@@ -1762,6 +1764,7 @@ export function reducer(state: AppState, action: Action): AppState {
         ...bot,
         ...action.bot,
         computer: action.bot.computer,
+        defaultRules: action.bot.defaultRules,
         toolScope: action.bot.toolScope, managedSections: action.bot.managedSections,
         vpsAlias: action.bot.vpsAlias,
         messages: action.bot.messages ?? [],

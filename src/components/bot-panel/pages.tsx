@@ -10,6 +10,7 @@ import type { Routine } from "@/lib/routines";
 import { shortPath } from "@/lib/short-path";
 import { useStore, type Bot } from "@/state/store";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
+import { BotRulesSettings } from "../MemorySettings";
 import { ServiceIcon } from "../ServiceIcon";
 import { RoutineEditor } from "../RoutinesPage";
 import { useWorkingFolder } from "../bot-settings/AccessSection";
@@ -177,6 +178,7 @@ export function MemoryPage({ bot }: PageContext) {
 
   return (
     <>
+      <BotRulesSettings bot={bot} />
       <Card>
         {!memoryOn ? (
           <NoteRow>{t("botPanel.library.memoryOff", { name: bot.name })}</NoteRow>

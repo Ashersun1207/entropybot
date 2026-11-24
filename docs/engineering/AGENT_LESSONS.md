@@ -466,6 +466,9 @@
 - 首轮群聊夹具把异步接受消息的状态写成 200，实际返回 202，导致提示断言尚未执行。按现有协议校验 202 后等待假引擎收到本次消息，再读取其系统提示。真实模型的规则遵循由后续模型验收覆盖。
 - R1 独立复审发现 `b3842196f` 在筛选提示段之后仍传入规则全文。`server/bot-api.e2e.test.ts` 在原候选的真实隔离 HTTP 回合复现，假引擎的外部回合系统提示含工作区规则标记。工作区规则作为 `PromptPart` 进入现有可见性筛选，外部 Bot API 沿用原允许清单。回归在同一 Bot 的私聊和外部回合检查规则、About me、`MEMORY.md` 与 SOUL.md，读写受限例行任务的继承由 `server/proactive-routines.e2e.test.ts` 验证。
 
+- 单个 Bot 的 `defaultRules` 保存在 Bot 记录上。外部回合按提示段过滤后，配对客户端仍可能通过 Bot 列表和实时帧读到覆盖原文。隔离 HTTP 与成员投影用例在初版得到 2 失败，修复在原有成员投影中移除该字段，管理员保留回显。回归入口为 `server/memory-default-rules.e2e.test.ts`、`server/bot-visibility.test.ts` 和 `server/bot-api.e2e.test.ts`。
+- 渲染器 Vitest 只收集 `src/**/*.test.ts`。首轮组合列出 8 个文件却只运行 7 个，新增编辑器的 `.test.tsx` 文件被漏收。改用 `.test.ts` 并从最终报告核对 `BotRulesSettings.dom.test.ts` 的执行结果；该用例覆盖保存失败重试、多字节预算、切换 Bot 和清空后的回显。
+
 ## 不应合并的改动
 
 - 未知来源的可执行脚本、安装钩子、依赖替换、远程下载后直接执行，或难以解释的混淆代码；需先理解用途、核实来源和运行边界。

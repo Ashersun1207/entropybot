@@ -1,9 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, it, type TestContext } from "vitest";
 import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
 
 const rules = "## Working rules\n- 先给结论，再给细节。\n- Ask before sending email.\n";
+const botRules = "## 本 Bot 的规则\n- Include the violet fixture marker.";
 const rulesAtLimit = "规".repeat(1_333) + "!";
 const rulesOverLimit = `${rulesAtLimit}🙂`;
 
@@ -63,6 +64,41 @@ it("accepts exactly 4,000 UTF-8 bytes, persists through restart, rejects overflo
   expect(configFile().memory).toEqual({ tidyHour: 9 });
 }, 90_000);
 
+it("validates bot rules on create and patch before changing any settings", async (ctx) => {
+  const { api, fixture, turn } = await startFixture(ctx);
+  const path = "/api/bots";
+  await api("POST", path, { name: "Rejected", defaultRules: rulesOverLimit }, 400);
+  const { bot } = await api<{ bot: { id: string; name: string; defaultRules: string } }>("POST", path, { name: "At limit", defaultRules: rulesAtLimit }, 201);
+  expect(bot.defaultRules).toBe(rulesAtLimit);
+  for (const invalid of [rulesOverLimit, false]) {
+    await api("PATCH", `${path}/${bot.id}`, { name: "Rejected", defaultRules: invalid }, 400);
+  }
+  const { code } = await api<{ code: string }>("POST", "/api/auth/pairing", { scopes: ["client"] });
+  const { token } = await api<{ token: string }>("POST", "/api/auth/pair", { code });
+  const paired = await api<{ bots: typeof bot[] }>("GET", path, undefined, 200, token);
+  expect(paired.bots.find((row) => row.id === bot.id)).toMatchObject({ name: "At limit" });
+  expect(paired.bots.find((row) => row.id === bot.id)).not.toHaveProperty("defaultRules");
+  await api("POST", path, { name: "Unauthorized", defaultRules: botRules }, 403, token);
+  await api("PATCH", `${path}/${bot.id}`, { defaultRules: botRules }, 403, token);
+  await fixture.restart();
+  const { bots } = await api<{ bots: typeof bot[] }>("GET", path);
+  expect(bots.find((row) => row.id === bot.id)).toMatchObject({ name: "At limit", defaultRules: rulesAtLimit });
+  expect(bots.some((row) => row.name === "Rejected")).toBe(false);
+  expect((await turn(bot.id, "Check the saved bot rules")).systemPrompt).toContain(rulesAtLimit);
+  await api("PATCH", "/api/config", { memory: { defaultRules: rules } });
+  for (const clear of ["", null]) {
+    expect(await api("PATCH", `${path}/${bot.id}`, { defaultRules: clear })).not.toHaveProperty("bot.defaultRules");
+    expect(await api("PATCH", `${path}/${bot.id}`, { defaultRules: rulesAtLimit })).toHaveProperty("bot.defaultRules", rulesAtLimit);
+  }
+  await fixture.restart(() => {
+    const file = join(fixture.info.dataDir, "bots.json");
+    const records = JSON.parse(readFileSync(file, "utf8")) as typeof bots;
+    records.find((row) => row.id === bot.id)!.defaultRules = rulesOverLimit;
+    writeFileSync(file, JSON.stringify(records));
+  });
+  expect((await turn(bot.id, "Check inherited rules after restart")).systemPrompt).toContain(rules.trimEnd());
+}, 90_000);
+
 it("omits blank rules and sends saved Markdown separately from About me, bot memory and local recall", async (ctx) => {
   const { api, dump, createBot, turn } = await startFixture(ctx);
   const existing = await createBot("Existing fixture bot");
@@ -87,6 +123,22 @@ it("omits blank rules and sends saved Markdown separately from About me, bot mem
   expect(JSON.stringify(first.prompt)).toContain("Recalled for this message");
   expect(JSON.stringify(first.prompt)).toContain("Loves pasta, hates olives");
 
+  await api("PATCH", `/api/bots/${bot.id}`, { defaultRules: botRules });
+  const overridden = await turn(bot.id, "Please suggest other restaurants for Friday", bot.threadId);
+  expect(overridden.systemPrompt).toContain(botRules);
+  expect(overridden.systemPrompt).not.toContain(rules.trimEnd());
+  expect(overridden.systemPrompt).toContain("fixture-background-canary");
+  expect(overridden.systemPrompt).toContain("The core memory canary is MICA.");
+  expect(JSON.stringify(overridden.prompt)).toContain("Loves pasta, hates olives");
+  const updated = await api<typeof preview>("GET", `/api/bots/${bot.id}/system-prompt`);
+  const section = updated.sections.find(({ id }) => id === "default-rules");
+  expect(section?.text).toContain(botRules);
+  expect(section?.text).not.toContain(rules.trimEnd());
+  const other = await turn(existing.id, "Check the other bot");
+  expect(other.systemPrompt).toContain(rules.trimEnd());
+  expect(other.systemPrompt).not.toContain(botRules);
+  expect(await api("GET", "/api/config")).toMatchObject({ memory: { defaultRules: rules } });
+
   const { group } = await api<{ group: { id: string } }>("POST", "/api/groups", {
     name: "Rules fixture room", memberIds: [bot.id, existing.id],
     setup: { bulletin: "", defaultResponder: { kind: "member", botId: bot.id } },
@@ -94,7 +146,14 @@ it("omits blank rules and sends saved Markdown separately from About me, bot mem
   const roomText = "Rules fixture room turn";
   await api("POST", `/api/groups/${group.id}/messages`, { text: roomText }, 202);
   await expect.poll(() => JSON.stringify(dump().prompt)).toContain(roomText);
-  expect(dump().systemPrompt).toContain(rules.trimEnd());
+  expect(dump().systemPrompt).toContain(botRules);
+  expect(dump().systemPrompt).not.toContain(rules.trimEnd());
+
+  const reset = await api<{ bot: unknown }>("PATCH", `/api/bots/${bot.id}`, { defaultRules: " \n\t" });
+  expect(reset.bot).not.toHaveProperty("defaultRules");
+  const inherited = await turn(bot.id, "Check restored global rules", bot.threadId);
+  expect(inherited.systemPrompt).toContain(rules.trimEnd());
+  expect(inherited.systemPrompt).not.toContain(botRules);
 
   await api("PATCH", "/api/config", { memory: { defaultRules: " \n\t" } });
   const cleared = await turn(existing.id, "Rules fixture blank check");

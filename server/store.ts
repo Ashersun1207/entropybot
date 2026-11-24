@@ -8,6 +8,7 @@ import { reorderStable } from "../shared/bot-order.ts";
 import { botOwner, chiefConflict, chiefScope, ownerEmail } from "../shared/bot-owner.ts";
 import { ensureSections, readSections, changeEmptySection } from "./section-context.ts";
 import type { TeamComputers } from "./team-computers.ts";
+import { discardInvalidBotRules } from "./memory-default-rules.ts";
 import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import type { BotProfilePatch } from "./bot-profile.ts";
 import { peerAllowKey, type PeerAction } from "./peer-approval-key.ts";
@@ -334,6 +335,7 @@ export class Store {
     const chiefSectionsSeen = new Set<string>();
     let groupsMigrated = false;
     for (const b of this.bots) {
+      if (discardInvalidBotRules(b)) botsMigrated = true;
       if (b.busy || (b.activity !== undefined && b.activity !== "idle")) botsMigrated = true;
       b.busy = false;
       b.activity = "idle"; if (grantScopedApps(b)) botsMigrated = true;
@@ -1306,12 +1308,9 @@ export class Store {
   }
 
   createBot(
-    profile: Partial<
-      Pick<
-        BotRecord,
-        "name" | "title" | "description" | "soul" | "color" | "mascotExpression" | "mascotBody" | "mascotFaceColor" | "modelSelection" | "section" | "cwd" | "visibility" | "toolScope" | "createdBy" | "reportsTo"
-      >
-    > = {},
+    profile: Partial<Pick<BotRecord,
+      "name" | "title" | "description" | "soul" | "defaultRules" | "color" | "mascotExpression" | "mascotBody" | "mascotFaceColor" |
+      "modelSelection" | "section" | "cwd" | "visibility" | "toolScope" | "createdBy" | "reportsTo">> = {},
     opts: {
       seedMessages?: boolean; id?: string; threadId?: string;
     } = {},
@@ -1329,6 +1328,7 @@ export class Store {
       description: profile.description ?? "",
       soul: profile.soul ?? "",
       soulHash: soulHash(profile.soul ?? ""),
+      ...(profile.defaultRules ? { defaultRules: profile.defaultRules } : {}),
       notifications: true,
       color: profile.color ?? rotationColor(this.bots.length), mascotFaceColor: profile.mascotFaceColor ?? undefined,
       ...(profile.mascotExpression ? { mascotExpression: profile.mascotExpression } : {}),

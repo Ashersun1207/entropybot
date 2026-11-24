@@ -9490,5 +9490,7 @@
   "server.botApi.confinedWhy": "This call came in through the Bot API, so it can only answer from what this bot already knows.",
   "settings.section.memory": "Memory",
   "settings.memory.defaultRules": "Default rules",
-  "settings.memory.defaultRulesHelp": "Write in Markdown to set how all bots work and reply. For example, ask them to lead with the conclusion or get approval before sending an email."
+  "memory.rules": "Rules",
+  "memory.rulesHelp": "Write Markdown rules for this bot. They replace the workspace default rules. Clear the field and save to use the defaults again.",
+  "settings.memory.defaultRulesHelp": "Write in Markdown to set the default way bots work and reply. For example, ask them to lead with the conclusion or get approval before sending an email."
 }

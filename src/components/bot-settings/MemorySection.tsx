@@ -34,6 +34,7 @@ import { shortPath } from "@/lib/short-path";
 import { activeLocale, t } from "@/lib/i18n";
 import { roomMemoryCaptureEnabled } from "@/lib/feature-flags";
 import { api, ApiError, useStore, type Bot, type ConfigStatus } from "@/state/store";
+import { BotRulesSettings } from "../MemorySettings";
 import { Switch } from "../SettingsPrimitives";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
 import { inputCls } from "./field";
@@ -340,6 +341,8 @@ export function MemorySection({ bot, active = true, onToggle }: { bot: Bot; acti
           }}
         />
       )}
+
+      <BotRulesSettings bot={bot} />
 
       {overview && <MemoryGauge index={overview.index} />}
 

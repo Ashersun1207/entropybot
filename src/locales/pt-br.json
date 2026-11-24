@@ -9490,5 +9490,7 @@
   "server.botApi.confinedWhy": "Esta chamada veio pela API do bot, então ele só pode responder com o que já sabe.",
   "settings.section.memory": "Memória",
   "settings.memory.defaultRules": "Regras padrão",
-  "settings.memory.defaultRulesHelp": "Use Markdown para definir como todos os bots trabalham e respondem. Por exemplo, peça que comecem pela conclusão ou solicitem sua aprovação antes de enviar um e-mail."
+  "memory.rules": "Regras",
+  "memory.rulesHelp": "Escreva em Markdown as regras deste bot. Elas substituem as regras padrão do espaço de trabalho. Limpe o campo e salve para voltar a usar as regras padrão.",
+  "settings.memory.defaultRulesHelp": "Use Markdown para definir como os bots trabalham e respondem por padrão. Por exemplo, peça que comecem pela conclusão ou solicitem sua aprovação antes de enviar um e-mail."
 }

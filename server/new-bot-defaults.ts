@@ -1,5 +1,6 @@
 import { userErrorThrown } from "./user-errors.ts";
 import { z } from "zod";
+import { botDefaultRulesSchema } from "./memory-default-rules.ts";
 import { profilePatchSchema, fitsOnOneLine } from "./bot-profile.ts";
 import { EFFORT_LEVELS, MAUS_COLOR_NAMES } from "../shared/wire.ts";
 import { isModelVariant } from "./contracts.ts";
@@ -47,6 +48,8 @@ export const botDefaultsProfileSchema = profilePatchSchema.extend({
   /** At creation, so a copy of a bot kept off the helper model is off it from its first moment. */
   helperModel: z.boolean().optional(),
 }).strict();
+
+const botCreationProfileSchema = botDefaultsProfileSchema.extend({ defaultRules: botDefaultRulesSchema });
 
 const scheduleSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("once"), at: timestamp }).strict(),
@@ -115,6 +118,7 @@ function settingsError(error: z.ZodError): Error {
   if (issue.code === "too_big" && issue.path[0] === "name") return userErrorThrown("serverError.botDefaults.nameLength");
   if (issue.code === "too_big" && issue.path[0] === "section") return userErrorThrown("serverError.botDefaults.sectionLength");
   if (issue.code === "unrecognized_keys") return new Error(`unsupported bot field: ${issue.keys[0] ?? "unknown"}`);
+  if (issue.path[0] === "defaultRules") return new Error(`defaultRules: ${issue.message}`);
   const field = issue.path.join(".");
   return new Error(field && issue.message.startsWith(String(issue.path[0])) ? issue.message : `${field || "the bot"} is not valid`);
 }
@@ -124,14 +128,14 @@ export function resolveBotCreationDefaults(saved: NewBotDefaults | undefined, bo
     throw Object.assign(new Error("useDefaults must be true or false"), { status: 400 });
   }
   const template = newBotDefaultsSchema.parse(body.useDefaults === false ? {} : saved ?? {});
-  const checked = botDefaultsProfileSchema.safeParse(body.settings === undefined ? {} : body.settings);
+  const checked = botCreationProfileSchema.safeParse(body.settings === undefined ? {} : body.settings);
   if (!checked.success) throw Object.assign(settingsError(checked.error), { status: 400 });
   const explicit = checked.data;
   const profile = { ...template.profile, ...explicit };
-  for (const key of ["name", "title", "description", "modelSelection", "section"] as const) {
+  for (const key of ["name", "title", "description", "modelSelection", "section", "defaultRules"] as const) {
     if (Object.hasOwn(body, key)) Object.assign(profile, { [key]: key === "section" && body[key] === null ? "" : body[key] });
   }
-  const resolved = botDefaultsProfileSchema.safeParse(profile);
+  const resolved = botCreationProfileSchema.safeParse(profile);
   if (!resolved.success) throw Object.assign(settingsError(resolved.error), { status: 400 });
   if (!resolved.data.name?.trim()) delete resolved.data.name;
   return { ...template, profile: resolved.data };

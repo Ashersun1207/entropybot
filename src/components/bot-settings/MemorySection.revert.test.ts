@@ -36,7 +36,7 @@ it("shows the HTTP 409 refusal after Undo without changing the editor or announc
     const bot = { id: "fixture", name: "Memo", memoryEnabled: true, memoryUpkeep: false } as Bot;
     await act(async () => root.render(createElement(MemorySection, { bot, onToggle: vi.fn() })));
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-    const editor = host.querySelector("textarea")!;
+    const editor = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Bot memory"]')!;
     expect(editor.value).toBe("C: current unrelated fact");
     const undo = [...host.querySelectorAll("button")].find((button) => button.textContent === "Undo")!;
     expect(undo).toBeDefined();

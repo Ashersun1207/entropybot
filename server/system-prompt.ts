@@ -61,7 +61,7 @@ export function botPersona(bot: { name: string; title?: string; description?: st
 
 export function defaultRulesPart(rules?: string | null): PromptPart {
   const text = rules && Buffer.byteLength(rules) <= MEMORY_DEFAULT_RULES_MAX_BYTES && rules.trim()
-    ? `\n\n## Default rules\nUse these workspace-wide rules for workflow and replies, including any extra confirmation steps. They take precedence over generic workflow and reply defaults. Follow all safety, permission and approval requirements.\n\n${rules}\n\n`
+    ? `\n\n## Default rules\nUse these rules for workflow and replies, including any extra confirmation steps. They take precedence over generic workflow and reply defaults. Follow all safety, permission and approval requirements.\n\n${rules}\n\n`
     : "";
   return { id: "default-rules", label: "Default rules", text };
 }

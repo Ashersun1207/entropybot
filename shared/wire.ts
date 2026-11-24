@@ -346,6 +346,8 @@ export interface WireBot extends DefaultBotFields, BotAccessFields {
    * actions), which spend the workspace's treg balance.
    * Absent/false = off: the person turns it on per bot. */
   xResearch?: boolean;
+  /** Markdown rules for this bot. When absent, the bot inherits memory.defaultRules. */
+  defaultRules?: string;
   /** Whether this bot uses native memory. Absent/true = enabled. */
   memoryEnabled?: boolean;
   /** Queue direct-chat messages behind outstanding delegated work. */

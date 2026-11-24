@@ -194,7 +194,7 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
       if (kept.id && "error" in keptBotIds(kept, store)) return json(res, 409, { error: "a bot with this id already exists here" });
       // A bot moved in from another computer keeps its own look; a new one named no look starts in a fresh one.
       const look = kept.id || settings.color || settings.mascotBody ? undefined : freshLook(store.bots);
-      const bot = store.createBot({ ...profile.patch, soul: settings.soul, section, modelSelection: selection,
+      const bot = store.createBot({ ...profile.patch, soul: settings.soul, defaultRules: settings.defaultRules, section, modelSelection: selection,
         toolScope: settings.toolScope ?? undefined, color: settings.color ?? look?.color, mascotBody: settings.mascotBody ?? look?.mascotBody,
         ...(deps.team && creator ? { createdBy: creator } : {}), ...(reportsTo ? { reportsTo } : {}),
         ...(created?.ok ? { visibility: created.visibility } : {}) }, kept.id ? { ...kept, seedMessages: false } : {});

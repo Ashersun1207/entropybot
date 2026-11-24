@@ -4695,7 +4695,9 @@
   "botApi.cantTake": "此機器人的 AI 無法接收 Bot API 呼叫。請選擇其他 AI 來使用。",
   "settings.section.memory": "記憶",
   "settings.memory.defaultRules": "預設規則",
-  "settings.memory.defaultRulesHelp": "使用 Markdown 設定所有機器人的工作和回覆方式。例如，先給結論，或在寄送電子郵件前取得核准。",
+  "memory.rules": "規則",
+  "memory.rulesHelp": "以 Markdown 撰寫這個機器人的規則，整份取代工作區預設規則。清空並儲存即可恢復預設規則。",
+  "settings.memory.defaultRulesHelp": "使用 Markdown 設定機器人預設的工作和回覆方式。例如，先給結論，或在寄送電子郵件前取得核准。",
   "botIdentity.soul.bytes": "{bytes} / {limit} 位元組",
   "botIdentity.soul.bytesOver": "{bytes} / {limit} 位元組，超出儲存上限"
 }

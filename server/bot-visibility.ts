@@ -385,10 +385,10 @@ export interface FrameContext {
  * server alias: a member learns the default VPS alias only as configured-or-not, and a bot's own alias the same way.
  * On a Team Cloud an admin gets the bot whole but, like a member, only the conversations they may read. */
 export function memberBot<T extends object>(bot: T, visible: VisibleSet): T {
-  if (visible.everything) return visible.member ? withoutServerAlias(bot) : bot;
+  if (visible.everything) return visible.member ? withoutAdminSettings(bot) : bot;
   const shown = visible.filtersThreads ? withLevel(shownConversations(bot, visible), visible) : bot;
   if (!visible.member) return shown;
-  const { visibility: _visibility, vpsAlias: _vpsAlias, ...rest } = shown as T & { visibility?: unknown; peers?: unknown; vpsAlias?: unknown };
+  const { visibility: _visibility, ...rest } = withoutAdminSettings(shown) as T & { visibility?: unknown; peers?: unknown };
   const peers = Array.isArray(rest.peers) ? (rest.peers as unknown[]).filter((id): id is string => typeof id === "string" && visible.bot(id)) : undefined;
   return { ...rest, ...(peers ? { peers } : {}) } as T;
 }
@@ -448,17 +448,18 @@ function teamConversation(tasks: readonly unknown[]): string | undefined {
   return (shared.find((task) => task.archivedAt === undefined) ?? shared[0])?.threadId;
 }
 
-/** The SSH alias of the server a bot's VPS computer lives on: an admin's, like the default alias in config. */
-export function withoutServerAlias<T extends object>(bot: T): T {
-  if (!("vpsAlias" in bot)) return bot;
-  const { vpsAlias: _vpsAlias, ...rest } = bot as T & { vpsAlias?: unknown };
+function withoutAdminSettings<T extends object>(bot: T): T {
+  if (!("vpsAlias" in bot) && !("defaultRules" in bot)) return bot;
+  const { vpsAlias: _vpsAlias, defaultRules: _rules, ...rest } = bot as T & { vpsAlias?: unknown; defaultRules?: unknown };
   return rest as T;
 }
 
 /** A broadcast as every member receives it before any audience narrowing; the same object when nothing changes. */
 export function memberFramePayload(payload: Record<string, unknown>): Record<string, unknown> {
   const bot = payload.kind === "bot" ? payload.bot : undefined;
-  return bot && typeof bot === "object" && "vpsAlias" in bot ? { ...payload, bot: withoutServerAlias(bot) } : payload;
+  if (!bot || typeof bot !== "object") return payload;
+  const shown = withoutAdminSettings(bot);
+  return shown === bot ? payload : { ...payload, bot: shown };
 }
 
 /** A room as a member receives it: without its audience floor. */

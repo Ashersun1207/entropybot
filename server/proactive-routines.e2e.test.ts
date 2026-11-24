@@ -224,6 +224,8 @@ describe("a read-and-draft run", () => {
     const api = client(fixture);
     const bots = (await api("GET", "/api/bots")).bots as any[];
     const chief = bots.find((bot) => bot.defaultBot && !bot.defaultBot.person);
+    await api("PATCH", "/api/config", { memory: { defaultRules: "workspace-routine-rule" } });
+    await api("PATCH", `/api/bots/${chief.id}`, { defaultRules: "bot-routine-rule" });
     const watch = (await api("GET", "/api/routines")).routines.find((routine: any) => routine.deliver === "brief");
     inbox(apps, Date.now());
     const { run } = await api("POST", `/api/routines/${watch.id}/run`, undefined, 201);
@@ -242,6 +244,8 @@ describe("a read-and-draft run", () => {
     expect(dump.systemPrompt).not.toContain("Your enabled automations");
     expect(dump.systemPrompt).not.toContain("Pause a temporary monitor");
     expect(dump.systemPrompt).toContain("within its read-and-draft limits");
+    expect(dump.systemPrompt).toContain("bot-routine-rule");
+    expect(dump.systemPrompt).not.toContain("workspace-routine-rule");
     const read = transcript.find((message) => message.kind === "activity" && String(message.tool?.output).includes("GMAIL_FETCH_EMAILS"));
     expect(String(read.tool.output)).toContain("[Records from a connected app (Gmail or Google Calendar).");
 

@@ -191,6 +191,16 @@ describe("independent bot threads", () => {
     expect(pinBotThreadAction(pinned, [bot])).toBe(pinned);
   });
 
+  it("clears a bot's override when a complete bot snapshot omits the rules", () => {
+    const overridden = reducer(start(), { type: "botPatched", bot: { ...bot, defaultRules: "override" } });
+    expect(overridden.bots[0]?.defaultRules).toBe("override");
+    for (const type of ["botPatched", "taskSwitched"] as const) {
+      expect(reducer(overridden, { type, bot }).bots[0]?.defaultRules).toBeUndefined();
+    }
+    const switched = { ...bot, threadId: "replacement", tasks: [], messages: [] };
+    expect(reducer(overridden, { type: "botPatched", bot: switched }).bots[0]?.defaultRules).toBeUndefined();
+  });
+
   it("a frame without onlyPeopleAdded clears it: the bot is back to everyone", () => {
     const limited = reducer(start(), { type: "botPatched", bot: { ...bot, onlyPeopleAdded: true } });
     expect(limited.bots[0]?.onlyPeopleAdded).toBe(true);
