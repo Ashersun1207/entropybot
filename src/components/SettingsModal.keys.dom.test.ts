@@ -147,21 +147,21 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   const editingGuide = host.querySelector("[data-memory-edit-guide]");
   const more = editingGuide?.querySelector<HTMLDetailsElement>("details");
   const editingNotes = more?.querySelector("[data-memory-edit-notes]");
-  for (const text of ["Edit global rules and About me", "one-on-one chat", "Check what was saved"]) {
+  for (const text of ["one-on-one chat", "Check what was saved"]) {
     expect([...editingGuide!.children].filter((item) => item !== more).map((item) => item.textContent).join(" ")).toContain(text);
   }
   expect(more?.hasAttribute("open")).toBe(false);
-  const copies = [...editingGuide!.querySelectorAll("button")];
+  const templates = editor().form!.querySelector<HTMLDetailsElement>("[data-memory-rule-templates]")!;
+  const copies = [...editingGuide!.querySelectorAll("button"), ...templates.querySelectorAll<HTMLButtonElement>('button[title="Copy message"]')];
   expect(copies).toHaveLength(8);
-  expect(copies.filter((button) => !more?.contains(button))).toHaveLength(1);
-  for (const [selector, count, instruction] of [
-    ["[data-memory-rule-templates]", 3, "global or bot-specific rules field"],
-    ["[data-memory-chat-examples]", 4, "send it in a one-on-one chat"],
-  ] as const) {
-    const section = more?.querySelector(selector);
-    expect(section?.querySelectorAll("button")).toHaveLength(count);
-    expect(section?.textContent).toContain(instruction);
-  }
+  expect([...editingGuide!.querySelectorAll("button")].filter((button) => !more?.contains(button))).toHaveLength(1);
+  expect(templates.hasAttribute("open")).toBe(false);
+  expect(templates.querySelectorAll("button")).toHaveLength(6);
+  expect(templates.textContent).toContain("global draft");
+  const chat = more?.querySelector("[data-memory-chat-examples]");
+  expect(chat?.querySelectorAll("button")).toHaveLength(4);
+  expect(chat?.textContent).toContain("send it in a one-on-one chat");
+  expect(more?.querySelector("[data-memory-rule-templates]")).toBeNull();
   for (const button of copies) {
     expect(button.type).toBe("button");
     expect(document.getElementById(button.getAttribute("aria-describedby") ?? "")?.textContent).toBeTruthy();
@@ -169,16 +169,21 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   expect(more?.textContent).toContain("the 25th to the 28th");
   expect(more?.textContent).toContain("to About me");
   expect(more?.textContent).toContain("old meeting room was 301");
-  for (const text of ["check both", "Manage chat history separately", "tool permissions", "API keys"]) {
+  for (const text of ["check both", "several matching notes", "Manage chat history separately", "tool permissions", "API keys"]) {
     expect(editingNotes?.textContent).toContain(text);
   }
   expect(aboutMe?.value).toBe("My time zone is UTC");
   expect([...host.querySelectorAll("textarea")]).toEqual([editor(), aboutMe]);
   expect(editor().value).toBe("");
   expect(editor().getAttribute("rows")).toBe("4");
-  const example = () => [...editor().form!.querySelectorAll("button")].find((button) => button.textContent === "Insert example");
-  flushSync(() => example()!.click());
-  expect(editor().value).toContain("Start progress updates");
+  const additions = () => [...editor().form!.querySelectorAll<HTMLButtonElement>("[data-memory-rule-templates] button")]
+    .filter((button) => button.textContent === "Add to draft");
+  flushSync(() => additions()[0]!.click());
+  const firstRule = editor().value;
+  expect(firstRule).toContain("Start progress updates");
+  expect(additions()[0]?.disabled).toBe(true);
+  flushSync(() => additions()[1]!.click());
+  expect(editor().value).toBe(`${firstRule}\n- Cite your sources for numbers and facts, and flag anything still to verify.`);
   expect(patchConfig).not.toHaveBeenCalled();
   flushSync(() => root.render(null));
   flushSync(() => root.render(createElement(SettingsModal)));
@@ -206,7 +211,9 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   expect(patchConfig).toHaveBeenCalledTimes(2);
   expect(patchConfig).toHaveBeenLastCalledWith("/api/config", patch);
   expect(save().disabled).toBe(true);
-  expect(example()).toBeUndefined();
+  flushSync(() => additions()[0]!.click());
+  expect(area.value).toBe(`${updated}\n${firstRule}`);
+  expect(patchConfig).toHaveBeenCalledTimes(2);
 
   edit("");
   flushSync(() => save().click());

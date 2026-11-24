@@ -20,7 +20,8 @@ export function MemorySettings() {
       <div className="grid min-w-0 items-start gap-4 @min-[760px]/memory:grid-cols-2 @min-[760px]/memory:grid-rows-[auto_auto_1fr]">
         <RulesEditor confirmed={state.config?.memory?.defaultRules ?? ""} disabled={state.config === null}
           label={t("settings.memory.defaultRules")} help={t("settings.memory.defaultRulesHelp")}
-          example={t("settings.memory.ruleExample")} rows={4} onSave={save} />
+          templates={[t("settings.memory.ruleExample"), t("settings.memory.ruleSourcesExample"), t("settings.memory.ruleConfirmExample")]}
+          rows={4} onSave={save} />
         <MemoryEditingGuide />
         <div className="min-w-0 @min-[760px]/memory:col-start-2 @min-[760px]/memory:row-start-1 @min-[760px]/memory:row-span-3">
           <MemoryRulesGuide />
@@ -37,12 +38,17 @@ function memoryLocation() {
   return { library: t("botPanel.tab.library"), memory: t("botPanel.memoryRow") };
 }
 
-function MemoryExample({ text }: { text: string }) {
+function MemoryExample({ text, onInsert, insertDisabled }: { text: string; onInsert?: () => void; insertDisabled?: boolean }) {
   const id = useId();
   return (
-    <div className="group flex items-center justify-between gap-2 rounded-md bg-inset px-2.5 py-1.5 text-ink">
-      <span id={id} className="min-w-0 select-text">{text}</span>
-      <CopyButton text={text} describedBy={id} className="shrink-0 opacity-100" />
+    <div className="group flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-md bg-inset px-2.5 py-1.5 text-ink">
+      <span id={id} className="min-w-[9rem] flex-1 select-text">{text}</span>
+      <div className="flex shrink-0 items-center gap-1">
+        {onInsert && <button type="button" className="ui-button" aria-describedby={id} disabled={insertDisabled} onClick={onInsert}>
+          {t("settings.memory.useExample")}
+        </button>}
+        <CopyButton text={text} describedBy={id} className="shrink-0 opacity-100" />
+      </div>
     </div>
   );
 }
@@ -51,7 +57,6 @@ function MemoryEditingGuide() {
   return (
     <Card title={t("settings.memory.editGuide")}>
       <div data-memory-edit-guide className="space-y-2.5 text-[13px] leading-relaxed text-ink-secondary">
-        <p>{t("settings.memory.editDirectHelp")}</p>
         <div>
           <p className="mb-1.5">{t("settings.memory.editByChatHelp")}</p>
           <MemoryExample text={t("settings.memory.chatRememberExample")} />
@@ -62,13 +67,6 @@ function MemoryEditingGuide() {
             {t("settings.memory.editNotes")}
           </summary>
           <div className="mt-3 space-y-3">
-            <section data-memory-rule-templates className="grid gap-1.5">
-              <h3 className="font-medium text-ink">{t("settings.memory.ruleTemplates")}</h3>
-              <p>{t("settings.memory.ruleTemplatesHelp")}</p>
-              <MemoryExample text={t("settings.memory.ruleExample")} />
-              <MemoryExample text={t("settings.memory.ruleSourcesExample")} />
-              <MemoryExample text={t("settings.memory.ruleConfirmExample")} />
-            </section>
             <section data-memory-chat-examples className="grid gap-1.5">
               <h3 className="font-medium text-ink">{t("settings.memory.chatExamples")}</h3>
               <p>{t("settings.memory.chatExamplesHelp")}</p>
@@ -132,8 +130,8 @@ export function BotRulesSettings({ bot }: { bot: Bot }) {
   );
 }
 
-function RulesEditor({ confirmed, label, help, example, rows = 8, disabled = false, onSave }: {
-  confirmed: string; label: string; help: string; example?: string; rows?: number; disabled?: boolean; onSave: (value: string) => Promise<void>;
+function RulesEditor({ confirmed, label, help, templates, rows = 8, disabled = false, onSave }: {
+  confirmed: string; label: string; help: string; templates?: readonly string[]; rows?: number; disabled?: boolean; onSave: (value: string) => Promise<void>;
 }) {
   const id = useId();
   const editor = useRef<HTMLTextAreaElement>(null);
@@ -144,6 +142,12 @@ function RulesEditor({ confirmed, label, help, example, rows = 8, disabled = fal
   const overBudget = bytes > MEMORY_DEFAULT_RULES_MAX_BYTES;
   const saving = status === "saving";
   const canSave = !disabled && value !== confirmed && !overBudget && !saving;
+  const ruleLines = value.split(/\r?\n/).map((line) => line.trim());
+  const insert = (template: string) => {
+    setDraft(value.trim() ? `${value}${value.endsWith("\n") ? "" : "\n"}${template}` : template);
+    setStatus("idle");
+    editor.current?.focus();
+  };
 
   const save = async () => {
     if (!canSave) return;
@@ -162,15 +166,6 @@ function RulesEditor({ confirmed, label, help, example, rows = 8, disabled = fal
       <form className="flex flex-col gap-2" onSubmit={(event) => { event.preventDefault(); void save(); }}>
         <label htmlFor={id} className="text-[14px] font-medium text-ink">{label}</label>
         <p id={`${id}-help`} className="text-[13px] text-ink-secondary">{help}</p>
-        {example && !value.trim() && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-secondary">
-            <span>{example}</span>
-            <button type="button" className="ui-button" disabled={disabled || saving}
-              onClick={() => { setDraft(example); setStatus("idle"); editor.current?.focus(); }}>
-              {t("settings.memory.useExample")}
-            </button>
-          </div>
-        )}
         <textarea
           ref={editor} id={id} rows={rows} value={value} disabled={saving || disabled}
           aria-describedby={`${id}-help ${id}-budget`} aria-invalid={overBudget}
@@ -189,6 +184,18 @@ function RulesEditor({ confirmed, label, help, example, rows = 8, disabled = fal
             {status === "error" && <span className="text-danger">{t("settings.profile.saveError")}</span>}
           </span>
         </div>
+        {templates && (
+          <details data-memory-rule-templates className="border-t border-hairline/50 pt-2 text-[13px] leading-relaxed text-ink-secondary">
+            <summary className="cursor-pointer rounded-sm font-medium text-ink focus-visible:outline-focus">
+              {t("settings.memory.ruleTemplates")}
+            </summary>
+            <div className="mt-2 grid gap-1.5">
+              <p>{t("settings.memory.ruleTemplatesHelp")}</p>
+              {templates.map((text) => <MemoryExample key={text} text={text}
+                onInsert={() => insert(text)} insertDisabled={disabled || saving || ruleLines.includes(text)} />)}
+            </div>
+          </details>
+        )}
       </form>
     </Card>
   );
