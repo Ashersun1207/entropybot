@@ -137,16 +137,23 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   fx.api.mockImplementation((path, init) => path === "/api/profile/learned" ? Promise.resolve({ learned: [] }) : patchConfig(path, init));
   flushSync(() => root.render(createElement(SettingsModal)));
 
-  const label = [...host.querySelectorAll("label")].find((item) => item.textContent === "Default rules");
-  const area = label?.control as HTMLTextAreaElement;
+  const editor = () => [...host.querySelectorAll("label")].find((item) => item.textContent === "Global default rules")?.control as HTMLTextAreaElement;
   const aboutMe = host.querySelector<HTMLTextAreaElement>("#profile-about-me");
-  expect(host.textContent).toContain("The default rules below guide how every bot works and replies.");
-  expect(host.textContent).toContain("Library → What it remembers");
-  expect(host.textContent).toContain("You can also view the bot’s remembered notes there.");
-  expect(host.textContent).toContain("Every bot can read your preferences here");
+  const guide = host.querySelector("dl")?.textContent;
+  for (const text of ["Bots without their own rules", "Library → What it remembers → Rules", "replace the entire global set", "SOUL.md", "MEMORY.md", "memory/", "AGENTS.md", "Settings → General"]) {
+    expect(guide).toContain(text);
+  }
   expect(aboutMe?.value).toBe("My time zone is UTC");
-  expect([...host.querySelectorAll("textarea")]).toEqual([area, aboutMe]);
-  expect(area.value).toContain("- 先给结论，再展开细节。");
+  expect([...host.querySelectorAll("textarea")]).toEqual([editor(), aboutMe]);
+  expect(editor().value).toBe("");
+  const example = () => [...editor().form!.querySelectorAll("button")].find((button) => button.textContent === "Insert example");
+  flushSync(() => example()!.click());
+  expect(editor().value).toContain("Start progress updates");
+  expect(patchConfig).not.toHaveBeenCalled();
+  flushSync(() => root.render(null));
+  flushSync(() => root.render(createElement(SettingsModal)));
+  const area = editor();
+  expect(area.value).toBe("");
   const save = () => area.form!.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const edit = (text: string) => flushSync(() => {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(area, text);
@@ -169,6 +176,7 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   expect(patchConfig).toHaveBeenCalledTimes(2);
   expect(patchConfig).toHaveBeenLastCalledWith("/api/config", patch);
   expect(save().disabled).toBe(true);
+  expect(example()).toBeUndefined();
 
   edit("");
   flushSync(() => save().click());

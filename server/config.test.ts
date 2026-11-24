@@ -1532,23 +1532,18 @@ describe("credential env preference", () => {
     expect(cfg.imageGen).toEqual({ key: "env-image" });
   });
 
-  it("seeds the first config with editable memory rules and preserves a saved empty string", () => {
-    const example = loadConfig().memory?.defaultRules;
-    expect(example?.split("\n")).toEqual([
-      "- 先给结论，再展开细节。",
-      "- 不确定时先问清楚，不要猜。",
-      "- 发邮件、发布内容或更改配置前，先征得我的同意。",
-    ]);
+  it("keeps the first config free of memory rules until explicitly saved", () => {
+    expect(loadConfig().memory?.defaultRules).toBeUndefined();
     const changed = vi.fn();
     const unsubscribe = onConfigSaved(changed);
     try {
       saveConfig({ memory: { tidyHour: 9 } });
-      expect(changed).toHaveBeenCalledWith({}, expect.objectContaining({ memory: { defaultRules: example, tidyHour: 9 } }));
+      expect(changed).toHaveBeenCalledWith({}, expect.objectContaining({ memory: { tidyHour: 9 } }));
     } finally {
       unsubscribe();
     }
     const disk = () => JSON.parse(readFileSync(join(DATA_DIR, "config.json"), "utf8"));
-    expect(disk().memory).toEqual({ defaultRules: example, tidyHour: 9 });
+    expect(disk().memory).toEqual({ tidyHour: 9 });
     saveConfig({ memory: { defaultRules: "" } });
     saveConfig({ profile: { aboutMe: "Fixture preference" } });
     expect(disk().memory).toEqual({ defaultRules: "", tidyHour: 9 });

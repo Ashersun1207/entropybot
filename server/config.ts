@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { normalizeImageGenerationUrl, type ImageGenerationConfig } from "../shared/image-generation.ts";
 import { botAvatarUrlSchema } from "../shared/bot-avatar.ts";
-import { defaultRulesSchema, INITIAL_MEMORY_RULES } from "./memory-default-rules.ts";
+import { defaultRulesSchema } from "./memory-default-rules.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { migrateLegacyDataDir } from "./data-dir-migration.ts";
 import { defaultBotThreads, MAX_CONCURRENT_BOT_THREADS } from "./bot-thread-limits.ts";
@@ -755,7 +755,6 @@ export function loadConfig(): AppConfig {
       if (warning !== lastIgnoredConfigWarning) console.warn(warning);
       lastIgnoredConfigWarning = warning;
     } else {
-      cfg.memory = { defaultRules: INITIAL_MEMORY_RULES };
       lastIgnoredConfigWarning = "";
     }
   }
@@ -929,15 +928,14 @@ export function saveConfig(
   options: { replaceInstances?: boolean } = {},
 ): void {
   const p = join(DATA_DIR, "config.json");
-  let disk: JsonObject | undefined;
+  let disk: JsonObject = {};
   try {
-    disk = jsonObjectSchema.safeParse(parseJson(readFileSync(p, "utf8"))).data ?? {};
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") disk = {};
+    const parsed = jsonObjectSchema.safeParse(parseJson(readFileSync(p, "utf8")));
+    if (parsed.success) disk = parsed.data;
+  } catch {
   }
   const checkedPatch = appConfigSchema.partial().extend({ threads: threadsPatchSchema.optional(), newBots: newBotsPatchSchema.optional() }).parse(patch);
-  const before = configSaveListeners.size && disk ? structuredClone(disk) : {};
-  disk ??= { memory: { defaultRules: INITIAL_MEMORY_RULES } };
+  const before = configSaveListeners.size ? structuredClone(disk) : disk;
   const storedProfiles = storedBrowserProfilesSchema.safeParse(disk.browserProfiles);
   if (storedProfiles.success) disk.browserProfiles = storedProfiles.data;
   for (const key of ["xai", "anthropic", "mistral", "cerebras", "treg", "postiz", "groq", "greenference", "meta", "deepseek", "openai", "openrouter", "openaiCompat", "composio", "box", "opencodeGo", "tts", "decider", "imageGen", "live", "profile", "rooms", "mcp", "threads", "context", "memory", "localVm", "features", "budgets", "billing", "decisions", "loopGuard", "onboarding", "browserEngine", "newBots", "safetyFloor"] as const) {
