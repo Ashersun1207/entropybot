@@ -37,27 +37,39 @@ function memoryLocation() {
   return { library: t("botPanel.tab.library"), memory: t("botPanel.memoryRow") };
 }
 
+function MemoryExample({ text }: { text: string }) {
+  return (
+    <div className="group flex items-center justify-between gap-2 rounded-md bg-inset px-2.5 py-1.5 text-ink">
+      <span className="min-w-0 select-text">{text}</span>
+      <CopyButton text={text} className="shrink-0 opacity-100" />
+    </div>
+  );
+}
+
 function MemoryEditingGuide() {
-  const examples = [t("settings.memory.chatRememberExample"), t("settings.memory.chatCorrectExample"), t("settings.memory.chatPreferenceExample")];
   return (
     <Card title={t("settings.memory.editGuide")}>
-      <div data-memory-edit-guide className="space-y-3 text-[13px] leading-relaxed">
+      <div data-memory-edit-guide className="space-y-2.5 text-[13px] leading-relaxed text-ink-secondary">
+        <p>{t("settings.memory.editDirectHelp")}</p>
         <div>
-          <h3 className="font-medium text-ink">{t("settings.memory.editDirect")}</h3>
-          <p className="text-ink-secondary">{t("settings.memory.editDirectHelp", memoryLocation())}</p>
+          <p className="mb-1.5">{t("settings.memory.editByChatHelp")}</p>
+          <MemoryExample text={t("settings.memory.chatRememberExample")} />
         </div>
-        <div>
-          <h3 className="font-medium text-ink">{t("settings.memory.editByChat")}</h3>
-          <p className="text-ink-secondary">{t("settings.memory.editByChatHelp")}</p>
-          <ul className="mt-2 grid gap-1.5">
-            {examples.map((text) => (
-              <li key={text} className="group flex items-start justify-between gap-2 rounded-md bg-inset px-2.5 py-1.5 text-ink">
-                <span className="min-w-0 select-text">{text}</span>
-                <CopyButton text={text} className="shrink-0 opacity-100" />
-              </li>
-            ))}
+        <p>{t("settings.memory.verifyEdit", memoryLocation())}</p>
+        <details className="border-t border-hairline/50 pt-2">
+          <summary className="cursor-pointer rounded-sm font-medium text-ink focus-visible:outline-focus">
+            {t("settings.memory.editNotes")}
+          </summary>
+          <div className="mt-2 grid gap-1.5">
+            <MemoryExample text={t("settings.memory.chatCorrectExample")} />
+            <MemoryExample text={t("settings.memory.chatPreferenceExample")} />
+          </div>
+          <ul data-memory-edit-notes className="mt-2 list-disc space-y-1 ps-4">
+            <li>{t("settings.memory.checkBoth")}</li>
+            <li>{t("settings.memory.ruleEditScope")}</li>
+            <li>{t("settings.memory.keepSecretsOut")}</li>
           </ul>
-        </div>
+        </details>
       </div>
     </Card>
   );
@@ -85,14 +97,6 @@ function MemoryRulesGuide() {
           </div>
         ))}
       </dl>
-      <div data-memory-edit-notes className="mt-4 border-t border-hairline/50 pt-3 text-[13px] leading-relaxed">
-        <h3 className="font-medium text-ink">{t("settings.memory.editNotes")}</h3>
-        <ul className="mt-1 list-disc space-y-1 ps-4 text-ink-secondary">
-          <li>{t("settings.memory.verifyEdit", botMemory)}</li>
-          <li>{t("settings.memory.ruleEditScope")}</li>
-          <li>{t("settings.memory.keepSecretsOut")}</li>
-        </ul>
-      </div>
     </Card>
   );
 }

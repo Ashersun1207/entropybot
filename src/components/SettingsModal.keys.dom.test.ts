@@ -145,11 +145,16 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
     expect(guide).toContain(text);
   }
   const editingGuide = host.querySelector("[data-memory-edit-guide]");
-  const editingNotes = host.querySelector("[data-memory-edit-notes]");
-  for (const text of ["Edit it yourself", "one-on-one chat", "the 25th to the 28th", "to About me"]) {
-    expect(editingGuide?.textContent).toContain(text);
+  const more = editingGuide?.querySelector<HTMLDetailsElement>("details");
+  const editingNotes = more?.querySelector("[data-memory-edit-notes]");
+  for (const text of ["Edit global rules and About me", "one-on-one chat", "Check what was saved"]) {
+    expect([...editingGuide!.children].filter((item) => item !== more).map((item) => item.textContent).join(" ")).toContain(text);
   }
+  expect(more?.hasAttribute("open")).toBe(false);
   expect(editingGuide?.querySelectorAll("button")).toHaveLength(3);
+  expect(more?.querySelectorAll("button")).toHaveLength(2);
+  expect(more?.textContent).toContain("the 25th to the 28th");
+  expect(more?.textContent).toContain("to About me");
   for (const text of ["check both", "tool permissions", "API keys"]) {
     expect(editingNotes?.textContent).toContain(text);
   }
