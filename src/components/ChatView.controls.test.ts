@@ -12,14 +12,14 @@ import { en } from "@/locales";
 const fixture = vi.hoisted(() => {
   vi.stubGlobal("window", {});
   vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {} });
-  return { showThreads: true, advanced: true, menus: [] as { ariaLabel: string; items: { key: string; disabled?: boolean; heading?: string; active?: boolean }[] }[], dispatch: vi.fn(), canWrite: null as boolean | null, showToolCalls: false, platform: "other", localReasonCode: "cua-driver-unavailable", localMessage: "", model: null as ComponentProps<typeof ModelPicker> | null,
+  return { showThreads: true, advanced: true, phone: false, menus: [] as { ariaLabel: string; items: { key: string; disabled?: boolean; heading?: string; active?: boolean }[] }[], dispatch: vi.fn(), canWrite: null as boolean | null, showToolCalls: false, platform: "other", localReasonCode: "cua-driver-unavailable", localMessage: "", model: null as ComponentProps<typeof ModelPicker> | null,
     approval: null as ComponentProps<typeof ApprovalModeSelector> | null };
 });
 vi.mock("@/state/store", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/state/store")>();
   return { ...original, useStore: () => ({
     state: { ...original.initialState, config: fixture.showToolCalls ? { features: { showToolCalls: true } } : null,
-      instances: [{ instanceId: "test", driverKind: "codex", displayName: "Test" } as InstanceInfo] },
+      instances: [{ instanceId: "test", driverKind: "codex", displayName: "Test", snapshot: {} } as InstanceInfo] },
     dispatch: fixture.dispatch,
   }) };
 });
@@ -29,6 +29,10 @@ vi.mock("./DesktopCapabilities", async (importOriginal) => ({
   useDesktopCapabilities: () => ({ capabilities: { dictation: { available: false }, host: { packaged: true, platform: fixture.platform }, localComputer: { available: false, reasonCode: fixture.localReasonCode, message: fixture.localMessage } }, ready: true }),
 }));
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
+vi.mock("@/lib/use-media-query", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/use-media-query")>();
+  return { ...original, useMediaQuery: (query: string) => query === original.PHONE_LAYOUT && fixture.phone };
+});
 vi.mock("@/lib/thread-preferences", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/thread-preferences")>(),
   useShowThreads: () => fixture.advanced && fixture.showThreads,
@@ -91,6 +95,23 @@ describe("the header's right side", () => {
       expect(markup).toContain("data-chathead-pill");
     } finally {
       fixture.advanced = true;
+    }
+  });
+
+  it("keeps the phone browser's model and computer in the header row and puts a full context warning beneath it", () => {
+    fixture.phone = true;
+    try {
+      const tasks = bot.tasks?.map((task) => ({ ...task, usage: { input: 0, output: 0, costUsd: null, turns: 1, context: { tokens: 95, window: 100 } } }));
+      const { markup } = header({ ...bot, tasks });
+      const start = markup.indexOf("data-chathead-controls");
+      const warning = markup.indexOf('data-testid="context-warning"');
+      expect(start).toBeGreaterThan(-1);
+      expect(warning).toBeGreaterThan(start);
+      expect(markup.slice(start, warning)).toMatch(/data-test-model-control[\s\S]*data-tour="computer"[\s\S]*<\/div><\/div><div class="mt-1 flex flex-wrap/);
+      expect(fixture.model).toMatchObject({ iconOnly: true });
+      expect(markup.slice(warning)).toContain("Compact now");
+    } finally {
+      fixture.phone = false;
     }
   });
 

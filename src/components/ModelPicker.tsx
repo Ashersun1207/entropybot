@@ -24,7 +24,7 @@ import { approvalModeFor, modelSwitchNeedsAsk } from "../../shared/approval-mode
 import { cn } from "@/lib/cn";
 import { useMenuMotion } from "./MenuMotion";
 import { SimpleModelMenu, type SimpleThinking } from "./SimpleModelMenu";
-import { apiKeysLabel, ClaudeAccountSelect, engineStatus, FollowBotModelRow, ModelEngineRail, ModelRow, ModelSearch } from "./ModelPickerFull";
+import { apiKeysLabel, ClaudeAccountSelect, CompactModelButton, engineStatus, FollowBotModelRow, ModelEngineRail, ModelRow, ModelSearch } from "./ModelPickerFull";
 import { MENU_LABEL, MENU_LINE, MENU_ROW, MENU_SEPARATOR, MENU_STROKE, MENU_TRAILING } from "./menu-recipe";
 import { modelMenuKey, modelMenuPointerMove } from "./model-menu-keys";
 import { offersReasoning, useRefocusAfterPick, variantChoices } from "./model-picker-reasoning";
@@ -209,6 +209,7 @@ export function ModelPicker({
   threadId,
   className,
   contained = false,
+  iconOnly = false,
   label,
   size = "md",
 }: {
@@ -216,6 +217,7 @@ export function ModelPicker({
   threadId?: string;
   className?: string;
   contained?: boolean;
+  iconOnly?: boolean;
   label?: ReactNode;
   size?: "sm" | "md";
 }) {
@@ -235,6 +237,7 @@ export function ModelPicker({
   const ownerOrAdmin = useOwnerOrAdmin();
   // A guest changes only their own conversation's model, never the shared bot's default; thread-only until authority loads.
   const simpleUpdatesBotDefault = ownerOrAdmin === true;
+  const canPickScope = !iconOnly || simpleUpdatesBotDefault;
   const [fullView, setFullView] = useState(false);
   const [pendingSwitch, setPendingSwitch] = useState<{ botId: string; threadId: string;
     selection: ModelSelection; updateBotDefault: boolean; name: string } | null>(null);
@@ -467,7 +470,7 @@ export function ModelPicker({
     if (bot.busy || instance.policy) return;
     const nextSelection = modelSelectionForPick(selection, instance, model);
     if (variant !== undefined) nextSelection.variant = variant;
-    const updateBotDefault = !threadId || (simpleView ? simpleUpdatesBotDefault : scope === "bot");
+    const updateBotDefault = !threadId || (simpleView ? simpleUpdatesBotDefault : canPickScope && scope === "bot");
     const targets = [currentTaskBot(profile, threadId ?? bot.threadId), ...(updateBotDefault ? [profile] : [])];
     if (targets.some((target) => modelSwitchNeedsAsk(approvalModeFor(target),
       state.instances.find((candidate) => candidate.instanceId === target.modelSelection.instanceId)?.driverKind,
@@ -603,7 +606,9 @@ export function ModelPicker({
     title: `${summary}${followLine}${attentionLine}${busyLine}`,
   };
 
-  const trigger = advanced ? (
+  const trigger = iconOnly ? (
+    <CompactModelButton {...triggerProps} label={summary} instance={active} warning={Boolean(attention)} />
+  ) : advanced ? (
     <button
       {...triggerProps}
       className={cn(
@@ -702,7 +707,7 @@ export function ModelPicker({
           onAddApiKeys={remote ? undefined : openApiKeys} />}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-          {threadId && (
+          {threadId && canPickScope && (
             <div className="shrink-0 border-b-[0.5px] border-ink/10 px-3.5 py-2">
               <div role="group" aria-label={t("model.scope.label")} className="flex gap-1">
                 {(["thread", "bot"] as const).map((value) => (
@@ -887,7 +892,7 @@ export function ModelPicker({
                   compact
                   bot={shown}
                   threadId={threadId}
-                  updateBotDefault={Boolean(threadId && scope === "bot")}
+                  updateBotDefault={Boolean(threadId && canPickScope && scope === "bot")}
                   className="shrink-0 border-t-[0.5px] border-ink/10 px-3.5 py-[5px]"
                   label={<span className="text-[13px] leading-[18px] text-ink">{active?.capabilities?.modelVariants ? t("model.simple.reasoning") : t("model.section.effort")}</span>}
                 />
@@ -1025,7 +1030,7 @@ export function ModelPicker({
         confirmLabel={t("model.providerSwitch.confirm")}
         onCancel={() => setPendingSwitch(null)}
         onConfirm={() => {
-          if (!pendingSwitch || bot.busy || pendingSwitch.botId !== bot.id || pendingSwitch.threadId !== (threadId ?? bot.threadId)) {
+          if (!pendingSwitch || bot.busy || pendingSwitch.botId !== bot.id || pendingSwitch.threadId !== (threadId ?? bot.threadId) || (pendingSwitch.updateBotDefault && !canPickScope)) {
             setPendingSwitch(null); return;
           }
           dispatch({ type: "setModel", botId: pendingSwitch.botId, threadId: pendingSwitch.threadId,

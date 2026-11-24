@@ -3,10 +3,9 @@ import { useAdvancedMode } from "@/lib/interface-mode";
 import { PHONE_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
 import { ThreadLinkContext } from "@/components/ThreadLinkMenu";
 import { useShowThreads } from "@/lib/thread-preferences";
-import { AlertTriangle, ChevronLeft, ChevronRight, Copy, Monitor, RefreshCw, Reply, Square, Webhook } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Monitor, RefreshCw, Square, Webhook } from "lucide-react";
 import { WorkingDots } from "@/components/WorkingIndicator";
-import { ACTION_ICON, ChatBusyContext, CopyButton, MESSAGE_ROW, MessageActions, messageActionClass, ReplyAction, type MessageMenuItem } from "@/components/MessageActions";
-import { copyText } from "@/lib/copy-text";
+import { ChatBusyContext, CopyButton, MESSAGE_ROW, MessageActions, messageActionClass, ReplyAction, replyAndCopy } from "@/components/MessageActions";
 import { ReactAction, ReactionChips } from "@/components/Reactions";
 import { useBotMessageMenu, userMessageMenu } from "@/components/message-menu";
 import { useSpeech } from "@/lib/tts/useSpeech";
@@ -300,14 +299,6 @@ export function FailedTurnRow({ tool, engine, onRetry, botId, threadId }: {
 }
 
 export { MessageBoundary };
-
-/** Simple mode keeps a message's Reply and Copy in its "…" menu, beside the one reaction button. */
-function replyAndCopy(onReply: () => void, text: string): MessageMenuItem[] {
-  return [
-    { key: "reply", icon: <Reply {...ACTION_ICON} />, label: t("chat.reply"), onSelect: onReply },
-    ...(text.trim() ? [{ key: "copy", icon: <Copy {...ACTION_ICON} />, label: t("chat.copyMessage"), onSelect: () => { void copyText(text); } }] : []),
-  ];
-}
 
 const Bubble = memo(function Bubble({
   message,
@@ -824,6 +815,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   const advanced = useAdvancedMode();
   const phone = useMediaQuery(PHONE_LAYOUT);
   const phoneMenu = phone && !remoteClient;
+  const browserPhone = phone && !window.ogb;
   const simpleHead = !advanced && !remoteClient;
   const canWrite = useCanWriteIn(bot.threadId, bot.yourAccess);
 
@@ -1002,6 +994,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   const routineExecution = routineRun && (routineRun.resultsThreadId ?? routineRun.sourceThreadId) !== bot.threadId ? routineRun : undefined;
   const resultsThreadId = routineExecution?.resultsThreadId ?? routineExecution?.sourceThreadId;
   const canOpenResults = resultsThreadId && [...state.bots, ...state.groups].some((owner) => owner.threadId === resultsThreadId || owner.tasks?.some((task) => task.threadId === resultsThreadId));
+  const callChip = <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />;
 
   return (
     <ThreadLinkContext value={threadLink}>
@@ -1019,7 +1012,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
         )}
       >
         <div data-chathead-row className={cn("flex items-center justify-between", phone ? "gap-2" : "@max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:gap-y-1 @min-[30rem]/chathead:grid @min-[30rem]/chathead:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(max-content,1fr)]")}>
-        <div data-chathead-identity className={cn("flex min-w-0 items-center gap-2", phone ? "flex-1" : "@max-[30rem]/chathead:basis-full @min-[30rem]/chathead:col-start-2 @min-[30rem]/chathead:justify-self-center", simpleHead && phone && "justify-center")} style={headerNoDragStyle}>
+        <div data-chathead-identity className={cn("flex min-w-0 items-center gap-2", phone ? "flex-1" : "@max-[30rem]/chathead:basis-full @min-[30rem]/chathead:col-start-2 @min-[30rem]/chathead:justify-self-center", simpleHead && phone && !browserPhone && "justify-center")} style={headerNoDragStyle}>
           {simpleHead ? (
             <ChatHeadPill
               bot={bot}
@@ -1110,12 +1103,11 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               <span className="@max-4xl/chathead:hidden">{t("chat.stop")}</span>
             </button>
           )}
-          <ThreadContextWarning bot={bot} messages={messages} />
-          {phone && <UsageAlert engine={bot.modelSelection?.instanceId} />}
-          {/* The model and the bot's computer stay in view in both modes; Simple mode moves only ⋯ into the bot panel. */}
-          {!phone && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} />}
-          <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
-          {!phoneMenu && <button
+          {!browserPhone && <ThreadContextWarning bot={bot} messages={messages} />}
+          {phone && !browserPhone && <UsageAlert engine={bot.modelSelection?.instanceId} />}
+          {(!phone || browserPhone) && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} iconOnly={browserPhone} />}
+          {!browserPhone && callChip}
+          {(!phoneMenu || browserPhone) && <button
             data-tour="computer"
             onClick={(event) => { if (!state.computerOpen) rememberComputerPanelOpen({ botId: bot.id, opener: event.currentTarget, tabs: event.detail === 0 }); dispatch({ type: "toggleComputer" }); }}
             className={cn(
@@ -1127,9 +1119,14 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
           >
             <Monitor size={18} />{busy && place === "browser" && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 animate-pulse rounded-full bg-success" data-testid="computer-button-live" />}
           </button>}
-          {phoneMenu ? <ChatMoreMenu bot={bot} phoneHeader /> : (advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
+          {phoneMenu ? <ChatMoreMenu bot={bot} phoneHeader={!browserPhone} /> : (advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
         </div>
         </div>
+        {browserPhone && <div className="mt-1 flex flex-wrap items-center gap-2 empty:hidden">
+          <ThreadContextWarning bot={bot} messages={messages} />
+          <UsageAlert engine={bot.modelSelection?.instanceId} />
+          {callChip}
+        </div>}
       </div>
 
       {(advanced || remoteClient) && <BotActivityPicker bot={bot} />}{privateChat && team && <TeamPrivateFirstLine key={team.id} team={team} />}

@@ -14,6 +14,8 @@ describe("phone web app installation assets", () => {
     expect(href).toBeDefined();
     const manifest = JSON.parse(readFileSync(fileURLToPath(new URL(`public${href}`, root)), "utf8"));
     expect(manifest.name).toBe("Entropybot");
+    expect(manifest.short_name).toBe(manifest.name);
+    expect(head.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute("content")).toBe(manifest.name);
     expect(manifest.display).toBe("standalone");
     const origin = "https://workspace.example.test";
     const start = new URL(manifest.start_url, origin);
@@ -30,6 +32,12 @@ describe("phone web app installation assets", () => {
       expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
       expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([size, size]);
     }
+  });
+
+  it("uses the Entropybot desktop artwork for the browser icon", () => {
+    const href = head.querySelector('link[rel="icon"]')?.getAttribute("href");
+    expect(href).toBeDefined();
+    expect(readFileSync(new URL(`public${href}`, root))).toEqual(readFileSync(new URL("build/entropybot-icon.svg", root)));
   });
 
   it("offers Safari a correctly sized touch icon and a safe-area viewport", () => {

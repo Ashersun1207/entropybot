@@ -1,4 +1,5 @@
-import { Check, KeyRound, Plus, Search } from "lucide-react";
+import { Check, Cpu, KeyRound, Plus, Search } from "lucide-react";
+import type { ComponentPropsWithRef } from "react";
 import type { InstanceInfo } from "@/state/store";
 import { engineDisplayName, isClaudeAccount, SIGN_IN_FAMILY_LABEL, signInFamily, splitEngineRail, type SignInFamily } from "@/lib/engine-rail";
 import { modelOptionLabel } from "@/lib/model-label";
@@ -8,8 +9,22 @@ import { InstanceProviderMark } from "./ProviderIcons";
 import { hasSavedApiKey, needsCli, needsSignIn } from "./EngineSetup";
 import { MENU_META, MENU_ROW, MENU_STROKE } from "./menu-recipe";
 import { Select } from "./Select";
+import { ELEVATED_FLOAT, ELEVATED_HOVER } from "./elevated";
 
 type ModelOption = InstanceInfo["models"]["options"][number];
+
+export function CompactModelButton({ label, instance, warning, ...button }: ComponentPropsWithRef<"button"> & { label: string; instance?: InstanceInfo; warning: boolean }) {
+  return (
+    <button
+      {...button}
+      aria-label={`${t("model.choose")} · ${label}`}
+      className={cn("relative flex size-8 items-center justify-center rounded-full disabled:opacity-50", ELEVATED_FLOAT, ELEVATED_HOVER)}
+    >
+      {instance ? <InstanceProviderMark instance={instance} size={16} subtle /> : <Cpu size={16} aria-hidden="true" />}
+      {warning && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 rounded-full bg-warning ring-[1.5px] ring-app" />}
+    </button>
+  );
+}
 
 export function engineStatus(instance: InstanceInfo): string {
   if (needsCli(instance)) return t("model.setupRequired");

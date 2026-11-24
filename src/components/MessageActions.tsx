@@ -2,7 +2,7 @@ import { createContext, use, useEffect, useId, useLayoutEffect, useRef, useState
 import { Check, Copy, Ellipsis, Reply, X } from "lucide-react";
 import { popoverClosesOnKey, usePopoverDismiss } from "@/hooks/use-popover-dismiss";
 import { cn } from "@/lib/cn";
-import { useCopyFeedback } from "@/lib/copy-text";
+import { copyText, useCopyFeedback } from "@/lib/copy-text";
 import { t } from "@/lib/i18n";
 import { MENU_ITEM, MENU_SHEET } from "./menu-recipe";
 
@@ -21,6 +21,13 @@ export type MessageMenuItem = {
   /** Offered only while the chat's turn is not running. */
   idleOnly?: boolean;
 };
+
+export function replyAndCopy(onReply: () => void, text: string): MessageMenuItem[] {
+  return [
+    { key: "reply", icon: <Reply {...ACTION_ICON} />, label: t("chat.reply"), onSelect: onReply },
+    ...(text.trim() ? [{ key: "copy", icon: <Copy {...ACTION_ICON} />, label: t("chat.copyMessage"), onSelect: () => { void copyText(text); } }] : []),
+  ];
+}
 
 /** Whether the chat's turn is running, apart from the row values every message reads: a turn starting or ending
  * re-renders only the few rows that show it, not every message. */

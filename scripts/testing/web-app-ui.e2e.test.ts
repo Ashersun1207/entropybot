@@ -56,9 +56,15 @@ async function connect(url: string) {
   try {
     const tools = await ensureUiBrowser();
     if (!tools.chrome) throw new Error("This recipe needs the pinned Chrome for Testing");
-    fixture = await launchVerificationServer({}, undefined, undefined, undefined, undefined, undefined, [], undefined, build);
+    fixture = await launchVerificationServer({ OMB_DEV_TRUST_LOCAL_BROWSER: "0" }, undefined, undefined, undefined, undefined, undefined, [], undefined, build);
     const { url, dataDir, logPath } = fixture.info;
     const { bot } = await runControlOmb(["new-bot", "--name", "Pepper", "--url", url]) as { bot: { id: string; activeTaskId: string } };
+    const invite = await fetch(`${url}/api/auth/pairing`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scopes: ["client"] }),
+    });
+    expect(invite.ok).toBe(true);
+    const { code } = await invite.json() as { code: string };
+    expect(code).toMatch(/^[A-Z0-9]{4}(-[A-Z0-9]{4}){2}$/i);
     const profile = join(dataDir, "chrome");
     mkdirSync(profile, { recursive: true });
     chrome = spawn(tools.chrome, ["--headless=new", "--no-sandbox", "--no-first-run", "--no-default-browser-check",
@@ -80,12 +86,17 @@ async function connect(url: string) {
       return value.result.value;
     };
     await request("Page.enable");
-    await request("Page.addScriptToEvaluateOnNewDocument", { source: "localStorage.setItem('omb-analytics-opt-out','1');localStorage.setItem('omb-email-gate','skipped');localStorage.setItem('grok-move-2026-11','1');" });
+    await request("Page.addScriptToEvaluateOnNewDocument", { source: "localStorage.setItem('omb-language','en');localStorage.setItem('omb-advanced-mode','1');localStorage.setItem('omb-analytics-opt-out','1');localStorage.setItem('omb-email-gate','skipped');localStorage.setItem('grok-move-2026-11','1');" });
     await request("Runtime.enable");
     await request("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
     await request("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-    await request("Page.navigate", { url });
-    await expect.poll(() => evaluate("document.querySelector('textarea[aria-label^=\"Message\"]') !== null"), { timeout: 20_000 }).toBe(true);
+    await request("Page.navigate", { url: `${url}/pair#code=${code}` });
+    await expect.poll(() => evaluate("document.querySelector('#pair-code')?.value ?? null"), { timeout: 20_000 }).toBe(code);
+    await evaluate("document.querySelector('#pair-code').form.requestSubmit()");
+    await expect.poll(async () => {
+      try { return await evaluate("document.querySelector('[data-tour=composer] textarea') !== null"); }
+      catch { return false; }
+    }, { timeout: 20_000 }).toBe(true);
     // iOS automatically zooms small form text on focus, leaving a standalone
     // window shifted after the keyboard closes. Keep the mention mirror aligned.
     const touchText = await evaluate(`(() => {
@@ -98,10 +109,13 @@ async function connect(url: string) {
     const parsed = await request("Page.getAppManifest");
     expect(parsed.url).toBe(`${url}/manifest.webmanifest`);
     expect(parsed.errors).toEqual([]);
+    expect(JSON.parse(parsed.data)).toMatchObject({ name: "Entropybot", short_name: "Entropybot" });
+    expect(await evaluate("document.querySelector('meta[name=apple-mobile-web-app-title]').content")).toBe("Entropybot");
     const installability = await request("Page.getInstallabilityErrors");
     expect(installability.installabilityErrors).toEqual([]);
     await expect.poll(() => evaluate("document.querySelector('textarea[aria-label^=\"Message\"]') !== null"), { timeout: 20_000 }).toBe(true);
-    for (const [width, height, insets] of [[390, 844, { top: 44, bottom: 34, left: 0, right: 0 }],
+    for (const [width, height, insets] of [[320, 568, { top: 20, bottom: 0, left: 0, right: 0 }],
+      [390, 844, { top: 44, bottom: 34, left: 0, right: 0 }],
       [844, 390, { top: 0, bottom: 21, left: 44, right: 44 }]] as const) {
       await request("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: true });
       await request("Emulation.setSafeAreaInsetsOverride", { insets });
@@ -115,6 +129,27 @@ async function connect(url: string) {
       expect(box.right).toBeLessThanOrEqual(width - insets.right);
       const shot = await request("Page.captureScreenshot", { format: "png" });
       writeFileSync(`${logPath}.web-app-${width}.png`, Buffer.from(shot.data, "base64"));
+      if (width === 390) {
+        await evaluate("document.querySelector('[data-chathead-row] [data-tour=model]').click()");
+        await expect.poll(() => evaluate("!!document.querySelector('[data-model-picker-content]')")).toBe(true);
+        expect(await evaluate("!!document.querySelector('[aria-label=\"Apply model changes to\"]')")).toBe(false);
+        await request("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+        await expect.poll(() => evaluate("document.querySelector('[data-chathead-row] [data-tour=model]').getAttribute('aria-expanded')")).toBe("false");
+      }
+      if (width < 768) {
+        const actions = await evaluate(`(() => {
+          const row = document.querySelector('[data-chathead-row]');
+          const model = row?.querySelector('[data-tour="model"]')?.getBoundingClientRect();
+          const computer = row?.querySelector('[data-tour="computer"]')?.getBoundingClientRect();
+          return model && computer ? { model: model.toJSON(), computer: computer.toJSON() } : null;
+        })()`);
+        expect(actions, `chat header at ${width}px`).not.toBeNull();
+        expect(actions.model.width).toBeGreaterThan(0);
+        expect(actions.computer.width).toBeGreaterThan(0);
+        expect(actions.model.right).toBeLessThanOrEqual(actions.computer.left);
+        expect(actions.computer.right).toBeLessThanOrEqual(width - insets.right);
+        expect(Math.abs(actions.model.top - actions.computer.top)).toBeLessThanOrEqual(1);
+      }
     }
     await evaluate("document.querySelector('textarea[aria-label^=\"Message\"]').focus()");
     await request("Input.insertText", { text: "Phone web app fixture message" });
