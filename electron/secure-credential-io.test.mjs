@@ -48,12 +48,12 @@ describe("createSecureCredentialIO", () => {
   });
 
   it("uses a successful legacy migration instead of reporting the old store unreadable", async () => {
-    const migrate = vi.fn().mockResolvedValue({ memoryEmbeddingKey: "synthetic-legacy" });
+    const migrate = vi.fn().mockResolvedValue({ xaiApiKey: "synthetic-legacy" });
     const { io: store } = io({
       read: async () => ({ status: "unavailable", credentials: {}, error: "wrong key" }),
       migrate,
     });
-    await expect(store.load()).resolves.toEqual({ memoryEmbeddingKey: "synthetic-legacy" });
+    await expect(store.load()).resolves.toEqual({ xaiApiKey: "synthetic-legacy" });
     expect(store.unavailable()).toBe(false);
     expect(migrate).toHaveBeenCalledWith(expect.objectContaining({ file: expect.any(String), markerFile: expect.any(String) }));
   });

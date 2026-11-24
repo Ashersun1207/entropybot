@@ -1,6 +1,5 @@
 import nativeText from "./native-text.cjs";
 export const CREDENTIAL_PATCH = {
-  memoryEmbeddingKey: (value) => ({ memoryEmbedding: { key: value } }),
   composioApiKey: (value) => ({ composio: { apiKey: value } }),
   xaiApiKey: (value) => ({ xai: { key: value } }),
   boxToken: (value) => ({ box: { token: value } }),
@@ -18,10 +17,8 @@ export const CREDENTIAL_PATCH = {
   postizApiKey: (value) => ({ postiz: { key: value } }),
 };
 
-export function assertCredentialStorage(name, packaged) {
-  if (name === "memoryEmbeddingKey" && !packaged) {
-    throw new Error("Memory credentials require the packaged desktop's encrypted credential store");
-  }
+export function assertCredentialStorage(available) {
+  if (!available) throw new Error("The operating-system credential store is unavailable");
 }
 
 const DECIDER_ERRORS = Object.freeze({

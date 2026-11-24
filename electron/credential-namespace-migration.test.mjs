@@ -40,7 +40,7 @@ const plaintextCodec = {
 
 describe("legacy credential result framing", () => {
   it("round-trips a credential document through the child stdout protocol", () => {
-    const credentials = { memoryEmbeddingKey: "synthetic-key", xaiApiKey: "" };
+    const credentials = { postizApiKey: "synthetic-key", xaiApiKey: "" };
     const line = encodeLegacyCredentialResult(credentials);
     expect(parseLegacyCredentialResult(`Chromium noise\n${line}more noise\n`)).toEqual(credentials);
   });
@@ -94,7 +94,7 @@ describe("shouldAttemptLegacyMigration", () => {
 describe("migrateLegacyCredentialStore", () => {
   it("backs up the old bytes, writes the new store and verifies it before replacing", async () => {
     const paths = setup();
-    const credentials = { memoryEmbeddingKey: "synthetic-memory-key", xaiApiKey: "synthetic-xai" };
+    const credentials = { postizApiKey: "synthetic-postiz-key", xaiApiKey: "synthetic-xai" };
     const result = await migrateLegacyCredentialStore({ ...paths, credentials, ...plaintextCodec });
     expect(result).toEqual(credentials);
     expect(JSON.parse(readFileSync(paths.file, "utf8"))).toEqual(credentials);
@@ -107,9 +107,9 @@ describe("migrateLegacyCredentialStore", () => {
     const paths = setup();
     await expect(migrateLegacyCredentialStore({
       ...paths,
-      credentials: { memoryEmbeddingKey: "synthetic-key" },
+      credentials: { postizApiKey: "synthetic-key" },
       encrypt: async (value) => Buffer.from(value),
-      decrypt: async () => JSON.stringify({ memoryEmbeddingKey: "different" }),
+      decrypt: async () => JSON.stringify({ postizApiKey: "different" }),
     })).rejects.toThrow(/did not read back/);
     expect(readFileSync(paths.file, "utf8")).toBe("old-encrypted-store");
     expect(JSON.parse(readFileSync(paths.markerFile, "utf8"))).toMatchObject({ status: "failed" });
@@ -120,7 +120,7 @@ describe("migrateLegacyCredentialStore", () => {
     const paths = setup();
     await expect(migrateLegacyCredentialStore({
       ...paths,
-      credentials: { memoryEmbeddingKey: "synthetic-key" },
+      credentials: { postizApiKey: "synthetic-key" },
       encrypt: async () => { throw new Error("OS store unavailable"); },
       decrypt: async (buffer) => buffer.toString(),
     })).rejects.toThrow(/OS store unavailable/);
@@ -133,7 +133,7 @@ describe("migrateLegacyCredentialStore", () => {
     writeFileSync(paths.file, "changed-after-selection", { mode: 0o600 });
     await expect(migrateLegacyCredentialStore({
       ...paths,
-      credentials: { memoryEmbeddingKey: "synthetic-key" },
+      credentials: { postizApiKey: "synthetic-key" },
       ...plaintextCodec,
     })).rejects.toThrow(/changed/);
     expect(readFileSync(paths.file, "utf8")).toBe("changed-after-selection");
@@ -176,7 +176,7 @@ describe("migrateLegacyCredentialStore", () => {
 
   it("treats a completed rewrite as success even when the marker cannot be written", async () => {
     const paths = setup();
-    const credentials = { memoryEmbeddingKey: "synthetic-key" };
+    const credentials = { postizApiKey: "synthetic-key" };
     const markerFile = join(workspace(), "missing", "marker.json");
     await expect(migrateLegacyCredentialStore({ ...paths, markerFile, credentials, ...plaintextCodec })).resolves.toEqual(credentials);
     expect(JSON.parse(readFileSync(paths.file, "utf8"))).toEqual(credentials);

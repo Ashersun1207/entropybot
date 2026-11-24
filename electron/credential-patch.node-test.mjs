@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { credentialSaveError } from "./credential-patch.mjs";
+import { assertCredentialStorage, CREDENTIAL_PATCH, credentialSaveError } from "./credential-patch.mjs";
 import nativeText from "./native-text.cjs";
+
+test("requires available encryption when called for the packaged credential store", () => {
+  assert.throws(() => assertCredentialStorage(false), /credential store is unavailable/);
+  assert.doesNotThrow(() => assertCredentialStorage(true));
+  assert.equal(Object.hasOwn(CREDENTIAL_PATCH, "memoryEmbeddingKey"), false);
+});
 
 test("a key the provider refused crosses IPC named KeyRejected, with the server's words", () => {
   const error = credentialSaveError(400, { error: "boat.dev rejected that key", code: "key_rejected" });

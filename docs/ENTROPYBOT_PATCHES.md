@@ -5,7 +5,7 @@
 
 | ID | 目的 | 涉及文件 | 测试 | 上游状态 | 冲突处理 |
 |---|---|---|---|---|---|
-| P1 | 记忆语义检索（千问 embedding + 本地 bigram 兜底） | `server/memory-embeddings.ts`、`server/memory-retrieval.ts`、`server/memory-embedding-config.ts`、`server/recall.ts`、`server/message-db.ts`、`server/config.ts` | `server/memory-embeddings.test.ts`、`server/recall.test.ts`、`server/config.test.ts` | 未合并 | 先取上游，再接回 `recall.ts` 的两处调用与配置字段 |
+| P1 | 记忆本地检索（SQLite FTS + bigram） | `server/memory-retrieval.ts`、`server/recall.ts`、`server/message-db.ts` | `server/recall.test.ts`、`server/message-db.test.ts`、`server/memory-layer.e2e.test.ts` | 未合并 | 保留自动召回接线与本地排序 |
 | P2 | 对话运行时修复（窗口自适应重放、stateless 压缩、400 回缩、工具 ID 批次、JSON/数组响应） | `server/context-rebuild.ts`、`server/index.ts`、`server/drivers/openai-chat.ts`、`server/drivers/chat-size-limit.ts`、`server/drivers/chat-delivered-replay.ts` | `server/context-rebuild.test.ts`、`server/drivers/chat-size-limit.test.ts`、`server/drivers/openai-chat.test.ts` | 未合并 | 优先高冲突；按函数逐个重放，不要整文件覆盖 |
 | P3 | 身份（appId / productName / CUA bundle id） | `electron-builder.yml`、`package.json`、`electron/cua.mjs`、`server/local-computer.ts` | `server/local-computer.test.ts` | 未合并 | 永远保留我们的 |
 | P4 | 发布与更新（自有 GitHub Releases、手动模式、版本/标签、Draft 流程） | `electron/update-policy.mjs`、`electron/updater.mjs`、`server/update-check.ts`、`.github/workflows/entropybot-*.yml`、`scripts/entropybot-release.mjs` | `electron/entropybot-updater.test.mjs`、`server/update-check.test.ts` | 未合并 | 上游更新源一律丢弃，保留我们的 |
@@ -14,7 +14,7 @@
 | P7 | 协议名（`entropybot://` 新增，旧 `openmausbot://` 兼容） | `electron-builder.yml`、`electron/main.mjs` | `electron/*.test.mjs` | 未合并 | 两个 scheme 都注册 |
 | P8 | 品牌与链接（产品名、文案、域名、GitHub） | `src/`、`server/`、`electron/`、`shared/`、`docs/`、`README.md` | `src/locales/*.test.ts` | 未合并 | 保留 NOTICE/LICENSE 归属，不改法律文本 |
 | P9 | 应用内“有新版本”提示（只检查不安装） | `electron/updater.mjs`、`src/components/AppSettingsRows.tsx` | `electron/entropybot-updater.test.mjs` | 未合并 | 手动模式专用 |
-| P10 | 应用内语义记忆设置与安全凭证（safeStorage / macOS Keychain 保护） | `src/components/MemorySettings.tsx`、Settings 导航与配置状态、`electron/workspace-credentials.mjs`、`electron/credential-patch.mjs`、`electron/main.mjs`、`server/memory-embedding-*.ts`、`server/routes/memory-embedding.ts`、配置与环境隔离 | `electron/memory-credentials.test.mjs`、`server/memory-embedding-{config,client,index,auth}.test.ts`、`server/memory-embedding-settings.e2e.test.ts`、`src/components/MemorySettings.test.ts`、`src/state/memory-status.test.ts` | 未合并 | 保留专属 slot、迁移先加密后删明文、清除空值标记、脱敏状态、受保护测试路由和 endpoint/model/dimensions 索引身份；不得回退明文保存 |
+| P10 | 桌面安全凭证（safeStorage / macOS Keychain 保护） | `electron/workspace-credentials.mjs`、`electron/credential-patch.mjs`、`electron/main.mjs`、配置与环境隔离 | `electron/workspace-credentials.test.mjs`、`electron/secure-credential-state.test.mjs`、`electron/credential-patch.node-test.mjs` | 未合并 | 保留加密可用性检查、凭证环境隔离及先加密后移除明文的迁移顺序 |
 | P11 | 中文历史自动召回与可重建派生索引 | `server/message-db.ts`、`server/recall.ts`、`server/message-recall-{index,chinese,terms,evidence}.ts` | `server/chinese-history-recall{,.e2e}.test.ts`、`server/recall-accent.test.ts`、`server/message-recall-evidence.test.ts`、`server/message-recall-index.test.ts`、`server/chinese-history-performance.test.ts`、`server/message-db.test.ts` | 未合并 | 保留原生触发器与事务回填、授权/时间过滤、短中文准入、真实正文相关性复核、作者与预算；不可退回全库扫描或仅最近窗口 |
 | P12 | 数据查询公开提前中断不丢失 | `server/data/engine.ts` | `server/data/engine.test.ts`、`server/data/engine-interrupt.test.ts`、`server/data/engine-interrupt-native.test.ts` | 未合并 | 保留原 deadline/首因、单 retry、state 身份及 finally；此修复不保证截止后派发或所有 bot Stop |
 | P14 | 记忆提示投影过滤 superseded / expired | `server/workspace.ts`、`server/memory-upkeep.ts` | `server/memory-prompt-projection.test.ts`、`server/workspace.test.ts`、`server/memory-upkeep.test.ts` | 未合并 | 只在模型可见投影过滤，原文/UI/archive/journal 保留；聊天、摘要、日志、备份不在范围 |
@@ -22,22 +22,22 @@
 | P16 | 长对话连续压缩保留活跃约束 | `server/active-constraints.ts`、`server/compaction-summary.ts` | `server/compaction-constraints.test.ts`、`server/context-compaction.e2e.test.ts` | 未合并 | 只保留有限条活跃约束/纠正/目标，跨两次压缩与重启；中英文 cue 与有界块，不是完整语义引擎；不提高 60KB/6KB 预算 |
 | P13 | 门槛执行截止、取消及验证 fixture 资源确认 | `scripts/patch-gate-process.ts`、`scripts/check-patches.mjs`、`server/verification-process-scope.ts`、`scripts/testing/verification-{lifecycle,server-preload}.ts`、`server/procs.ts`、`server/graceful-shutdown.ts`、`scripts/control-omb.ts` | `scripts/testing/patch-gate-{process.test.ts,cli.test.mjs}`、`scripts/testing/verification-lifecycle.test.ts`、`scripts/testing/verification-boundary.e2e.test.ts`、`server/verification-process-scope.test.ts` | 未合并 | 保留自有组与内部登记资源分开确认、INIT/lease 身份、异常保留目录、按代重启；确认域仅限本次登记正常 fixture CLI 与自有外组，Windows/未知平台行为执行前拒绝 |
 
-契约清单见 `scripts/patch-contracts.mjs`，区分结构规则与必须执行的行为测试。P10 的行为测试已列入自有 CI；新增完整门槛的 workflow 接入由主控处理。设置、凭证与验证边界见 [记忆设置验收](verification/memory-embedding-settings.md)。
+契约清单见 `scripts/patch-contracts.mjs`，区分结构规则与必须执行的行为测试。P10 的行为测试已列入自有 CI；新增完整门槛的 workflow 接入由主控处理。凭证与验证边界见 [凭证命名空间迁移](verification/credential-namespace-migration.md)。
 
 ## 第二轮契约门槛
 
 本轮源码基线固定为 `c1aeda2501c5a003446acb413de46d0e16012976`。这是 Entropybot 定制源码基线，不是“上游最新版本”。源码上游固定 SHA、Entropybot 应用版本（本轮基线为 0.2.3）、外部执行引擎版本和模型版本分别记录、分别验证；源码同步不能替代引擎能力或模型效果验收。脚本不 fetch、merge、下载上游实现或恢复上游发布 workflow。
 
-当前清单包含 30 项结构契约，行为文件清单为 49 个 Vitest 文件、5 个 Node test 文件。契约测试共 13 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL，另三项检查迁移测试必须登记且缺文件时拒绝；桌面 updater 的既有三项行为测试保持登记。
+当时的清单包含 30 项结构契约，行为文件清单为 49 个 Vitest 文件、5 个 Node test 文件。契约测试共 13 项，其中三个独立来源/接线变异分别验证 recall 调用、发布页 URL 与桌面 API URL，另三项检查迁移测试必须登记且缺文件时拒绝；桌面 updater 的既有三项行为测试保持登记。
 
 | 契约 | 结构保护范围 | 复用的行为证据 |
 |---|---|---|
-| P1 | `index`→`buildRecall`、embedding 配置、两处 `withRecalled` 调用；recall→语义与本地 bigram 来源 | `recall.test.ts`、`memory-embeddings.test.ts`；`memory-layer.e2e.test.ts` 在假引擎收到的 prompt 中检查记忆与跨 chat 历史，关停记忆后消失 |
+| P1 | `index`→`buildRecall`、两处 `withRecalled` 调用、本地 bigram 检索 | `recall.test.ts`、`message-db.test.ts`、`memory-layer.e2e.test.ts`、`chinese-history-recall.e2e.test.ts` 覆盖 SQLite、本地记忆与跨聊天召回，以及假引擎收到的实际提示 |
 | P2 | 自适应预算、selectReplay、压缩判断/摘要、delivered replay、400 回缩调用来源 | `context-budget.test.ts`、`context-rebuild.test.ts`、`context-compaction.e2e.test.ts`（自动/手动压缩、Stop、重启）；`drivers/chat-size-limit.test.ts`、`drivers/openai-chat{,-protocol}.test.ts`（假传输、真实驱动） |
 | P3/P4/P9 | appId、发布页（P4/release-source）、桌面实际 LATEST_RELEASE_URL（P4/desktop-source）、服务 API（P4/server-source）和打包来源固定为自有仓库、manual 模式 | `electron/entropybot-updater.test.mjs` 断言真实 manualCheck 在定时检查及授权 IPC 检查中传给 mock fetch 的精确 API URL，同时拒绝安装且不加载二进制 updater；`server/update-check.test.ts` 断言服务端请求来源和版本行为；不请求真实 GitHub |
 | P6 | config 调用数据目录迁移 helper | `server/legacy-migration.test.ts` 在合成 HOME 启动真实服务并检查 `.opengrokbot` 迁移；`scripts/testing/patch-contracts.test.ts` 在独立子进程调用真实 config/ensureDirs，检查 `.openmausbot` → `.entropybot` 及内容保留；`server/config.test.ts` 使用隔离目录检查配置 |
 | P7 | builder 同时注册 `entropybot` / `openmausbot` | Node tests：package-link、chat-link、organization-entry 的新协议解析与拒绝规则；旧 scheme 此门槛仅检查注册，不承诺所有 handler 对旧 scheme 等价，也不证明 OS 已注册 |
-| P10 | main 接回凭证迁移、环境注入、存储 guard；server 注册测试路由；config 委托记忆凭证环境同步 | `memory-credentials`、`workspace-credentials`、`secure-credential-state`、`workspace-backup-policy`、`memory-embedding-{config,client,index,auth}`、`memory-embedding-settings.e2e`、MemorySettings/导航/status 与两项凭证 Node tests；覆盖 slot、先加密后删明文、失败保留、空值 tombstone、外置清除、权限/脱敏与索引身份 |
+| P10 | main 接回凭证迁移、环境注入与凭证存储检查 | `workspace-credentials`、`secure-credential-state`、`workspace-backup-policy`、凭证命名空间迁移与两项凭证 Node tests，覆盖持久化顺序、失败保留、外置清除与备份隔离 |
 | P11 | 消息库打开时确保中文索引、调用中文候选、短查询准入、以真实正文及原生 FTS 高亮证据复核片段 | `message-db`、`recall-accent`、`message-recall-evidence`、`chinese-history-recall`、`message-recall-index`、`chinese-history-recall.e2e`、`chinese-history-performance`；覆盖既有 Unicode 重音匹配、旧库重建、事务失败重试、第二连接写改删、授权/时间/all-any/作者/预算、当前回合 prompt 及 2k/20k 合成性能 |
 
 维护契约 M01 另保护中文回合 e2e 在创建 scratch 后注册 `onTestFinished`。本轮以合成 launcher 拒绝和 close 拒绝实际导入该 e2e 验证 scratch 删除、零网络请求；结构注册检查不替代所有资源/后代进程的运行证明。

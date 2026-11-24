@@ -1,6 +1,6 @@
 import type { MemoryHit, MemoryFileStat } from "./memory-retrieval.ts";
 export type { MemoryHit, MemoryFileStat } from "./memory-retrieval.ts";
-import { createMemoryRetrieval, ensureMemoryVectors } from "./memory-retrieval.ts";
+import { createMemoryRetrieval } from "./memory-retrieval.ts";
 import { ensureChineseRecallIndex } from "./message-recall-index.ts";
 import { chineseRecallMatches, recallChineseMessages } from "./message-recall-chinese.ts";
 import { ftsAllTerms, ftsQuery, rangeClause, recallTerms, type RecallRange, type SearchMode } from "./message-recall-terms.ts";
@@ -112,7 +112,7 @@ function open(): DatabaseSync {
   ensureRecallIndex(db);
   ensureChineseRecallIndex(db);
   ensureMemoryIndex(db);
-  ensureMemoryVectors(db);
+  db.exec("DROP TABLE IF EXISTS memory_vectors");
   return db;
 }
 
@@ -903,12 +903,10 @@ export function indexMemoryFile(botId: string, path: string, text: string, stat:
 
 export function removeMemoryFile(botId: string, path: string): void {
   db().prepare("DELETE FROM memory_files WHERE bot_id = ? AND path = ?").run(botId, path);
-  db().prepare("DELETE FROM memory_vectors WHERE bot_id = ? AND path = ?").run(botId, path);
 }
 
 export function deleteBotMemoryFiles(botId: string): void {
   db().prepare("DELETE FROM memory_files WHERE bot_id = ?").run(botId);
-  clearMemoryVectors(botId);
 }
 
 export function indexedMemoryFiles(botId: string): MemoryFileStat[] {
@@ -919,8 +917,8 @@ export function indexedMemoryFiles(botId: string): MemoryFileStat[] {
   return rows.map((row) => ({ path: row.path, mtimeMs: row.mtime_ms, bytes: row.bytes }));
 }
 
-export const { memoryFileDocuments, memoryVectorRows, upsertMemoryVector, clearMemoryVectors, memoryBigrams, memorySnippet, searchMemoryBigram } = createMemoryRetrieval(db);
-export type { MemoryDocument, MemoryVectorRow } from "./memory-retrieval.ts";
+export const { memoryFileDocuments, memoryBigrams, memorySnippet, searchMemoryBigram } = createMemoryRetrieval(db);
+export type { MemoryDocument } from "./memory-retrieval.ts";
 
 export function recallMemory(query: string, botId: string, limit = 12, mode: SearchMode = "all"): MemoryHit[] {
   const match = ftsQuery(query, mode);

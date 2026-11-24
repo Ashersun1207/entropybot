@@ -76,7 +76,7 @@ it("measures complete synthetic history builds and indexed queries at 2k and 20k
         if (query === "不存在的合成关键词") expect(hits).toEqual([]);
         lastHits = hits.length;
         at = performance.now();
-        const recall = await buildRecall({ botId: "fixture-performance", message: query, threadIds: threads, label: (id) => id, author: () => "Synthetic person", embedding: null });
+        const recall = await buildRecall({ botId: "fixture-performance", message: query, threadIds: threads, label: (id) => id, author: () => "Synthetic person" });
         const assembledMs = performance.now() - at;
         expect(recall?.conversations ?? 0).toBeLessThanOrEqual(4);
         if (repeat >= 0) { helper.push(helperMs); assembled.push(assembledMs); }

@@ -11,7 +11,7 @@
 3. 子进程使用同一可执行文件，启动参数为 `--entropybot-legacy-credential-read`。它在 `ready` 前设置 `app.setName("openmausbot")`，因此 Electron 查询 `openmausbot Safe Storage` / `openmausbot Key`，与旧条目一致。子进程使用临时 userData，跳过单实例锁，不启动窗口或服务。
 4. 子进程读取凭证前弹出原生确认框，默认取消；拒绝或确认框异常时不读取。明确授权后把凭证 JSON 以 `ENTROPYBOT_LEGACY_CREDENTIAL_RESULT <base64>` 输出到本地管道，父进程校验大小、base64、JSON 对象类型和危险键。base64 是可逆编码；用户确认不等于父进程身份鉴权，不承诺抵御同一系统用户的恶意进程。
 5. 父进程先把旧文件备份为 `credentials.bin.legacy-<sha256前12位>.bak`，再用当前密钥加密写入临时文件，回读并逐字段比较。await 之后、原子替换前再次核对源字节，检测到外部写入便失败；失败只清理本事务临时文件，绝不把陈旧备份覆盖到外部写入。最终同步检查到 rename 之间仍非跨进程原子 compare-and-swap。
-6. 成功后写入 `migrated` 标记；之后的明文配置迁移沿用既有流程，把 `memoryEmbeddingKey` 迁入新库并移除明文。
+6. 成功后写入 `migrated` 标记；随后按工作区凭证清单迁移当前受支持的明文凭证。
 
 ## 失败语义
 
@@ -30,7 +30,6 @@ node node_modules/vitest/vitest.mjs run \
   electron/credential-namespace-migration-child.test.mjs \
   electron/credential-namespace-migration-rollback.test.mjs \
   electron/secure-credential-io.test.mjs \
-  electron/memory-credentials.test.mjs \
   electron/secure-credential-state.test.mjs \
   electron/workspace-credentials.test.mjs \
   --root . --configLoader native

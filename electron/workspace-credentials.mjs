@@ -1,5 +1,4 @@
 export const WORKSPACE_CREDENTIALS = [
-  { section: "memoryEmbedding", field: "key", name: "memoryEmbeddingKey", env: "OMB_MEMORY_EMBEDDING_KEY" },
   { section: "xai", field: "key", name: "xaiApiKey", env: "XAI_API_KEY" },
   { section: "box", field: "token", name: "boxToken", env: "BOX_TOKEN" },
   { section: "tts", field: "key", name: "ttsKey", env: "OMB_TTS_KEY" },
@@ -30,13 +29,7 @@ export function migrateWorkspaceCredentials(config, credentials) {
     const value = home[field];
     if (typeof value !== "string") continue;
     const secret = value.trim();
-    // A durable empty slot suppresses the legacy environment fallback even after config migration removes its tombstone.
-    if (name === "memoryEmbeddingKey" && !secret && typeof nextCredentials[name] !== "string") {
-      nextCredentials[name] = "";
-      credentialsChanged = true;
-    }
-    const memorySlotIsAuthoritative = name === "memoryEmbeddingKey" && typeof nextCredentials[name] === "string";
-    if (secret && nextCredentials[name] !== secret && !memorySlotIsAuthoritative) {
+    if (secret && nextCredentials[name] !== secret) {
       nextCredentials[name] = secret;
       credentialsChanged = true;
     }
@@ -56,7 +49,7 @@ export async function persistWorkspaceCredentialMigration(config, credentials, {
 
 export function withWorkspaceCredential(credentials, name, secret) {
   const next = { ...credentials };
-  if (secret || name === "memoryEmbeddingKey") next[name] = secret;
+  if (secret) next[name] = secret;
   else delete next[name];
   return next;
 }
@@ -65,8 +58,7 @@ export function workspaceCredentialEnv(credentials) {
   const env = {};
   for (const { name, env: envName } of WORKSPACE_CREDENTIALS) {
     const value = credentials?.[name];
-    if (typeof value === "string" && (value || name === "memoryEmbeddingKey")) env[envName] = value;
+    if (typeof value === "string" && value) env[envName] = value;
   }
-  if (env.OMB_MEMORY_EMBEDDING_KEY) env.OMB_MEMORY_EMBEDDING_STORAGE = "secure";
   return env;
 }

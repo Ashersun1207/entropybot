@@ -2,9 +2,7 @@ export const sourceBaseline = "c1aeda2501c5a003446acb413de46d0e16012976";
 
 export const callContracts = [
   { id: "P1/auto-recall", file: "server/index.ts", symbol: "buildRecall", from: "./recall.ts" },
-  { id: "P1/embedding-settings", file: "server/index.ts", symbol: "memoryEmbeddingSettings", from: "./memory-embeddings.ts" },
   { id: "P1/prompt-injection", file: "server/index.ts", symbol: "withRecalled", from: "./recall.ts", minimum: 2 },
-  { id: "P1/semantic", file: "server/recall.ts", symbol: "semanticMemoryHits", from: "./memory-embeddings.ts" },
   { id: "P1/local-fallback", file: "server/recall.ts", symbol: "searchMemoryBigram", from: "./message-db.ts" },
   { id: "P2/budget", file: "server/index.ts", symbol: "adaptiveReplayBytes", from: "./context-rebuild.ts" },
   { id: "P2/replay", file: "server/index.ts", symbol: "selectReplay", from: "./context-rebuild.ts", minimum: 2 },
@@ -16,8 +14,6 @@ export const callContracts = [
   { id: "P10/migration", file: "electron/main.mjs", symbol: "persistWorkspaceCredentialMigration", from: "./workspace-credentials.mjs" },
   { id: "P10/external-env", file: "electron/main.mjs", symbol: "workspaceCredentialEnv", from: "./workspace-credentials.mjs" },
   { id: "P10/storage-guard", file: "electron/main.mjs", symbol: "assertCredentialStorage", from: "./credential-patch.mjs" },
-  { id: "P10/route", file: "server/index.ts", symbol: "createMemoryEmbeddingRoutes", from: "./routes/memory-embedding.ts" },
-  { id: "P10/memory-env-sync", file: "server/config.ts", symbol: "syncMemoryEmbeddingCredentialEnv", from: "./memory-embedding-config.ts" },
   { id: "P11/index", file: "server/message-db.ts", symbol: "ensureChineseRecallIndex", from: "./message-recall-index.ts" },
   { id: "P11/candidates", file: "server/message-db.ts", symbol: "recallChineseMessages", from: "./message-recall-chinese.ts" },
   { id: "P11/admission", file: "server/recall.ts", symbol: "chineseRecallQuery", from: "./message-recall-chinese.ts" },
@@ -54,7 +50,6 @@ export const vitestFiles = [
   "server/message-recall-index.test.ts",
   "server/chinese-history-recall.e2e.test.ts",
   "server/chinese-history-performance.test.ts",
-  "server/memory-embeddings.test.ts",
   "server/memory-layer.e2e.test.ts",
   "server/context-budget.test.ts",
   "server/context-rebuild.test.ts",
@@ -69,7 +64,6 @@ export const vitestFiles = [
   "server/config.test.ts",
   "electron/entropybot-updater.test.mjs",
   "server/update-check.test.ts",
-  "electron/memory-credentials.test.mjs",
   "electron/workspace-credentials.test.mjs",
   "electron/secure-credential-state.test.mjs",
   "electron/credential-namespace-migration.test.mjs",
@@ -78,16 +72,9 @@ export const vitestFiles = [
   "electron/credential-namespace-migration-rollback.test.mjs",
   "electron/secure-credential-io.test.mjs",
   "server/workspace-backup-policy.test.ts",
-  "server/memory-embedding-config.test.ts",
-  "server/memory-embedding-client.test.ts",
-  "server/memory-embedding-index.test.ts",
-  "server/memory-embedding-auth.test.ts",
-  "server/memory-embedding-settings.e2e.test.ts",
   "server/memory-prompt-projection.test.ts",
-  "src/components/MemorySettings.test.ts",
   "src/components/SettingsModal.manual-updates.test.ts",
   "src/components/SettingsModal.simple.test.ts",
-  "src/state/memory-status.test.ts",
 ];
 
 export const nodeTestFiles = [

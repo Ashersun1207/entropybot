@@ -6,7 +6,7 @@ import { buildRecall } from "./recall.ts";
 
 beforeEach(() => { closeMessageDb(); rmSync(DATA_DIR, { recursive: true, force: true }); });
 const query = "café résumé quarterly office budget";
-const recall = (message: string) => buildRecall({ botId: "fixture-accent", message, threadIds: ["accent-owned"], label: () => "synthetic accent source", author: () => "Synthetic person", embedding: null });
+const recall = (message: string) => buildRecall({ botId: "fixture-accent", message, threadIds: ["accent-owned"], label: () => "synthetic accent source", author: () => "Synthetic person" });
 const insert = (text: string) => insertMessage("accent-owned", { id: "accent-source", role: "user", kind: "text", at: 1793966400000, text });
 
 it.each([

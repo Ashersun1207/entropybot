@@ -24,7 +24,12 @@ it("injects only authorized Chinese history into fresh current-turn prompts and 
   const evidence: unknown[] = [];
   try {
     await expect(control("doctor")).resolves.toMatchObject({ ok: true });
-    await api("/api/config", "PATCH", { memoryEmbedding: { enabled: false } });
+    const config = await api("/api/config");
+    const retiredRoute = await fetch(`${fixture.info.url}/api/memory/embedding/test`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}", signal: AbortSignal.timeout(10_000),
+    });
+    expect({ exposesEmbedding: Object.hasOwn(config, "memoryEmbedding"), retiredRoute: retiredRoute.status })
+      .toEqual({ exposesEmbedding: false, retiredRoute: 404 });
     const owner = (await api("/api/bots", "POST", { name: "Synthetic Recall A" }, 201)).bot as { id: string; threadId: string };
     const other = (await api("/api/bots", "POST", { name: "Synthetic Recall B" }, 201)).bot as { id: string; threadId: string };
     for (const bot of [owner, other]) await api(`/api/bots/${bot.id}`, "PATCH", { memoryUpkeep: false });

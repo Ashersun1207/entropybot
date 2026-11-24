@@ -6,13 +6,6 @@ export interface MemoryDocument {
   text: string;
 }
 
-export interface MemoryVectorRow {
-  path: string;
-  hash: string;
-  dim: number;
-  vector: Uint8Array;
-}
-
 export interface MemoryFileStat {
   path: string;
   mtimeMs: number;
@@ -25,50 +18,12 @@ export interface MemoryHit {
   at: number;
 }
 
-export function ensureMemoryVectors(database: DatabaseSync): void {
-  database.exec(`
-    -- Optional semantic recall: one row per memory file and embedding model.
-    CREATE TABLE IF NOT EXISTS memory_vectors (
-      bot_id TEXT NOT NULL,
-      path TEXT NOT NULL,
-      model TEXT NOT NULL,
-      dim INTEGER NOT NULL,
-      hash TEXT NOT NULL,
-      vector BLOB NOT NULL,
-      updated_at INTEGER NOT NULL,
-      PRIMARY KEY (bot_id, path, model)
-    );
-  `);
-}
-
 export function createMemoryRetrieval(db: () => DatabaseSync) {
-
-  /** Every indexed memory file with its text, for the local bigram fallback and for vector staleness checks. */
   function memoryFileDocuments(botId: string): MemoryDocument[] {
     const rows = db()
       .prepare("SELECT path, mtime_ms, text FROM memory_files WHERE bot_id = ?")
       .all(botId) as Array<{ path: string; mtime_ms: number; text: string }>;
     return rows.map((row) => ({ path: row.path, mtimeMs: row.mtime_ms, text: row.text }));
-  }
-
-  function memoryVectorRows(botId: string, model: string): MemoryVectorRow[] {
-    const rows = db()
-      .prepare("SELECT path, hash, dim, vector FROM memory_vectors WHERE bot_id = ? AND model = ?")
-      .all(botId, model) as Array<{ path: string; hash: string; dim: number; vector: Uint8Array }>;
-    return rows.map((row) => ({ path: row.path, hash: row.hash, dim: row.dim, vector: row.vector }));
-  }
-
-  function upsertMemoryVector(botId: string, path: string, model: string, hash: string, vector: Float32Array): void {
-    db()
-      .prepare(
-        "INSERT INTO memory_vectors (bot_id, path, model, dim, hash, vector, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) " +
-          "ON CONFLICT(bot_id, path, model) DO UPDATE SET dim = excluded.dim, hash = excluded.hash, vector = excluded.vector, updated_at = excluded.updated_at",
-      )
-      .run(botId, path, model, vector.length, hash, new Uint8Array(vector.buffer, vector.byteOffset, vector.byteLength), Date.now());
-  }
-
-  function clearMemoryVectors(botId: string): void {
-    db().prepare("DELETE FROM memory_vectors WHERE bot_id = ?").run(botId);
   }
 
   const CJK_RUN = /[\u3400-\u9fff]+|[a-z0-9]+/gi;
@@ -136,7 +91,6 @@ export function createMemoryRetrieval(db: () => DatabaseSync) {
     return chosen.replace(/\s+/g, " ").trim().slice(0, 400);
   }
 
-  /** Local fallback used when no embedding endpoint is configured or reachable. */
   function searchMemoryBigram(botId: string, query: string, limit = 12): MemoryHit[] {
     const docs = bigramDocs(botId);
     if (!docs.length) return [];
@@ -160,5 +114,5 @@ export function createMemoryRetrieval(db: () => DatabaseSync) {
       .map((row) => ({ file: row.doc.path, at: row.doc.mtimeMs, snippet: memorySnippet(row.doc.text, queryGrams) }));
   }
 
-  return { memoryFileDocuments, memoryVectorRows, upsertMemoryVector, clearMemoryVectors, memoryBigrams, memorySnippet, searchMemoryBigram };
+  return { memoryFileDocuments, memoryBigrams, memorySnippet, searchMemoryBigram };
 }

@@ -4,7 +4,7 @@ import { afterAll, afterEach, expect, it, vi } from "vitest";
 import { BEFORE_CAP, adoptMemoryJournal, beginMemoryTurn, endMemoryTurn, recordMemoryChange, flushAllMemoryJournals, flushMemoryJournal, journalFile, journalMemoryDelete, journalMemoryWrite, journalTurnWrite, readMemoryJournal, revertMemoryChange } from "./memory-journal.ts";
 import { MEMORY_INDEX, hashMemoryText, readMemoryDoc } from "./memory-store.ts";
 import { ensureWorkspace, syncMemoryIndex, workspaceDir } from "./workspace.ts";
-import { memoryFileDocuments, memoryVectorRows, searchMemoryBigram, upsertMemoryVector } from "./message-db.ts";
+import { memoryFileDocuments, searchMemoryBigram } from "./message-db.ts";
 
 vi.mock("node:fs", async (original) => {
   const fs = await original<typeof import("node:fs")>();
@@ -42,8 +42,7 @@ it.each([
   await flushMemoryJournal(bot);
   const before = readMemoryDoc(bot, path);
   syncMemoryIndex(bot);
-  upsertMemoryVector(bot, path, "synthetic", before.hash, new Float32Array([1, 0]));
-  const projections = () => ({ files: memoryFileDocuments(bot), vectors: memoryVectorRows(bot, "synthetic"), hits: searchMemoryBigram(bot, "fact", 10) });
+  const projections = () => ({ files: memoryFileDocuments(bot), hits: searchMemoryBigram(bot, "fact", 10) });
   const cached = projections();
   const journal = readFileSync(journalFile(bot));
   expect(revertMemoryChange(bot, entry!.id)).toMatchObject({ ok: false, status: 409 });
@@ -119,8 +118,7 @@ it.each(inconsistentRows)("refuses persisted inconsistent metadata: $name", asyn
   await flushMemoryJournal(bot);
   syncMemoryIndex(bot);
   const current = readMemoryDoc(bot, path);
-  upsertMemoryVector(bot, path, "synthetic", current.hash, new Float32Array([1, 0]));
-  const projections = () => ({ files: memoryFileDocuments(bot), vectors: memoryVectorRows(bot, "synthetic"), hits: searchMemoryBigram(bot, "current fact", 10) });
+  const projections = () => ({ files: memoryFileDocuments(bot), hits: searchMemoryBigram(bot, "current fact", 10) });
   const cached = projections();
   const journal = readFileSync(journalFile(bot));
   const beforeBytes = current.exists ? readFileSync(join(workspaceDir(bot), path)) : null;

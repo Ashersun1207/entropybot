@@ -214,6 +214,13 @@ describe("configuration boundaries", () => {
     expect(parseConfigPatch(stored)).toEqual({ language: "en", features: { browser: true } });
   });
 
+  it("ignores retired recall configuration and still applies local memory settings", () => {
+    const memory = { captureQuietMs: 1_000, tidyHour: 6 };
+    const legacy = { memory, memoryEmbedding: { enabled: true, key: "synthetic-retired-key" } };
+    expect(parseStoredConfig(legacy)).toEqual({ memory });
+    expect(parseConfigPatch(legacy)).toEqual({ memory });
+  });
+
   it("rejects malformed stored instances and API patches", () => {
     expect(() => parseStoredConfig({ instances: { claude: { driver: 42 } } })).toThrow("instances.claude.driver");
     expect(() => parseStoredConfig({ browserProfiles: [{ id: "../evil", name: "Unsafe" }] })).toThrow(

@@ -73,7 +73,7 @@ jobs:
         run: |
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' release/mac-arm64/Entropybot.app/Contents/Info.plist)" = ai.entropybot.desktop
           codesign --verify --deep --strict release/mac-arm64/Entropybot.app
-          test -f release/mac-arm64/Entropybot.app/Contents/Resources/server/server/memory-embeddings.js
+          test -f release/mac-arm64/Entropybot.app/Contents/Resources/server/server/recall.js
           node scripts/entropybot-release.mjs manifest
       - uses: actions/upload-artifact@v4
         with:

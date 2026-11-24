@@ -46,7 +46,7 @@ function fakeChild({ stdout = "", stderr = "", code = 0, close = true } = {}) {
 describe("runLegacyCredentialRead", () => {
   it("parses a successful child result and removes its temporary profile", async () => {
     const tempRoot = workspace();
-    const credentials = { memoryEmbeddingKey: "synthetic" };
+    const credentials = { xaiApiKey: "synthetic" };
     const result = await runLegacyCredentialRead({
       credentialsFile: "/unused/credentials.bin",
       tempRoot,
@@ -142,7 +142,7 @@ describe("attemptLegacyCredentialMigration", () => {
   it("migrates once and records the backup and marker", async () => {
     const paths = setup();
     const log = vi.fn();
-    const credentials = { memoryEmbeddingKey: "synthetic" };
+    const credentials = { xaiApiKey: "synthetic" };
     const result = await attemptLegacyCredentialMigration({
       ...paths,
       ...codec,

@@ -114,7 +114,6 @@ Use only mapped, tested commands:
 
 ### Release, migration and signing evidence
 
-- [Secure memory settings and credentials](memory-embedding-settings.md)
 - [Credential namespace migration](credential-namespace-migration.md)
 - [Keychain diagnosis boundaries](keychain-isolated-diagnosis.md)
 - [Migration rollback acceptance](release-0.2.5-rollback.md)

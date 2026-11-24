@@ -11,7 +11,7 @@ vi.mock("node:fs", () => ({ default: mock }));
 import { installLegacyCredentialRead } from "./credential-namespace-migration-child.mjs";
 import { LEGACY_READ_FLAG, parseLegacyCredentialResult } from "./credential-namespace-migration.mjs";
 
-const credentials = { memoryEmbeddingKey: "synthetic-consent-canary" };
+const credentials = { xaiApiKey: "synthetic-consent-canary" };
 const ready = () => vi.waitFor(() => expect(mock.app.exit).toHaveBeenCalled());
 beforeEach(() => {
   vi.resetAllMocks();

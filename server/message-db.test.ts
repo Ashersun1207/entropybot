@@ -64,6 +64,25 @@ describe("message-db", () => {
     expect(thread.activeLeafId).toBe("m2");
   });
 
+  it.each([false, true])("opens with local search and no vector table (legacy database: %s)", (legacyVectors) => {
+    const file = join(DATA_DIR, "messages.db");
+    insertMessage("t1", msg("m1", "transcript canary"));
+    indexMemoryFile("b1", "memory/notes.md", "project canary", { mtimeMs: 1, bytes: 14 });
+    closeMessageDb();
+    using db = new DatabaseSync(file);
+    if (legacyVectors) {
+      db.exec(`CREATE TABLE IF NOT EXISTS memory_vectors (
+        bot_id TEXT NOT NULL, path TEXT NOT NULL, model TEXT NOT NULL, dim INTEGER NOT NULL,
+        hash TEXT NOT NULL, vector BLOB NOT NULL, updated_at INTEGER NOT NULL,
+        PRIMARY KEY (bot_id, path, model)
+      )`);
+      db.exec("INSERT INTO memory_vectors VALUES ('b1', 'memory/notes.md', 'fixture', 1, 'hash', X'0000803F', 1)");
+    }
+    expect(recallMessages("transcript canary", ["t1"], 5).map(hit => hit.threadId)).toEqual(["t1"]);
+    expect(recallMemory("project canary", "b1", 5).map(hit => hit.file)).toEqual(["memory/notes.md"]);
+    expect(db.prepare("SELECT name FROM sqlite_schema WHERE name = 'memory_vectors'").get()).toBeUndefined();
+  });
+
   it("finds the first-reply rescue rows that never settled or ended", () => {
     const rescue = (id: string, state: Record<string, true> = {}) => msg(id, "", {
       role: "bot", kind: "activity",

@@ -144,6 +144,14 @@ describe("workspace credential env", () => {
     });
   });
 
+  it("keeps a retired credential in the stored document without exporting it to the server", () => {
+    const stored = { memoryEmbeddingKey: "synthetic-retired-key", xaiApiKey: "synthetic-active-key" };
+    const result = migrateWorkspaceCredentials({}, stored);
+    expect(result.credentialsChanged).toBe(false);
+    expect(result.credentials).toEqual(stored);
+    expect(workspaceCredentialEnv(result.credentials)).toEqual({ XAI_API_KEY: "synthetic-active-key" });
+  });
+
   it("emits nothing for absent or empty secrets", () => {
     expect(workspaceCredentialEnv({})).toEqual({});
     expect(workspaceCredentialEnv({ xaiApiKey: "" })).toEqual({});
@@ -153,6 +161,6 @@ describe("workspace credential env", () => {
   it("covers every credential the migration table declares", () => {
     const credentials = Object.fromEntries(WORKSPACE_CREDENTIALS.map((c) => [c.name, `v-${c.name}`]));
     const env = workspaceCredentialEnv(credentials);
-    expect(Object.keys(env).sort()).toEqual([...WORKSPACE_CREDENTIALS.map((c) => c.env), "OMB_MEMORY_EMBEDDING_STORAGE"].sort());
+    expect(Object.keys(env).sort()).toEqual(WORKSPACE_CREDENTIALS.map((c) => c.env).sort());
   });
 });

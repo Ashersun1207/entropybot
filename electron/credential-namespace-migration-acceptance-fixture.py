@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TEMP_BASE = Path('/private/var/folders/3_/4wcgrlpj1cx98_dychpdms240000gn/T/opencode')
 ARCHIVE = Path('/Users/sun/Library/Caches/electron/36015c644ea53166533d8291c2675bc7ee3c273a4d591717e6b444a4b99d1913/electron-v43.7.9-darwin-arm64.zip')
 OLD_COMMIT = '8138dca42'
-CANARY = {'memoryEmbeddingKey': 'synthetic-rollback-electron-canary', 'xaiApiKey': 'synthetic-second-key'}
+CANARY = {'postizApiKey': 'synthetic-rollback-electron-canary', 'xaiApiKey': 'synthetic-second-key'}
 SCRIPT = r'''
 import fs from 'node:fs';
 import path from 'node:path';
@@ -153,7 +153,7 @@ def check_platform(commands, scratch, results):
 
         def electron_run(mode):
             result = run([str(electron), '--use-mock-keychain', str(script)], env={**base, 'FIXTURE_MODE': mode}, cwd=ROOT)
-            assert CANARY['memoryEmbeddingKey'].encode() not in result.stderr
+            assert CANARY['postizApiKey'].encode() not in result.stderr
             return result
 
         assert electron_run('seed').returncode == 0

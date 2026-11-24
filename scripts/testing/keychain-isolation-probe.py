@@ -55,7 +55,7 @@ def main():
         assert results['same_signature_restart']['old']['matchesSyntheticValue']
         assert results['same_signature_restart']['new']['matchesSyntheticValue']
 
-        payload = b'{"memoryEmbeddingKey":"synthetic-canary-for-isolated-probe"}'
+        payload = b'{"xaiApiKey":"synthetic-canary-for-isolated-probe"}'
         encrypted = crypt(payload, 'synthetic-old-service-password')
         assert encrypted.returncode == 0
         ciphertext = b'v10' + encrypted.stdout

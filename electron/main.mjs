@@ -1128,7 +1128,6 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
       ? { COMPOSIO_API_KEY: secureCredentials.composioApiKey }
       : {}),
     OMB_CREDENTIAL_STORE: credentialIO.unavailable() ? "unavailable" : "ok",
-    OMB_MEMORY_EMBEDDING_STORAGE: "",
     ...workspaceCredentialEnv(secureCredentials),
   });
   delete childEnv.OMB_BROWSER_CONNECTION;
@@ -2786,14 +2785,11 @@ ipcMain.handle("desktop:capabilities", async (event) =>
 );
 
 async function saveWorkspaceCredential(name, value) {
-  const patchFor = CREDENTIAL_PATCH[name];
-  if (!patchFor || typeof value !== "string") {
+  if (!Object.hasOwn(CREDENTIAL_PATCH, name) || typeof value !== "string") {
     throw new Error("Unsupported credential");
   }
-  assertCredentialStorage(name, app.isPackaged);
-  if (app.isPackaged && !(await safeStorage.isAsyncEncryptionAvailable())) {
-    throw new Error("The operating-system credential store is unavailable");
-  }
+  const patchFor = CREDENTIAL_PATCH[name];
+  assertCredentialStorage(!app.isPackaged || await safeStorage.isAsyncEncryptionAvailable());
   const secret = value.trim();
   const applyToHarness = async () => {
     if (app.isPackaged && !serverReady) throw new Error("The embedded bot server is unavailable");

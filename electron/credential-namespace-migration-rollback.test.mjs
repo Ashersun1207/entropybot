@@ -13,7 +13,7 @@ const fixture = () => {
   const directory = fs.mkdtempSync(path.join(tmpdir(), "credential-rollback-fixture-"));
   owned.push(directory);
   const file = path.join(directory, "credentials.bin");
-  const credentials = { memoryEmbeddingKey: "synthetic-rollback-canary", xaiApiKey: "synthetic-other-key" };
+  const credentials = { postizApiKey: "synthetic-rollback-canary", xaiApiKey: "synthetic-other-key" };
   const original = Buffer.from(`old:${JSON.stringify(credentials)}`);
   fs.writeFileSync(file, original, { mode: 0o600 });
   const storage = {
@@ -39,7 +39,7 @@ describe("isolated restart and rollback transactions", () => {
   it.each(["denied", "locked"])("preserves store and synthetic plaintext config across %s and restart", async (reason) => {
     const f = fixture();
     const config = path.join(f.directory, "config.json");
-    const plaintext = '{"memoryEmbeddingKey":"synthetic-plaintext-preserved"}';
+    const plaintext = '{"postizApiKey":"synthetic-plaintext-preserved"}';
     fs.writeFileSync(config, plaintext);
     const readLegacy = vi.fn().mockResolvedValue({ ok: false, error: `synthetic ${reason}` });
     const storage = reason === "locked" ? { ...f.storage, isAsyncEncryptionAvailable: async () => false } : f.storage;
@@ -54,7 +54,7 @@ describe("isolated restart and rollback transactions", () => {
     expect(readLegacy).toHaveBeenCalledTimes(1);
     const marker = fs.readFileSync(path.join(f.directory, "credential-namespace-migration.json"), "utf8");
     expect(marker).toContain(`synthetic ${reason}`);
-    expect(marker).not.toContain(f.credentials.memoryEmbeddingKey);
+    expect(marker).not.toContain(f.credentials.postizApiKey);
   });
 
   it("reloads migrated credentials after restart and migrates restored backup a second time", async () => {

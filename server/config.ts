@@ -1,4 +1,3 @@
-import { memoryEmbeddingShape, memoryEmbeddingEnv, syncMemoryEmbeddingCredentialEnv, type MemoryEmbeddingHostConfig } from "./memory-embedding-config.ts";
 // ~/.entropybot/config.json, with env vars overriding its credentials.
 import { readFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -320,7 +319,7 @@ const threadsPatchSchema = threadsConfigSchema.extend({
   eventLogMaxBytes: threadsConfigSchema.shape.eventLogMaxBytes.nullable(),
   eventLogRetentionDays: threadsConfigSchema.shape.eventLogRetentionDays.nullable(),
 });
-const appConfigSchema = z.object({ ...memoryEmbeddingShape,
+const appConfigSchema = z.object({
   /** Set only by the verified domain endpoint, never by a config patch. */
   customDomain: z.string().optional(),
   /** Who may sign in with an emailed code: addresses or `@domain` entries; admins get every scope, members chat only. */
@@ -462,7 +461,7 @@ const appConfigPatchSchema = appConfigSchema.omit({ instances: true, mcpServers:
   .extend({ threads: threadsPatchSchema.optional(), newBots: newBotsPatchSchema.optional() });
 const jsonObjectSchema = z.record(z.string(), z.json());
 
-export interface AppConfig extends HelperConfig, MemoryEmbeddingHostConfig {
+export interface AppConfig extends HelperConfig {
   customDomain?: string;
   signIn?: { admins?: string[]; members?: string[] };
   /** Preferred selection for newly created bots; existing bots keep theirs. */
@@ -800,7 +799,7 @@ export function loadConfig(): AppConfig {
     if (process.env.OMB_SIGNIN_EMAILS !== undefined) cfg.signIn.admins = splitEmails(process.env.OMB_SIGNIN_EMAILS);
     if (process.env.OMB_SIGNIN_MEMBER_EMAILS !== undefined) cfg.signIn.members = splitEmails(process.env.OMB_SIGNIN_MEMBER_EMAILS);
   }
-  return { ...cfg, memoryEmbedding: memoryEmbeddingEnv(cfg.memoryEmbedding) };
+  return cfg;
 }
 
 /** Memoizes derive(loadConfig()) until config.json's stat changes; a file saved in the last two seconds is re-read every call, since its mtime may not tick. */
@@ -815,10 +814,8 @@ export function cacheUntilConfigChanges<T>(derive: (config: AppConfig) => T): ()
   };
 }
 
-/** Keeps credential env in step with a save. An empty memory key suppresses the legacy fallback;
- * other empty credentials drop their variable. External storage marks credentials supplied by the desktop store. */
-export function syncCredentialEnv(patch: Partial<Omit<AppConfig, "threads" | "newBots">>, externalSecretStorage = false): void {
-  syncMemoryEmbeddingCredentialEnv(patch.memoryEmbedding, externalSecretStorage);
+/** Keeps credential env in step with a save. Empty credentials drop their variable. */
+export function syncCredentialEnv(patch: Partial<Omit<AppConfig, "threads" | "newBots">>): void {
   const secrets: Array<[value: string | undefined, name: string]> = [
     [patch.xai?.key, "XAI_API_KEY"],
     [patch.mistral?.key, "MISTRAL_API_KEY"],
@@ -849,8 +846,6 @@ export function syncCredentialEnv(patch: Partial<Omit<AppConfig, "threads" | "ne
     else delete process.env[name];
   }
   const settings: Array<[value: string | undefined, name: string]> = [
-    [patch.memoryEmbedding?.url, "OMB_MEMORY_EMBEDDING_URL"],
-    [patch.memoryEmbedding?.model, "OMB_MEMORY_EMBEDDING_MODEL"],
     [patch.openaiCompat?.url, "OPENAI_COMPAT_URL"],
     [patch.anthropic?.url, "OMB_ANTHROPIC_API_URL"],
     [patch.openaiCompat?.model, "OPENAI_COMPAT_MODEL"],
@@ -940,7 +935,7 @@ export function saveConfig(
   const before = configSaveListeners.size ? structuredClone(disk) : disk;
   const storedProfiles = storedBrowserProfilesSchema.safeParse(disk.browserProfiles);
   if (storedProfiles.success) disk.browserProfiles = storedProfiles.data;
-  for (const key of ["xai", "anthropic", "mistral", "cerebras", "treg", "postiz", "groq", "greenference", "meta", "deepseek", "openai", "openrouter", "openaiCompat", "composio", "box", "opencodeGo", "tts", "decider", "imageGen", "live", "profile", "rooms", "mcp", "threads", "context", "memory", "memoryEmbedding", "localVm", "features", "budgets", "billing", "decisions", "loopGuard", "onboarding", "browserEngine", "newBots", "safetyFloor"] as const) {
+  for (const key of ["xai", "anthropic", "mistral", "cerebras", "treg", "postiz", "groq", "greenference", "meta", "deepseek", "openai", "openrouter", "openaiCompat", "composio", "box", "opencodeGo", "tts", "decider", "imageGen", "live", "profile", "rooms", "mcp", "threads", "context", "memory", "localVm", "features", "budgets", "billing", "decisions", "loopGuard", "onboarding", "browserEngine", "newBots", "safetyFloor"] as const) {
     const section = checkedPatch[key];
     if (!section) continue;
     const current = jsonObjectSchema.safeParse(disk[key]);

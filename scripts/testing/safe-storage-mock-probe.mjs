@@ -13,7 +13,7 @@ app.setPath('sessionData', path.join(root, 'session'));
 app.setPath('logs', path.join(root, 'logs'));
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-background-networking');
-const plaintext = JSON.stringify({ memoryEmbeddingKey: 'synthetic-mock-keychain-canary' });
+const plaintext = JSON.stringify({ xaiApiKey: 'synthetic-mock-keychain-canary' });
 function encryptedWith(password) {
   // Electron 43.7.9's restored Chromium sync backend uses this macOS v10 format.
   const key = pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1');

@@ -128,13 +128,11 @@ const placement = (html: string, needle: string): "shown" | "folded" | "missing"
 const open = (section: AppSettingsSection) => { fixture.section = section; return render(); };
 
 describe("Settings in Simple mode", () => {
-  it.each([false, true])("exposes the Memory settings in simple/advanced mode: %s", (advanced) => {
+  it.each([false, true])("keeps the Memory entry in simple/advanced mode: %s", (advanced) => {
     fixture.advancedMode = advanced;
-    fixture.config.memoryEmbedding = { enabled: false, configured: false, storage: "none", url: "https://embedding.example.test/v1/embeddings", model: "synthetic", dimensions: 1024, timeoutMs: 8000 };
     const html = open("memory");
-    expect(html).toContain("data-memory-settings");
-    expect(html).toContain(t("memorySettings.privacy"));
-    expect(SECTIONS.find((entry) => entry.id === "memory")?.keywords).toContain("语义");
+    expect(SECTIONS.find((entry) => entry.id === "memory")?.keywords).toContain("检索");
+    expect(html).not.toContain("data-memory-settings");
     if (!advanced) expect(currentPage(html)).toBe("memory");
   });
 

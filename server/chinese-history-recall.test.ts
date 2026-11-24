@@ -9,13 +9,13 @@ import { chineseRecallQuery } from "./message-recall-chinese.ts";
 
 beforeEach(() => { closeMessageDb(); rmSync(DATA_DIR, { recursive: true, force: true }); });
 const message = (id: string, text: string, extra: Partial<Message> = {}): Message => ({ id, text, role: "user", kind: "text", at: 100, ...extra });
-const input = (message: string, threadIds = ["own"]) => ({ botId: "fixture-owner", message, threadIds, label: (id: string) => `chat ${id}`, author: (hit: { peer?: string; from?: string }) => hit.peer ?? hit.from ?? "Synthetic person", embedding: null });
+const input = (message: string, threadIds = ["own"]) => ({ botId: "fixture-owner", message, threadIds, label: (id: string) => `chat ${id}`, author: (hit: { peer?: string; from?: string }) => hit.peer ?? hit.from ?? "Synthetic person" });
 
 it("recalls a Chinese substring through the database and buildRecall, independently of ordinary LIKE search", async () => {
   insertMessage("fixture-own", { id: "old-fact", role: "bot", kind: "text", at: 1793966400000, text: "合成记录：我们决定通过远程桌面管理自己的服务器。R2_UNIQUE_FACT" });
   const search = searchMessages("远程桌面");
   const hits = recallMessages("远程桌面", ["fixture-own"], 12, undefined, "any");
-  const recall = await buildRecall({ botId: "fixture-owner", message: "上次远程桌面方案是什么", threadIds: ["fixture-own"], label: () => "synthetic source chat", author: () => "Synthetic bot", embedding: null });
+  const recall = await buildRecall({ botId: "fixture-owner", message: "上次远程桌面方案是什么", threadIds: ["fixture-own"], label: () => "synthetic source chat", author: () => "Synthetic bot" });
   console.info(JSON.stringify({ searchIds: search.map((hit) => hit.messageId), helperIds: hits.map((hit) => hit.messageId), recall }));
   expect(search.map((hit) => hit.messageId)).toEqual(["old-fact"]);
   expect(hits.map((hit) => hit.messageId)).toEqual(["old-fact"]);
@@ -25,7 +25,7 @@ it("recalls a Chinese substring through the database and buildRecall, independen
 it("admits a meaningful four-character Chinese query at the actual buildRecall gate", async () => {
   insertMessage("fixture-own", { id: "old-fact", role: "bot", kind: "text", at: 1793966400000, text: "通过远程桌面管理自己的服务器。R2_SHORT_FACT" });
   expect(recallQuery("远程桌面")).toBe("远程桌面");
-  const recall = await buildRecall({ botId: "fixture-owner", message: "远程桌面", threadIds: ["fixture-own"], label: () => "synthetic source chat", author: () => "Synthetic bot", embedding: null });
+  const recall = await buildRecall({ botId: "fixture-owner", message: "远程桌面", threadIds: ["fixture-own"], label: () => "synthetic source chat", author: () => "Synthetic bot" });
   expect(recall?.text).toContain("R2_SHORT_FACT");
 });
 
