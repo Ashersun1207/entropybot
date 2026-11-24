@@ -1,0 +1,56 @@
+name: EntropybotPhone
+options:
+  bundleIdPrefix: ai.cloudentropy
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+packages:
+  CompanionCore:
+    path: ./CompanionCore
+targets:
+  EntropybotPhone:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    dependencies:
+      - package: CompanionCore
+        product: CompanionCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.cloudentropy.entropybot.phone
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Entropybot
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        ITSAppUsesNonExemptEncryption: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSCameraUsageDescription: Entropybot uses the camera only to scan the pairing code shown on your computer.
+        NSLocalNetworkUsageDescription: Entropybot finds your computer on this network so your bots can reach you here.
+        NSBonjourServices:
+          - _openmausbot._tcp
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            ts.net:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: true
+        CFBundleURLTypes:
+          - CFBundleURLName: ai.cloudentropy.entropybot.phone.pairing
+            CFBundleURLSchemes:
+              - entropybot
