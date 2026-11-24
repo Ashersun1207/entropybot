@@ -15,22 +15,25 @@ export function MemorySettings() {
     dispatch({ type: "configStatus", config });
   };
   return (
-    <>
-      <RulesEditor confirmed={state.config?.memory?.defaultRules ?? ""} disabled={state.config === null}
-        label={t("settings.memory.defaultRules")} help={t("settings.memory.defaultRulesHelp")}
-        example={t("settings.memory.ruleExample")} onSave={save} />
-      <MemoryRulesGuide />
-      <Card>
-        <AboutMeSettings />
-      </Card>
-    </>
+    <div className="@container/memory">
+      <div className="grid min-w-0 items-start gap-4 @min-[760px]/memory:grid-cols-2 @min-[760px]/memory:grid-rows-[auto_1fr]">
+        <RulesEditor confirmed={state.config?.memory?.defaultRules ?? ""} disabled={state.config === null}
+          label={t("settings.memory.defaultRules")} help={t("settings.memory.defaultRulesHelp")}
+          example={t("settings.memory.ruleExample")} rows={4} onSave={save} />
+        <div className="min-w-0 @min-[760px]/memory:col-start-2 @min-[760px]/memory:row-start-1 @min-[760px]/memory:row-span-2">
+          <MemoryRulesGuide />
+        </div>
+        <Card>
+          <AboutMeSettings />
+        </Card>
+      </div>
+    </div>
   );
 }
 
 function MemoryRulesGuide() {
   const botMemory = { library: t("botPanel.tab.library"), memory: t("botPanel.memoryRow") };
   const entries = [
-    { title: t("settings.memory.defaultRules"), detail: t("settings.memory.globalRulesHelp") },
     { title: t("settings.memory.botRules"), detail: t("settings.memory.botRulesHelp", botMemory) },
     { title: t("botSettings.simple.instructions"), file: "SOUL.md", detail: t("settings.memory.soulHelp", { instructions: t("botSettings.simple.instructions") }) },
     { title: t("settings.memory.notes"), file: "MEMORY.md · memory/", detail: t("settings.memory.filesHelp", botMemory) },
@@ -41,10 +44,10 @@ function MemoryRulesGuide() {
     <Card title={t("settings.memory.overview")}>
       <dl className="divide-y divide-hairline/50 text-[13px] leading-relaxed">
         {entries.map(({ title, file, detail }) => (
-          <div key={title} className="grid gap-1 py-2.5 first:pt-0 last:pb-0 sm:grid-cols-[minmax(9rem,1fr)_3fr] sm:gap-4">
-            <dt className="font-medium text-ink">
+          <div key={title} className="grid gap-1 py-2.5 first:pt-0 last:pb-0">
+            <dt className="flex flex-wrap items-baseline gap-x-2 font-medium text-ink">
               {title}
-              {file && <code className="block text-[12px] font-normal text-ink-secondary">{file}</code>}
+              {file && <code className="text-[12px] font-normal text-ink-secondary">{file}</code>}
             </dt>
             <dd className="text-ink-secondary">{detail}</dd>
           </div>
@@ -70,8 +73,8 @@ export function BotRulesSettings({ bot }: { bot: Bot }) {
   );
 }
 
-function RulesEditor({ confirmed, label, help, example, disabled = false, onSave }: {
-  confirmed: string; label: string; help: string; example?: string; disabled?: boolean; onSave: (value: string) => Promise<void>;
+function RulesEditor({ confirmed, label, help, example, rows = 8, disabled = false, onSave }: {
+  confirmed: string; label: string; help: string; example?: string; rows?: number; disabled?: boolean; onSave: (value: string) => Promise<void>;
 }) {
   const id = useId();
   const editor = useRef<HTMLTextAreaElement>(null);
@@ -110,7 +113,7 @@ function RulesEditor({ confirmed, label, help, example, disabled = false, onSave
           </div>
         )}
         <textarea
-          ref={editor} id={id} rows={8} value={value} disabled={saving || disabled}
+          ref={editor} id={id} rows={rows} value={value} disabled={saving || disabled}
           aria-describedby={`${id}-help ${id}-budget`} aria-invalid={overBudget}
           onChange={(event) => { setDraft(event.target.value); setStatus("idle"); }}
           className="min-h-[120px] w-full resize-y rounded-lg border border-hairline/40 bg-inset px-3 py-2 font-mono text-[14px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"

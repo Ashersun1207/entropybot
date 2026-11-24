@@ -140,12 +140,14 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   const editor = () => [...host.querySelectorAll("label")].find((item) => item.textContent === "Global default rules")?.control as HTMLTextAreaElement;
   const aboutMe = host.querySelector<HTMLTextAreaElement>("#profile-about-me");
   const guide = host.querySelector("dl")?.textContent;
-  for (const text of ["Bots without their own rules", "Library → What it remembers → Rules", "replace the entire global set", "SOUL.md", "MEMORY.md", "memory/", "AGENTS.md", "Settings → General"]) {
+  expect(editor().form!.textContent).toContain("Bots without their own rules");
+  for (const text of ["Library → What it remembers → Rules", "replace the entire global set", "SOUL.md", "MEMORY.md", "memory/", "AGENTS.md", "Settings → General"]) {
     expect(guide).toContain(text);
   }
   expect(aboutMe?.value).toBe("My time zone is UTC");
   expect([...host.querySelectorAll("textarea")]).toEqual([editor(), aboutMe]);
   expect(editor().value).toBe("");
+  expect(editor().getAttribute("rows")).toBe("4");
   const example = () => [...editor().form!.querySelectorAll("button")].find((button) => button.textContent === "Insert example");
   flushSync(() => example()!.click());
   expect(editor().value).toContain("Start progress updates");
