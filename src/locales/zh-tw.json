@@ -4720,6 +4720,15 @@
   "settings.memory.checkBoth": "更正時請寫出舊值和新值。如果筆記和「關於我」都儲存了舊值，請分別確認。",
   "settings.memory.ruleEditScope": "若要變更規則，請編輯對應的規則欄位並儲存。對話中的記憶筆記、規則和工具權限各自設定。",
   "settings.memory.keepSecretsOut": "密碼、驗證碼和 API 金鑰請留在各自的安全設定中。",
+  "settings.memory.ruleTemplates": "工作規則範本",
+  "settings.memory.ruleTemplatesHelp": "選一條複製到全域或機器人專屬規則欄位，依需要修改後儲存。",
+  "settings.memory.ruleSourcesExample": "- 涉及數字或事實時，列出來源，並標註待確認的內容。",
+  "settings.memory.ruleConfirmExample": "- 對外傳送訊息前，先讓我確認收件人和內文。",
+  "settings.memory.chatExamples": "傳給機器人的話",
+  "settings.memory.chatExamplesHelp": "複製後，把範例中的專案、日期或偏好換成自己的，再傳到與該機器人的一對一聊天。",
+  "settings.memory.chatReviewExample": "幫我查一下：你記住的星河專案月報截止日是哪天？請告訴我這條從何而來。",
+  "settings.memory.chatForgetExample": "請忘記你記下的「星河專案舊會議室是 301」這條筆記。",
+  "settings.memory.forgetScope": "請機器人忘記筆記時，寫清楚要移除的那一條。聊天記錄需要在原對話中另外管理。",
   "botIdentity.soul.bytes": "{bytes} / {limit} 位元組",
   "botIdentity.soul.bytesOver": "{bytes} / {limit} 位元組，超出儲存上限"
 }

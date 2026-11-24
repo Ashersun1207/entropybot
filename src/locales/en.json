@@ -9514,5 +9514,14 @@
   "settings.memory.verifyEdit": "Check what was saved under {library} → {memory} or About me.",
   "settings.memory.checkBoth": "Give both the old and the new value when correcting a note. If the old value was in the bot’s notes and About me, check both.",
   "settings.memory.ruleEditScope": "To change a rule, edit the relevant rules field and save. Notes, rules, and tool permissions each have their own settings.",
-  "settings.memory.keepSecretsOut": "Keep passwords, verification codes, and API keys in their secure settings."
+  "settings.memory.keepSecretsOut": "Keep passwords, verification codes, and API keys in their secure settings.",
+  "settings.memory.ruleTemplates": "Work rule templates",
+  "settings.memory.ruleTemplatesHelp": "Copy a rule into the global or bot-specific rules field. Adapt it, then save.",
+  "settings.memory.ruleSourcesExample": "- Cite your sources for numbers and facts, and flag anything still to verify.",
+  "settings.memory.ruleConfirmExample": "- Before sending a message externally, ask me to confirm its recipient and text.",
+  "settings.memory.chatExamples": "What to say to a bot",
+  "settings.memory.chatExamplesHelp": "Copy an example, replace the project, date, or preference with your own, and send it in a one-on-one chat with that bot.",
+  "settings.memory.chatReviewExample": "What deadline do you remember for the Orion project’s monthly report? Tell me where that came from.",
+  "settings.memory.chatForgetExample": "Please forget the note that says Orion’s old meeting room was 301.",
+  "settings.memory.forgetScope": "Name the specific note you want the bot to forget. Manage chat history separately in the original conversation."
 }

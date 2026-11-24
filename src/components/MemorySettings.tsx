@@ -38,10 +38,11 @@ function memoryLocation() {
 }
 
 function MemoryExample({ text }: { text: string }) {
+  const id = useId();
   return (
     <div className="group flex items-center justify-between gap-2 rounded-md bg-inset px-2.5 py-1.5 text-ink">
-      <span className="min-w-0 select-text">{text}</span>
-      <CopyButton text={text} className="shrink-0 opacity-100" />
+      <span id={id} className="min-w-0 select-text">{text}</span>
+      <CopyButton text={text} describedBy={id} className="shrink-0 opacity-100" />
     </div>
   );
 }
@@ -60,15 +61,29 @@ function MemoryEditingGuide() {
           <summary className="cursor-pointer rounded-sm font-medium text-ink focus-visible:outline-focus">
             {t("settings.memory.editNotes")}
           </summary>
-          <div className="mt-2 grid gap-1.5">
-            <MemoryExample text={t("settings.memory.chatCorrectExample")} />
-            <MemoryExample text={t("settings.memory.chatPreferenceExample")} />
+          <div className="mt-3 space-y-3">
+            <section data-memory-rule-templates className="grid gap-1.5">
+              <h3 className="font-medium text-ink">{t("settings.memory.ruleTemplates")}</h3>
+              <p>{t("settings.memory.ruleTemplatesHelp")}</p>
+              <MemoryExample text={t("settings.memory.ruleExample")} />
+              <MemoryExample text={t("settings.memory.ruleSourcesExample")} />
+              <MemoryExample text={t("settings.memory.ruleConfirmExample")} />
+            </section>
+            <section data-memory-chat-examples className="grid gap-1.5">
+              <h3 className="font-medium text-ink">{t("settings.memory.chatExamples")}</h3>
+              <p>{t("settings.memory.chatExamplesHelp")}</p>
+              <MemoryExample text={t("settings.memory.chatCorrectExample")} />
+              <MemoryExample text={t("settings.memory.chatPreferenceExample")} />
+              <MemoryExample text={t("settings.memory.chatReviewExample")} />
+              <MemoryExample text={t("settings.memory.chatForgetExample")} />
+            </section>
+            <ul data-memory-edit-notes className="list-disc space-y-1 ps-4">
+              <li>{t("settings.memory.checkBoth")}</li>
+              <li>{t("settings.memory.forgetScope")}</li>
+              <li>{t("settings.memory.ruleEditScope")}</li>
+              <li>{t("settings.memory.keepSecretsOut")}</li>
+            </ul>
           </div>
-          <ul data-memory-edit-notes className="mt-2 list-disc space-y-1 ps-4">
-            <li>{t("settings.memory.checkBoth")}</li>
-            <li>{t("settings.memory.ruleEditScope")}</li>
-            <li>{t("settings.memory.keepSecretsOut")}</li>
-          </ul>
         </details>
       </div>
     </Card>

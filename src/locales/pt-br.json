@@ -9514,5 +9514,14 @@
   "settings.memory.verifyEdit": "Confira o que foi salvo em {library} → {memory} ou Sobre mim.",
   "settings.memory.checkBoth": "Informe o valor antigo e o novo ao corrigir uma nota. Se o valor antigo estava nas notas do bot e em Sobre mim, confira os dois lugares.",
   "settings.memory.ruleEditScope": "Para alterar uma regra, edite o campo correspondente e salve. Notas, regras e permissões de ferramentas têm configurações próprias.",
-  "settings.memory.keepSecretsOut": "Guarde senhas, códigos de verificação e chaves de API nas configurações de segurança correspondentes."
+  "settings.memory.keepSecretsOut": "Guarde senhas, códigos de verificação e chaves de API nas configurações de segurança correspondentes.",
+  "settings.memory.ruleTemplates": "Modelos de regras de trabalho",
+  "settings.memory.ruleTemplatesHelp": "Copie uma regra para o campo de regras globais ou do bot. Adapte e salve.",
+  "settings.memory.ruleSourcesExample": "- Cite as fontes de números e fatos e sinalize o que ainda precisa ser conferido.",
+  "settings.memory.ruleConfirmExample": "- Antes de enviar uma mensagem externa, peça que eu confirme o destinatário e o texto.",
+  "settings.memory.chatExamples": "O que dizer ao bot",
+  "settings.memory.chatExamplesHelp": "Copie um exemplo, substitua o projeto, a data ou a preferência pelos seus dados e envie numa conversa individual com esse bot.",
+  "settings.memory.chatReviewExample": "Qual prazo você lembra para o relatório mensal do projeto Orion? Diga de onde veio a informação.",
+  "settings.memory.chatForgetExample": "Esqueça a anotação que diz que a sala de reunião antiga do projeto Orion era a 301.",
+  "settings.memory.forgetScope": "Identifique a anotação específica que o bot deve esquecer. Gerencie o histórico de mensagens separadamente na conversa original."
 }

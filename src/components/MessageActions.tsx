@@ -241,13 +241,15 @@ export function ReplyAction({ onReply }: { onReply: () => void }) {
   );
 }
 
-export function CopyButton({ text, className }: { text: string; className?: string }) {
+export function CopyButton({ text, className, describedBy }: { text: string; className?: string; describedBy?: string }) {
   const { state, copy } = useCopyFeedback(text);
   const label = t(state === "copied" ? "chat.copyMessageDone" : state === "failed" ? "chat.copyMessageFailed" : "chat.copyMessage");
   return (
     <button
+      type="button"
       onClick={copy}
       aria-label={label}
+      aria-describedby={describedBy}
       title={label}
       className={cn(
         "rounded-md p-1.5 text-ink-secondary opacity-0 transition-opacity hover:bg-raised hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100",

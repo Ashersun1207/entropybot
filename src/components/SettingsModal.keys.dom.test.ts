@@ -151,11 +151,25 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
     expect([...editingGuide!.children].filter((item) => item !== more).map((item) => item.textContent).join(" ")).toContain(text);
   }
   expect(more?.hasAttribute("open")).toBe(false);
-  expect(editingGuide?.querySelectorAll("button")).toHaveLength(3);
-  expect(more?.querySelectorAll("button")).toHaveLength(2);
+  const copies = [...editingGuide!.querySelectorAll("button")];
+  expect(copies).toHaveLength(8);
+  expect(copies.filter((button) => !more?.contains(button))).toHaveLength(1);
+  for (const [selector, count, instruction] of [
+    ["[data-memory-rule-templates]", 3, "global or bot-specific rules field"],
+    ["[data-memory-chat-examples]", 4, "send it in a one-on-one chat"],
+  ] as const) {
+    const section = more?.querySelector(selector);
+    expect(section?.querySelectorAll("button")).toHaveLength(count);
+    expect(section?.textContent).toContain(instruction);
+  }
+  for (const button of copies) {
+    expect(button.type).toBe("button");
+    expect(document.getElementById(button.getAttribute("aria-describedby") ?? "")?.textContent).toBeTruthy();
+  }
   expect(more?.textContent).toContain("the 25th to the 28th");
   expect(more?.textContent).toContain("to About me");
-  for (const text of ["check both", "tool permissions", "API keys"]) {
+  expect(more?.textContent).toContain("old meeting room was 301");
+  for (const text of ["check both", "Manage chat history separately", "tool permissions", "API keys"]) {
     expect(editingNotes?.textContent).toContain(text);
   }
   expect(aboutMe?.value).toBe("My time zone is UTC");
