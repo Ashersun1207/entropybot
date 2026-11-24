@@ -43,7 +43,7 @@
 ## 小范围行为回归补充
 
 - 地址栏检测外层协议时，不能把路径、查询或 fragment 中的 `://` 当作外层协议。回归入口为 `src/lib/browser-address.test.ts`。修复必须同时保留非 Web 协议拒绝行为；本次第一版只匹配 HTTP(S) 曾让 FTP 被补成 HTTPS，既有负例立即捕获，最终改为匹配开头的完整协议结构。该证据覆盖公开解析函数及调用者静态接线，未覆盖真实浏览器导航。
-- 手机网页标题换成 Entropybot 后，安装清单的长名、短名、Safari 和 Chromium 的独立图标仍可能保留旧品牌。检查成品的 `manifest.webmanifest`、HTML 头部、实际图标像素与桌面图标源。改手机聊天时，从一次性浏览器配对进入隔离工作区，分别验证 320/390px 触屏和横屏，避免只在桌面窗口复查。入口为 `scripts/testing/web-app-assets.test.ts` 和 `scripts/testing/web-app-ui.e2e.test.ts`。真机已有主屏快捷方式的刷新行为需独立验收。独立复审另发现 320px 时长上下文警告会挤走按钮，且仅聊天配对能看到会被服务端拒绝的 Bot 默认模型选项。警告移到可换行的独立行，手机紧凑模型入口按配对角色限制变更范围；回归入口为 `ChatView.controls.test.ts` 及上述浏览器配对测试。
+- 手机网页标题换成 Entropybot 后，安装清单的长名、短名、Safari 和 Chromium 的独立图标仍可能保留旧品牌。检查成品的 `manifest.webmanifest`、HTML 头部、实际图标像素与桌面图标源。改手机聊天时，从一次性浏览器配对进入隔离工作区，分别验证 320/390px 触屏和横屏，避免只在桌面窗口复查。入口为 `scripts/testing/web-app-assets.test.ts` 和 `scripts/testing/web-app-ui.e2e.test.ts`。桌面原始 `.icns`、系统展示时包出边框的图标和手机主屏安装资产也须分别核对。同一个蓝色字形可以有不同外框。主屏外框由专用源图生成 Safari 与 manifest 的 PNG，变更后给安装图标地址加版本键。真机已有主屏快捷方式的刷新行为需独立验收。独立复审另发现 320px 时长上下文警告会挤走按钮，且仅聊天配对能看到会被服务端拒绝的 Bot 默认模型选项。警告移到可换行的独立行，手机紧凑模型入口按配对角色限制变更范围；回归入口为 `ChatView.controls.test.ts` 及上述浏览器配对测试。
 
 ## 不应合并的改动
 
