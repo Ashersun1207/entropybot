@@ -4,8 +4,7 @@ An independent development derivative of [OpenMausBot](https://github.com/milind
 
 ## Local changes
 
-- Optional DashScope `text-embedding-v4` memory retrieval with a local Chinese bigram fallback.
-- Persistent vector cache keyed by bot, file and model; integration with existing recall limits.
+- Local memory retrieval with Chinese bigrams for notes and SQLite FTS5 full-text and trigram indexes for recall.
 - Model-aware conversation replay budgets and history-based compaction for transcript-replay engines.
 - Compatibility handling for context-length errors, content-part arrays and reused tool-call IDs.
 

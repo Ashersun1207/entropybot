@@ -7,6 +7,9 @@ import { CREDENTIAL_TARGETS, credentialConfigPatch, desktopCredentialSlot, isCon
 import { KEY_CATALOG, KEY_SECTIONS, keyEntry, keyForInstance, keyMatches, looksLikeOtherKey, savedState, type KeyId } from "./key-catalog";
 
 const NOT_A_PERSONS_KEY: Record<string, string> = {
+  OMB_MEMORY_EMBEDDING_KEY: "a retired memory credential, still isolated from child processes",
+  OMB_MEMORY_EMBEDDING_STORAGE: "retired memory credential storage metadata, still isolated from child processes",
+  DASHSCOPE_API_KEY: "the retired memory credential fallback, still isolated from child processes",
   OMB_ANTHROPIC_API_URL: "the address the Anthropic key goes to, set by a hosted install",
   OMB_HOSTED_MODEL_TOKEN: "a hosted install's model token",
   OMB_HOSTED_MODELS: "a hosted install's model list",
