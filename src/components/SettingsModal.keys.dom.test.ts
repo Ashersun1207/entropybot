@@ -143,7 +143,7 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   expect(editor().form!.textContent).toContain("Bots without their own rules");
   expect(host.textContent).toContain("How rules apply");
   expect(host.textContent).toContain("Library → What it remembers → Rules");
-  expect(host.textContent).toContain("replace the entire global set");
+  expect(host.textContent).toContain("A bot’s own rules replace the entire global set. Bots without their own rules inherit the global rules. To edit its rules");
   for (const text of ["SOUL.md", "MEMORY.md", "memory/", "AGENTS.md", "Settings → General"]) {
     expect(guide?.textContent).toContain(text);
   }
@@ -166,7 +166,7 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
     .filter((button) => button.textContent === "Add to draft");
   flushSync(() => additions()[0]!.click());
   const firstRule = editor().value;
-  expect(firstRule).toContain("Start progress updates");
+  expect(firstRule).toBe("- When a task finishes or is interrupted, record the changes, verification results, and next step.");
   expect(additions()[0]?.disabled).toBe(true);
   flushSync(() => additions()[1]!.click());
   expect(editor().value).toBe(`${firstRule}\n- Cite your sources for numbers and facts, and flag anything still to verify.`);
