@@ -2,20 +2,39 @@ name: EntropybotPhone
 options:
   bundleIdPrefix: ai.cloudentropy
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "16.0"
   createIntermediateGroups: true
+
+settings:
+  configs:
+    Debug:
+      OTHER_SWIFT_FLAGS: "$(inherited) -Xfrontend -warn-long-expression-type-checking=500 -Xfrontend -warn-long-function-bodies=500"
+
 packages:
   CompanionCore:
     path: ./CompanionCore
+  WebRTC:
+    url: https://github.com/stasel/WebRTC
+    exactVersion: 153.0.0
+
+schemes:
+  OpenMausCompanion:
+    build:
+      targets:
+        OpenMausCompanion: all
+
 targets:
-  EntropybotPhone:
+  OpenMausCompanion:
     type: application
     platform: iOS
     sources:
       - path: App
+      - path: AppShared
+      - path: Shared
     dependencies:
       - package: CompanionCore
         product: CompanionCore
+      - package: WebRTC
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.cloudentropy.entropybot.phone
@@ -26,32 +45,46 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: 88NP7P794V
-      configs:
-        Debug:
-          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
     info:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Entropybot
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        UILaunchScreen: {}
+        LSApplicationCategoryType: public.app-category.productivity
         ITSAppUsesNonExemptEncryption: false
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLName: ai.cloudentropy.entropybot.phone.pairing
+            CFBundleURLSchemes:
+              - entropybot
+        UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSCameraUsageDescription: Entropybot uses the camera only to scan the pairing code shown on your computer.
-        NSLocalNetworkUsageDescription: Entropybot finds your computer on this network so your bots can reach you here.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSLocalNetworkUsageDescription: >-
+          Entropybot finds your computer on this network so your bots can
+          reach you here.
+        NSCameraUsageDescription: >-
+          Entropybot uses the camera only to scan a pairing QR code shown on
+          your computer.
+        NSMicrophoneUsageDescription: >-
+          Entropybot listens while you dictate a message to a bot or talk
+          to it on a Live call.
+        NSSpeechRecognitionUsageDescription: >-
+          Entropybot converts your speech into text so you can send it
+          to a bot. Recognition runs on this phone when it can.
         NSBonjourServices:
-          - _openmausbot._tcp
+          - _entropybot._tcp
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
             ts.net:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: true
-        CFBundleURLTypes:
-          - CFBundleURLName: ai.cloudentropy.entropybot.phone.pairing
-            CFBundleURLSchemes:
-              - entropybot

@@ -106,7 +106,7 @@ public enum PhoneSecretCrypto {
               isTargetID(context.target)
         else { throw PhoneSecretError.invalidRequest }
         return Data([
-            "openmausbot-phone-credential-v1",
+            "entropybot-phone-credential-v1",
             keyId,
             context.deviceId,
             context.botId,
