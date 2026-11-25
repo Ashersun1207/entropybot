@@ -2,7 +2,6 @@ import { useId, useRef, useState } from "react";
 import { MEMORY_DEFAULT_RULES_MAX_BYTES } from "../../shared/memory-default-rules";
 import { t } from "@/lib/i18n";
 import { api, useStore, type Bot, type BotAnnouncement, type ConfigStatus } from "@/state/store";
-import { AboutMeSettings } from "./AboutMeSettings";
 import { AdminOnly } from "./AdminOnly";
 import { CopyButton } from "./MessageActions";
 import { Card } from "./SettingsPrimitives";
@@ -16,20 +15,16 @@ export function MemorySettings() {
     dispatch({ type: "configStatus", config });
   };
   return (
-    <div className="@container/memory">
-      <div className="grid min-w-0 items-start gap-4 @min-[760px]/memory:grid-cols-2 @min-[760px]/memory:grid-rows-[auto_auto_1fr]">
-        <RulesEditor confirmed={state.config?.memory?.defaultRules ?? ""} disabled={state.config === null}
-          label={t("settings.memory.defaultRules")} help={t("settings.memory.defaultRulesHelp")}
-          templates={[t("settings.memory.ruleExample"), t("settings.memory.ruleSourcesExample"), t("settings.memory.ruleConfirmExample")]}
-          rows={4} onSave={save} />
-        <MemoryEditingGuide />
-        <div className="min-w-0 @min-[760px]/memory:col-start-2 @min-[760px]/memory:row-start-1 @min-[760px]/memory:row-span-3">
-          <MemoryRulesGuide />
-        </div>
-        <Card>
-          <AboutMeSettings />
-        </Card>
-      </div>
+    <div className="flex w-full max-w-4xl flex-col gap-4">
+      <RulesEditor confirmed={state.config?.memory?.defaultRules ?? ""} disabled={state.config === null}
+        label={t("settings.memory.defaultRules")} help={t("settings.memory.defaultRulesHelp")}
+        placeholder={t("settings.memory.noGlobalRules")}
+        templates={[t("settings.memory.ruleExample"), t("settings.memory.ruleSourcesExample"), t("settings.memory.ruleConfirmExample")]}
+        rows={4} onSave={save} />
+      <Card title={t("settings.memory.effectiveRules")}>
+        <p className="text-[13px] leading-relaxed text-ink-secondary">{t("settings.memory.botRulesHelp", memoryLocation())}</p>
+      </Card>
+      <MemoryRulesGuide />
     </div>
   );
 }
@@ -53,37 +48,26 @@ function MemoryExample({ text, onInsert, insertDisabled }: { text: string; onIns
   );
 }
 
-function MemoryEditingGuide() {
+export function BotMemoryEditingGuide() {
   return (
-    <Card title={t("settings.memory.editGuide")}>
-      <div data-memory-edit-guide className="space-y-2.5 text-[13px] leading-relaxed text-ink-secondary">
-        <div>
-          <p className="mb-1.5">{t("settings.memory.editByChatHelp")}</p>
+    <Card>
+      <details data-memory-edit-guide className="space-y-2.5 text-[13px] leading-relaxed text-ink-secondary">
+        <summary className="cursor-pointer font-medium text-ink">{t("settings.memory.editGuide")}</summary>
+        <p>{t("settings.memory.chatExamplesHelp")}</p>
+        <div data-memory-chat-examples className="grid gap-1.5">
           <MemoryExample text={t("settings.memory.chatRememberExample")} />
+          <MemoryExample text={t("settings.memory.chatCorrectExample")} />
+          <MemoryExample text={t("settings.memory.chatPreferenceExample")} />
+          <MemoryExample text={t("settings.memory.chatReviewExample")} />
+          <MemoryExample text={t("settings.memory.chatForgetExample")} />
         </div>
         <p>{t("settings.memory.verifyEdit", memoryLocation())}</p>
-        <details className="border-t border-hairline/50 pt-2">
-          <summary className="cursor-pointer rounded-sm font-medium text-ink focus-visible:outline-focus">
-            {t("settings.memory.editNotes")}
-          </summary>
-          <div className="mt-3 space-y-3">
-            <section data-memory-chat-examples className="grid gap-1.5">
-              <h3 className="font-medium text-ink">{t("settings.memory.chatExamples")}</h3>
-              <p>{t("settings.memory.chatExamplesHelp")}</p>
-              <MemoryExample text={t("settings.memory.chatCorrectExample")} />
-              <MemoryExample text={t("settings.memory.chatPreferenceExample")} />
-              <MemoryExample text={t("settings.memory.chatReviewExample")} />
-              <MemoryExample text={t("settings.memory.chatForgetExample")} />
-            </section>
-            <ul data-memory-edit-notes className="list-disc space-y-1 ps-4">
-              <li>{t("settings.memory.checkBoth")}</li>
-              <li>{t("settings.memory.forgetScope")}</li>
-              <li>{t("settings.memory.ruleEditScope")}</li>
-              <li>{t("settings.memory.keepSecretsOut")}</li>
-            </ul>
-          </div>
-        </details>
-      </div>
+        <ul data-memory-edit-notes className="list-disc space-y-1 ps-4">
+          <li>{t("settings.memory.checkBoth")}</li>
+          <li>{t("settings.memory.forgetScope")}</li>
+          <li>{t("settings.memory.keepSecretsOut")}</li>
+        </ul>
+      </details>
     </Card>
   );
 }
@@ -91,25 +75,27 @@ function MemoryEditingGuide() {
 function MemoryRulesGuide() {
   const botMemory = memoryLocation();
   const entries = [
-    { title: t("settings.memory.botRules"), detail: t("settings.memory.botRulesHelp", botMemory) },
     { title: t("botSettings.simple.instructions"), file: "SOUL.md", detail: t("settings.memory.soulHelp", { instructions: t("botSettings.simple.instructions") }) },
     { title: t("settings.memory.notes"), file: "MEMORY.md · memory/", detail: t("settings.memory.filesHelp", botMemory) },
     { title: t("settings.profile.aboutMe"), detail: t("settings.memory.sharedPreferences") },
     { title: t("settings.memory.projectRules"), file: "AGENTS.md", detail: t("settings.memory.projectRulesHelp") },
   ];
   return (
-    <Card title={t("settings.memory.overview")}>
-      <dl className="divide-y divide-hairline/50 text-[13px] leading-relaxed">
-        {entries.map(({ title, file, detail }) => (
-          <div key={title} className="grid gap-1 py-2.5 first:pt-0 last:pb-0">
-            <dt className="flex flex-wrap items-baseline gap-x-2 font-medium text-ink">
-              {title}
-              {file && <code className="text-[12px] font-normal text-ink-secondary">{file}</code>}
-            </dt>
-            <dd className="text-ink-secondary">{detail}</dd>
-          </div>
-        ))}
-      </dl>
+    <Card>
+      <details>
+        <summary className="cursor-pointer text-[14px] font-medium text-ink">{t("settings.memory.overview")}</summary>
+        <dl className="mt-3 divide-y divide-hairline/50 text-[13px] leading-relaxed">
+          {entries.map(({ title, file, detail }) => (
+            <div key={title} className="grid gap-1 py-2.5 first:pt-0 last:pb-0">
+              <dt className="flex flex-wrap items-baseline gap-x-2 font-medium text-ink">
+                {title}
+                {file && <code className="text-[12px] font-normal text-ink-secondary">{file}</code>}
+              </dt>
+              <dd className="text-ink-secondary">{detail}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
     </Card>
   );
 }
@@ -130,8 +116,9 @@ export function BotRulesSettings({ bot }: { bot: Bot }) {
   );
 }
 
-function RulesEditor({ confirmed, label, help, templates, rows = 8, disabled = false, onSave }: {
-  confirmed: string; label: string; help: string; templates?: readonly string[]; rows?: number; disabled?: boolean; onSave: (value: string) => Promise<void>;
+function RulesEditor({ confirmed, label, help, placeholder, templates, rows = 8, disabled = false, onSave }: {
+  confirmed: string; label: string; help: string; placeholder?: string; templates?: readonly string[]; rows?: number; disabled?: boolean;
+  onSave: (value: string) => Promise<void>;
 }) {
   const id = useId();
   const editor = useRef<HTMLTextAreaElement>(null);
@@ -142,9 +129,9 @@ function RulesEditor({ confirmed, label, help, templates, rows = 8, disabled = f
   const overBudget = bytes > MEMORY_DEFAULT_RULES_MAX_BYTES;
   const saving = status === "saving";
   const canSave = !disabled && value !== confirmed && !overBudget && !saving;
-  const ruleLines = value.split(/\r?\n/).map((line) => line.trim());
+  const ruleLines = value.split(/\r\n?|\n/).map((line) => line.trim());
   const insert = (template: string) => {
-    setDraft(value.trim() ? `${value}${value.endsWith("\n") ? "" : "\n"}${template}` : template);
+    setDraft(value.trim() ? `${value}${/[\r\n]$/.test(value) ? "" : "\n"}${template}` : template);
     setStatus("idle");
     editor.current?.focus();
   };
@@ -167,7 +154,7 @@ function RulesEditor({ confirmed, label, help, templates, rows = 8, disabled = f
         <label htmlFor={id} className="text-[14px] font-medium text-ink">{label}</label>
         <p id={`${id}-help`} className="text-[13px] text-ink-secondary">{help}</p>
         <textarea
-          ref={editor} id={id} rows={rows} value={value} disabled={saving || disabled}
+          ref={editor} id={id} rows={rows} value={value} placeholder={disabled ? undefined : placeholder} disabled={saving || disabled}
           aria-describedby={`${id}-help ${id}-budget`} aria-invalid={overBudget}
           onChange={(event) => { setDraft(event.target.value); setStatus("idle"); }}
           className="min-h-[120px] w-full resize-y rounded-lg border border-hairline/40 bg-inset px-3 py-2 font-mono text-[14px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
@@ -182,6 +169,7 @@ function RulesEditor({ confirmed, label, help, templates, rows = 8, disabled = f
           <span role="status">
             {status === "saved" && <span className="text-success">{t("settings.profile.saved")}</span>}
             {status === "error" && <span className="text-danger">{t("settings.profile.saveError")}</span>}
+            {status === "idle" && value !== confirmed && t("settings.memory.unsavedRules")}
           </span>
         </div>
         {templates && (

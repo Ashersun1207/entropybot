@@ -138,42 +138,28 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   flushSync(() => root.render(createElement(SettingsModal)));
 
   const editor = () => [...host.querySelectorAll("label")].find((item) => item.textContent === "Global default rules")?.control as HTMLTextAreaElement;
-  const aboutMe = host.querySelector<HTMLTextAreaElement>("#profile-about-me");
-  const guide = host.querySelector("dl")?.textContent;
+  const guide = host.querySelector("dl");
+  expect(guide?.closest("details")?.hasAttribute("open")).toBe(false);
   expect(editor().form!.textContent).toContain("Bots without their own rules");
-  for (const text of ["Library → What it remembers → Rules", "replace the entire global set", "SOUL.md", "MEMORY.md", "memory/", "AGENTS.md", "Settings → General"]) {
-    expect(guide).toContain(text);
+  expect(host.textContent).toContain("How rules apply");
+  expect(host.textContent).toContain("Library → What it remembers → Rules");
+  expect(host.textContent).toContain("replace the entire global set");
+  for (const text of ["SOUL.md", "MEMORY.md", "memory/", "AGENTS.md", "Settings → General"]) {
+    expect(guide?.textContent).toContain(text);
   }
-  const editingGuide = host.querySelector("[data-memory-edit-guide]");
-  const more = editingGuide?.querySelector<HTMLDetailsElement>("details");
-  const editingNotes = more?.querySelector("[data-memory-edit-notes]");
-  for (const text of ["one-on-one chat", "Check what was saved"]) {
-    expect([...editingGuide!.children].filter((item) => item !== more).map((item) => item.textContent).join(" ")).toContain(text);
-  }
-  expect(more?.hasAttribute("open")).toBe(false);
+  expect(host.querySelector("[data-memory-edit-guide]")).toBeNull();
   const templates = editor().form!.querySelector<HTMLDetailsElement>("[data-memory-rule-templates]")!;
-  const copies = [...editingGuide!.querySelectorAll("button"), ...templates.querySelectorAll<HTMLButtonElement>('button[title="Copy message"]')];
-  expect(copies).toHaveLength(8);
-  expect([...editingGuide!.querySelectorAll("button")].filter((button) => !more?.contains(button))).toHaveLength(1);
+  const copies = [...templates.querySelectorAll<HTMLButtonElement>('button[title="Copy message"]')];
+  expect(copies).toHaveLength(3);
   expect(templates.hasAttribute("open")).toBe(false);
   expect(templates.querySelectorAll("button")).toHaveLength(6);
   expect(templates.textContent).toContain("global draft");
-  const chat = more?.querySelector("[data-memory-chat-examples]");
-  expect(chat?.querySelectorAll("button")).toHaveLength(4);
-  expect(chat?.textContent).toContain("send it in a one-on-one chat");
-  expect(more?.querySelector("[data-memory-rule-templates]")).toBeNull();
   for (const button of copies) {
     expect(button.type).toBe("button");
     expect(document.getElementById(button.getAttribute("aria-describedby") ?? "")?.textContent).toBeTruthy();
   }
-  expect(more?.textContent).toContain("the 25th to the 28th");
-  expect(more?.textContent).toContain("to About me");
-  expect(more?.textContent).toContain("old meeting room was 301");
-  for (const text of ["check both", "several matching notes", "Manage chat history separately", "tool permissions", "API keys"]) {
-    expect(editingNotes?.textContent).toContain(text);
-  }
-  expect(aboutMe?.value).toBe("My time zone is UTC");
-  expect([...host.querySelectorAll("textarea")]).toEqual([editor(), aboutMe]);
+  expect([...host.querySelectorAll("textarea")]).toEqual([editor()]);
+  expect(editor().placeholder).toBe("No custom global rules saved");
   expect(editor().value).toBe("");
   expect(editor().getAttribute("rows")).toBe("4");
   const additions = () => [...editor().form!.querySelectorAll<HTMLButtonElement>("[data-memory-rule-templates] button")]
@@ -184,6 +170,7 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   expect(additions()[0]?.disabled).toBe(true);
   flushSync(() => additions()[1]!.click());
   expect(editor().value).toBe(`${firstRule}\n- Cite your sources for numbers and facts, and flag anything still to verify.`);
+  expect(editor().form!.querySelector('[role="status"]')?.textContent).toBe("Unsaved changes");
   expect(patchConfig).not.toHaveBeenCalled();
   flushSync(() => root.render(null));
   flushSync(() => root.render(createElement(SettingsModal)));
@@ -222,4 +209,9 @@ it.each([false, true])("opens Memory and saves the Markdown editor through confi
   flushSync(() => root.render(null));
   flushSync(() => root.render(createElement(SettingsModal)));
   expect(host.querySelector<HTMLTextAreaElement>("form textarea")?.value).toBe("");
+
+  fx.config = { ...fx.config, memory: { defaultRules: `${firstRule}\r- An existing rule.` } };
+  flushSync(publish);
+  expect(editor().value).toContain("An existing rule");
+  expect(additions()[0]?.disabled).toBe(true);
 });
