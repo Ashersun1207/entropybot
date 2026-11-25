@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Entropybot</title>
+  <defs>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e2e3e4"/>
+      <stop offset="0.34" stop-color="#a6a8ab"/>
+      <stop offset="0.7" stop-color="#66696d"/>
+      <stop offset="1" stop-color="#b4b7ba"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset="0.72" stop-color="#f4f5f5"/>
+      <stop offset="1" stop-color="#d8dbde"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b1d21"/>
+      <stop offset="1" stop-color="#0b0c0e"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fc8ff"/>
+      <stop offset="1" stop-color="#1084fe"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="#73767a"/>
+  <rect x="14" y="14" width="996" height="996" rx="234" fill="url(#silver)"/>
+  <rect x="63" y="63" width="898" height="898" rx="206" fill="url(#rim)"/>
+  <rect x="92" y="92" width="840" height="840" rx="178" fill="url(#face)"/>
+  <g transform="translate(102.4 102.4) scale(.8)">
+    <circle cx="512" cy="512" r="300" fill="none" stroke="#1084fe" stroke-opacity="0.16" stroke-width="6"/>
+    <path d="M398 330h240v78H486v70h130v74H486v72h160v78H398z" fill="url(#ink)"/>
+    <circle cx="512" cy="716" r="10" fill="#38d591"/>
+  </g>
+</svg>
