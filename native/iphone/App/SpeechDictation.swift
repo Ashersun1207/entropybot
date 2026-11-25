@@ -210,14 +210,17 @@ final class SpeechDictation: ObservableObject {
         // new draft or stopping the new capture.
         guard gen == generation, !stopping, isListening else { return }
         if let result {
-            transcript = Dictation.updateTranscript(transcript, new: result.bestTranscription.formattedString)
-            // Composer dictation does not wait for isFinal — the last
-            // partial is what you send. If the recognizer finalizes on
-            // its own (rare without endAudio), just stop listening.
             if result.isFinal {
+                // The final result is the complete utterance: replace, never
+                // append. On current iOS the on-device recognizer can deliver
+                // the same utterance as several final results; appending would
+                // repeat the sentence in the composer.
+                transcript = result.bestTranscription.formattedString
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
                 stop()
                 return
             }
+            transcript = Dictation.updateTranscript(transcript, new: result.bestTranscription.formattedString)
         }
         guard let recognitionError else { return }
         let ns = recognitionError as NSError
