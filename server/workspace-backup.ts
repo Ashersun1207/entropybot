@@ -14,7 +14,7 @@ import { writeFileAtomic } from "./atomic.ts";
 import { userErrorFields, userErrorThrown } from "./user-errors.ts";
 import { WORKSPACE_BACKUP_CLIENT_KEYS } from "../shared/workspace-backup-client.ts";
 import { INSTRUCTION_FILE, restorePaths, validRelative } from "./workspace-backup-paths.ts";
-import { ephemeralWorkspaceTokenPath, excludedWorkspaceAuthPath, liveDataEnginePath, managedTaskSkillLink, portableWorkspaceConfig, redownloadedOrgLibraryPath, restoredWorkspaceConfig } from "./workspace-backup-policy.ts";
+import { browserProfileFolder, ephemeralWorkspaceTokenPath, examplePaths, excludedWorkspaceAuthPath, liveDataEnginePath, managedTaskSkillLink, portableWorkspaceConfig, redownloadedOrgLibraryPath, restoredWorkspaceConfig } from "./workspace-backup-policy.ts";
 import { omittedAsTeamPrivate, stripTeamPrivate, TEAM_PRIVATE_NOTE, teamPrivateAttachments, teamPrivateThreads, withoutTeamPrivate } from "./workspace-backup-team-private.ts";
 import type { WorkspaceBackupClientState, WorkspaceBackupPrivateMetadata, WorkspaceBackupSummary, WorkspaceLeftBehind } from "../shared/workspace-backup.ts";
 
@@ -50,7 +50,7 @@ const EXCLUSION_NOTES = [
   "Device pairing, server identity, live leases and runtime files (existing destination identities are preserved).",
   "Saved credentials, provider and MCP connections, managed provider login homes and browser login profiles are not transferred. Destination connections are preserved; reconnect on a new device.",
   "Downloaded tools and caches (they can be installed again), and recorded browser step screenshots (export them from a conversation to keep them).",
-  "Installed dependency folders (node_modules) and symbolic links inside conversation work folders; reinstall or recreate them in the project.",
+  "Installed dependency folders (node_modules), browser profile folders, symbolic links inside conversation work folders, and links in bot folders to nothing or to outside this backup; reinstall or recreate them in the project.",
   "External project folders, CLI login homes, browser session homes, OS keychains, companion devices and other servers.",
   "VM/container disk layers and remote cloud data; durable files inside this workspace are included.",
   "Waits bots set up: they end within a week, so ask the bot again after restoring.",
@@ -313,6 +313,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
   let skippedDependencies = 0;
   let skippedWorkLinks = 0;
   let copiedLinks = 0;
+  const leftLinks: string[] = [], leftProfiles: string[] = [];
   try {
     const root = realpathSync(dataDir);
     for (const [name, snapshotName] of Object.entries(SNAPSHOT_DATABASES)) {
@@ -349,15 +350,20 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
           skippedDependencies++;
           continue;
         }
+        if (prefix && browserProfileFolder(source, stat)) { leftProfiles.push(path); continue; }
         if (stat.isSymbolicLink() && path.startsWith("task-workspaces/")) {
           if (managedTaskSkillLink(source, path, [root, resolve(dataDir)])) skippedLinks++; else skippedWorkLinks++;
           continue;
         }
         if (stat.isSymbolicLink()) {
+          // In a bot's folder, a link to nothing (a browser's SingletonLock) or to outside the data folder is left out and
+          // named in the backup's note; anywhere else it still stops the backup.
+          const leave = path.startsWith("workspaces/");
           let target: string;
-          try { target = realpathSync(source); } catch { throw new Error(`Cannot back up dangling symbolic link: ${path}`); }
+          try { target = realpathSync(source); } catch { if (leave) { leftLinks.push(path); continue; } throw new Error(`Cannot back up dangling symbolic link: ${path}`); }
           const rel = relative(root, target);
           if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
+            if (leave) { leftLinks.push(path); continue; }
             throw new Error(`Cannot back up symbolic link outside the workspace: ${path}`);
           }
           const portableRel = rel.replaceAll("\\", "/");
@@ -411,6 +417,8 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
     if (skippedLinks) warnings.push(`${skippedLinks} managed skill discovery link(s) were omitted and are recreated by the app.`);
     if (skippedDependencies) warnings.push(`${skippedDependencies} installed dependency folder(s) (node_modules) were omitted; reinstall them in the project after restoring.`);
     if (copiedLinks) warnings.push(`${copiedLinks} symbolic link(s) inside a workspace were saved as copies of what they point to; restoring creates regular files and folders there.`);
+    if (leftProfiles.length) warnings.push(`${leftProfiles.length} browser profile folder(s) in bot folders were left out with their sign-ins, cookies and caches; sign in again after restoring: ${examplePaths(leftProfiles)}.`);
+    if (leftLinks.length) warnings.push(`${leftLinks.length} symbolic link(s) in bot folders were left out because they point to nothing or outside this backup: ${examplePaths(leftLinks)}.`);
     if (skippedWorkLinks) warnings.push(`${skippedWorkLinks} symbolic link(s) in conversation work folders were omitted; what they point to is outside this backup.`);
     const summary: WorkspaceBackupSummary = {
       format: "openmaus.workspace-backup", version: 1, id: job.id, createdAt: new Date().toISOString(),

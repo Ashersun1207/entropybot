@@ -1,4 +1,4 @@
-import { readlinkSync } from "node:fs";
+import { lstatSync, readlinkSync, type Stats } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseStoredConfig } from "./config.ts";
 import { inSecretFolder } from "./secret-folder.ts";
@@ -68,6 +68,16 @@ export function liveDataEnginePath(path: string): boolean {
 
 /** Read the link text, never follow it. A link points at the bot's own skill, or at the same-named skill brought in
  * from this computer (imported-skills.ts), which the backup carries. */
+/** A Chromium browser's own profile folder (it holds "Local State"), as a bot's project may keep one: its sign-ins and
+ * cookies stay on the computer they were made on, as the app's own browser profiles do, and its caches are large. */
+export function browserProfileFolder(source: string, stat: Stats): boolean {
+  if (!stat.isDirectory()) return false;
+  try { return lstatSync(join(source, "Local State")).isFile(); } catch { return false; }
+}
+
+/** Up to three of `paths`, for a note that names what was left out. */
+export const examplePaths = (paths: readonly string[]): string => `${paths.slice(0, 3).join(", ")}${paths.length > 3 ? ", …" : ""}`;
+
 export function managedTaskSkillLink(source: string, path: string, roots: string[]): boolean {
   const match = /^task-workspaces\/([^/]+)\/[^/]+\/\.(?:claude|agents|grok)\/skills\/([^/]+)$/.exec(path);
   if (!match) return false;

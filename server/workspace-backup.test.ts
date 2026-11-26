@@ -717,7 +717,40 @@ describe("encrypted full workspace backups", () => {
     expect(existsSync(join(data, "task-workspaces", "bot", "thread", "linked-secret"))).toBe(false);
     expect(existsSync(join(data, "workspaces", "bot", "project", "node_modules"))).toBe(false);
     symlinkSync(join(outside, "secret"), join(root, "workspaces", "bot", "external"));
+    const leftOut = await createWorkspaceBackup(root, { password: PASSWORD });
+    expect(leftOut.summary.warnings.some((warning) => warning.startsWith("1 symbolic link(s) in bot folders were left out"))).toBe(true);
+    // Outside a bot's folder the rule stands: such a link still stops the backup.
+    symlinkSync(join(outside, "secret"), join(root, "external"));
     await expect(createWorkspaceBackup(root, { password: PASSWORD })).rejects.toThrow(/outside the workspace/);
+  });
+
+  it("leaves a bot folder's browser profile and links to nothing or outside out, and names them", async () => {
+    const root = directory();
+    const outside = directory();
+    writeFileSync(join(outside, "secret"), "must never be read");
+    const bot = join(root, "workspaces", "bot");
+    // A Chromium profile a bot's project keeps, known by its "Local State"; left out whole with its lock links.
+    const profile = join(bot, "broker", "state", "chrome-profile");
+    mkdirSync(join(profile, "Default"), { recursive: true });
+    writeFileSync(join(profile, "Local State"), "{}");
+    writeFileSync(join(profile, "Default", "Cookies"), "cookies");
+    symlinkSync("gone-12345", join(profile, "SingletonLock"));
+    symlinkSync(join(outside, "missing"), join(profile, "RunningChromeVersion"));
+    // The same kinds of link in a bot folder but outside a browser profile are left out and named.
+    mkdirSync(join(bot, "notes"), { recursive: true });
+    writeFileSync(join(bot, "notes", "todo.md"), "keep me");
+    symlinkSync(join(outside, "missing"), join(bot, "notes", "dangling"));
+    symlinkSync(join(outside, "secret"), join(bot, "notes", "outside"));
+    const exported = await createWorkspaceBackup(root, { password: PASSWORD });
+    expect(exported.summary.warnings.some((warning) => warning.startsWith("1 browser profile folder(s) in bot folders were left out"))).toBe(true);
+    expect(exported.summary.warnings.some((warning) => warning.startsWith("2 symbolic link(s) in bot folders were left out"))).toBe(true);
+    const target = directory();
+    const staged = await stageWorkspaceBackup(target, exported.path, { password: PASSWORD });
+    const data = join(target, ".backups", staged.id, "staged", "data", "workspaces", "bot");
+    expect(readFileSync(join(data, "notes", "todo.md"), "utf8")).toBe("keep me");
+    expect(existsSync(join(data, "broker", "state", "chrome-profile"))).toBe(false);
+    expect(existsSync(join(data, "notes", "dangling"))).toBe(false);
+    expect(existsSync(join(data, "notes", "outside"))).toBe(false);
   });
 
   it("counts the app's skill links in work folders as managed, not as outside data", async () => {
