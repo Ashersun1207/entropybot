@@ -530,13 +530,14 @@ export function Composer({
           replyToId: failed.replyToId,
           threadId: failed.threadId, mentions: failed.mentions,
           channelMode: failed.channelMode,
+          followUp: failed.followUp,
         });
       },
     };
     if (group) {
       dispatch({ type: "sendGroup", groupId: group.id, mode: failedMode, ...retry });
     } else if (bot) {
-      dispatch({ type: "send", botId: bot.id, mode: failedMode, ...retry });
+      dispatch({ type: "send", botId: bot.id, mode: failedMode, ...retry, ...(failed.followUp ? { followUp: failed.followUp } : {}) });
     }
   };
   const send = (followUp: FollowUp | undefined = followUpFor(false)) => {
@@ -564,6 +565,7 @@ export function Composer({
       replyToId: replyTo?.id,
       threadId,
       channelMode: effectiveChannelMode, mentions: picks.ids(body),
+      followUp,
     };
     if (group) {
       dispatch({
