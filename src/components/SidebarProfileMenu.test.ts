@@ -330,7 +330,7 @@ describe("choosing where the phone connects", () => {
 describe("Get the phone app", () => {
   it("offers iPhone and Android with the links the website and Cloud page use", () => {
     expect(PHONE_APPS.map((app) => [app.id, app.url])).toEqual([["ios", IOS_APP_STORE_URL], ["android", ANDROID_APK_URL]]);
-    expect(IOS_APP_STORE_URL).toBe("https://apps.apple.com/in/app/entropybot/id6803387923");
+    expect(IOS_APP_STORE_URL).toBe("https://github.com/Ashersun1207/entropybot/releases");
     expect(ANDROID_APK_URL).toBe("https://github.com/Ashersun1207/entropybot/releases/download/android-v1.5.0/Entropybot.apk");
   });
 

@@ -14,7 +14,8 @@ export function withSource(url: string, source: string): string {
   return target.href;
 }
 export const LICENSE_URL = `${APP_REPOSITORY}/blob/main/LICENSE`;
-export const IOS_APP_STORE_URL = "https://apps.apple.com/in/app/entropybot/id6803387923";
+// No own App Store listing yet: link the repository instead of the upstream store entry.
+export const IOS_APP_STORE_URL = `${APP_REPOSITORY}/releases`;
 export const ANDROID_APK_URL = `${APP_REPOSITORY}/releases/download/android-v1.5.0/Entropybot.apk`;
 
 export function appVersion(): string {
