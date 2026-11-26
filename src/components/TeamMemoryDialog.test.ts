@@ -95,3 +95,41 @@ it("restores a historical name even when its detail is unchanged", async () => {
   expect(JSON.parse(request.mock.calls.find(([, init]) => init?.method === "PATCH")![1].body))
     .toEqual({ name: "Earlier colour", detail: entry.detail, expectedRevision: entry.revision });
 });
+
+it("ignores Enter and Escape while an input method is composing", async () => {
+  const onClose = vi.fn();
+  request.mockResolvedValue({ entries: [entry], loadedIds: [entry.id] });
+  flushSync(() => root.render(createElement(TeamMemoryDialog, { section: "Editing", label: "Editing", onClose })));
+  await vi.waitFor(() => expect(document.querySelector('[aria-label="Colour detail"]')).not.toBeNull());
+
+  const blur = vi.spyOn(HTMLInputElement.prototype, "blur");
+  const field = document.querySelector<HTMLInputElement>('[aria-label="Colour detail"]')!;
+  field.value = "Draft";
+  field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", isComposing: true, bubbles: true }));
+  flushSync(() => {});
+  expect(blur).not.toHaveBeenCalled();
+
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", isComposing: true, bubbles: true }));
+  flushSync(() => {});
+  expect(onClose).not.toHaveBeenCalled();
+
+  field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", isComposing: false, bubbles: true }));
+  flushSync(() => {});
+  expect(blur).toHaveBeenCalled();
+  expect(onClose).not.toHaveBeenCalled();
+});
+
+it("does not add an entry on a composing Enter in the detail field", async () => {
+  request.mockResolvedValue({ entries: [entry], loadedIds: [entry.id] });
+  await render();
+  const addButton = [...document.querySelectorAll("button")].find(button => (button.textContent ?? "").includes("Add an entry"));
+  expect(addButton).toBeTruthy();
+  flushSync(() => addButton!.click());
+  const detail = document.querySelector<HTMLInputElement>('[aria-label="Detail"]')!;
+  const name = document.querySelector<HTMLInputElement>('[aria-label="Name"]')!;
+  name.value = "Deadline";
+  detail.value = "Friday";
+  detail.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", isComposing: true, bubbles: true }));
+  flushSync(() => {});
+  expect(request.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
+});
