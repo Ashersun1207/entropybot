@@ -405,7 +405,7 @@ struct ComputerView: View {
             notice(
                 systemImage: "lock.display",
                 title: "Computer access is off for this phone",
-                detail: Text("Turn on Allow computer view for this phone in OpenMausBot → Settings → Remote access on your computer.")
+                detail: Text("Turn on Allow computer view for this phone in Entropybot → Settings → Remote access on your computer.")
             )
         case let .unavailable(reason):
             notice(systemImage: "display.trianglebadge.exclamationmark", title: "Can't show the Local VM", detail: Text(verbatim: reason))

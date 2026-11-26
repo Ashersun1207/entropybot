@@ -277,7 +277,7 @@ struct RoutineEditorView: View {
                     if runOn == .maus {
                         Text("Uses this agent's selected model and computer setting on the paired computer.")
                     } else if runAvailability?.cloudReady(engine: botEngine) == true {
-                        Text("Runs on this bot's own model, which uses the bot's cloud computer. The cloud computer wakes for each run; keep OpenMausBot running so its scheduler can start the job.")
+                        Text("Runs on this bot's own model, which uses the bot's cloud computer. The cloud computer wakes for each run; keep Entropybot running so its scheduler can start the job.")
                     } else {
                         Text("This Cloud VM choice is kept, but it can't run until the paired computer has cloud computers and this bot's model can use a computer.")
                     }
@@ -355,7 +355,7 @@ struct RoutineEditorView: View {
                         DatePicker("Starting", selection: $intervalAnchor)
                     } else {
                         Label(
-                            "This routine uses a schedule added by a newer OpenMausBot. Choose One time, Selected days, or Every X minutes before saving.",
+                            "This routine uses a schedule added by a newer Entropybot. Choose One time, Selected days, or Every X minutes before saving.",
                             systemImage: "exclamationmark.triangle"
                         )
                         .font(.footnote)

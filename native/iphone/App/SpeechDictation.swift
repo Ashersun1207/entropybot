@@ -262,7 +262,7 @@ final class SpeechDictation: ObservableObject {
     }
 
     static let speechDeniedMessage: LocalizedStringKey =
-        "Dictation needs Speech Recognition access. Enable it in Settings → OpenMausMobile."
+        "Dictation needs Speech Recognition access. Enable it in Settings → Entropybot."
     static let micDeniedMessage: LocalizedStringKey =
-        "Dictation needs Microphone access. Enable it in Settings → OpenMausMobile."
+        "Dictation needs Microphone access. Enable it in Settings → Entropybot."
 }

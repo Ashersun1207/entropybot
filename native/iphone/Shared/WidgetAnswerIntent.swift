@@ -62,7 +62,7 @@ struct WidgetAnswerIntent: AppIntent {
             // person instead of wearing a network error's clothes.
             return .result(dialog: "Unlock iPhone, then answer again.")
         } catch {
-            return .result(dialog: "Open MausBot to answer.")
+            return .result(dialog: "Open Entropybot to answer.")
         }
 
         do {
@@ -103,7 +103,7 @@ struct WidgetAnswerIntent: AppIntent {
             await WidgetSnapshotRefresh.refresh(connection: connection, token: token, store: store)
             return .result(dialog: dialog)
         } catch {
-            return .result(dialog: "Open MausBot to answer.")
+            return .result(dialog: "Open Entropybot to answer.")
         }
     }
 }

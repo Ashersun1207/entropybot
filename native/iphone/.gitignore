@@ -6,3 +6,6 @@ build/
 .swiftpm/
 *.xcuserdatad/
 xcuserdata/
+
+# Vendored binary (Google WebRTC, BSD): re-download and unzip into WebRTC/.
+WebRTC/WebRTC.xcframework/

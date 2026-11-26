@@ -14,8 +14,7 @@ packages:
   CompanionCore:
     path: ./CompanionCore
   WebRTC:
-    url: https://github.com/stasel/WebRTC
-    exactVersion: 153.0.0
+    path: ./WebRTC
 
 schemes:
   OpenMausCompanion:
@@ -38,6 +37,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.cloudentropy.entropybot.phone
+        PRODUCT_NAME: Entropybot
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"

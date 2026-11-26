@@ -62,7 +62,7 @@ struct SettingsView: View {
                     .accessibilityHint(notificationAccessibilityHint)
                 }
             } footer: {
-                Text("Alerts arrive while OpenMausBot is open or was recently in the background. Closed-app delivery is not available yet.")
+                Text("Alerts arrive while Entropybot is open or was recently in the background. Closed-app delivery is not available yet.")
             }
 
             Section {
@@ -140,7 +140,7 @@ struct SettingsView: View {
                     }
                 }
             } footer: {
-                Text("Changes the language inside OpenMausMobile. Buttons drawn by iOS itself follow the phone's language, which you can set for this app in iOS Settings.")
+                Text("Changes the language inside Entropybot. Buttons drawn by iOS itself follow the phone's language, which you can set for this app in iOS Settings.")
             }
 
             if session.connection != nil {
@@ -325,7 +325,7 @@ struct ConnectedComputersView: View {
                                 pendingRemoval = computer
                             }
                         }
-                        .accessibilityHint("Switches OpenMausMobile to this computer")
+                        .accessibilityHint("Switches Entropybot to this computer")
                     }
                 }
             }
@@ -493,7 +493,7 @@ struct ConnectionSecurityView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This removes the connection from this device only. It does not revoke this device on your Mac. To remove Mac-side access, open OpenMausBot → Settings → Phone and remove it there.")
+            Text("This removes the connection from this device only. It does not revoke this device on your Mac. To remove Mac-side access, open Entropybot → Settings → Phone and remove it there.")
         }
     }
 
@@ -504,7 +504,7 @@ struct ConnectionSecurityView: View {
         case .live:
             return Text("This computer is connected and responding normally.")
         case .connecting:
-            return Text("OpenMausBot is trying the saved connection automatically.")
+            return Text("Entropybot is trying the saved connection automatically.")
         case let .offline(reason):
             return Text(verbatim: reason)
         case .unauthorized:
