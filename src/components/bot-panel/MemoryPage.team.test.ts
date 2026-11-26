@@ -56,7 +56,13 @@ it("on a Team Cloud shows what the bot remembers about the person, from their ow
   await settle();
   expect(host.textContent).toContain("Ada's favourite fruit is durian");
   expect(host.textContent).not.toContain("Couldn't read the memory file");
-  expect(calls.every(([, path]) => path.includes("/memory/mine"))).toBe(true);
+  const examples = host.querySelector("[data-memory-edit-guide]");
+  expect(examples?.hasAttribute("open")).toBe(false);
+  expect(examples?.querySelectorAll('button[title="Copy message"]')).toHaveLength(5);
+  expect(examples?.textContent).toContain("wait for my confirmation before changing anything");
+  expect(calls).toContainEqual(["GET", "/api/bots/scout/memory/mine"]);
+  expect(calls.filter(([method, path]) => !(method === "GET" && path === "/api/auth/session")
+    && !path.includes("/memory/mine"))).toEqual([]);
   const forget = host.querySelector<HTMLButtonElement>("[data-memory-note] button")!;
   await act(async () => forget.click());
   await settle();

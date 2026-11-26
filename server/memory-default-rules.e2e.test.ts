@@ -62,6 +62,10 @@ it("accepts exactly 4,000 UTF-8 bytes, persists through restart, rejects overflo
 
   expect(await api("PATCH", "/api/config", { memory: { defaultRules: null } })).toMatchObject({ memory: { defaultRules: "" } });
   expect(configFile().memory).toEqual({ tidyHour: 9 });
+  expect(await api("PATCH", "/api/config", { memory: { defaultRules: "" } })).toMatchObject({ memory: { defaultRules: "" } });
+  await fixture.restart();
+  expect(configFile().memory).toEqual({ tidyHour: 9, defaultRules: "" });
+  expect(await api("GET", "/api/config")).toMatchObject({ memory: { defaultRules: "" } });
 }, 90_000);
 
 it("validates bot rules on create and patch before changing any settings", async (ctx) => {
